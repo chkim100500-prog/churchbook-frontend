@@ -5268,39 +5268,46 @@
         }
 
         function populateBudgetOptions() {
-          api('GET', '/api/master')
-            .then(result => {
-              if (!result.success || !result.data) return;
-              const d = result.data;
-              const constants = {
-                INCOME_ITEMS: d.incomeItems || d.INCOME_ITEMS || [],
-                DEPARTMENTS: d.departments || d.DEPARTMENTS || [],
-                EXPENSE_ITEMS_BY_DEPT: d.expenseItemsByDept || d.EXPENSE_ITEMS_BY_DEPT || {},
-              };
-
-              const budgetIncomeSelect = document.getElementById('budgetIncomeItem');
-              if (budgetIncomeSelect) {
-                budgetIncomeSelect.innerHTML = '<option value="">선택하세요</option>';
-                constants.INCOME_ITEMS.forEach(item => {
+          // 전역변수 INCOME_ITEMS, DEPARTMENTS가 이미 있으면 바로 사용
+          // 없으면 API 호출
+          function fillBudgetDropdowns(incomeItems, departments, expenseItemsByDept) {
+            const budgetIncomeSelect = document.getElementById('budgetIncomeItem');
+            if (budgetIncomeSelect) {
+              budgetIncomeSelect.innerHTML = '<option value="">선택하세요</option>';
+              (incomeItems || []).forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.textContent = item;
+                budgetIncomeSelect.appendChild(option);
+              });
+            }
+            const budgetExpenseDeptSelect = document.getElementById('budgetExpenseDept');
+            if (budgetExpenseDeptSelect) {
+              budgetExpenseDeptSelect.innerHTML = '<option value="">선택하세요</option>';
+              (departments || []).forEach(dept => {
+                if ((expenseItemsByDept || {})[dept]) {
                   const option = document.createElement('option');
-                  option.value = item; option.textContent = item;
-                  budgetIncomeSelect.appendChild(option);
-                });
-              }
+                  option.value = dept; option.textContent = dept;
+                  budgetExpenseDeptSelect.appendChild(option);
+                }
+              });
+            }
+          }
 
-              const budgetExpenseDeptSelect = document.getElementById('budgetExpenseDept');
-              if (budgetExpenseDeptSelect) {
-                budgetExpenseDeptSelect.innerHTML = '<option value="">선택하세요</option>';
-                constants.DEPARTMENTS.forEach(dept => {
-                  if (constants.EXPENSE_ITEMS_BY_DEPT[dept]) {
-                    const option = document.createElement('option');
-                    option.value = dept; option.textContent = dept;
-                    budgetExpenseDeptSelect.appendChild(option);
-                  }
-                });
-              }
-            })
-            .catch(err => console.error('예산 옵션 로딩 오류:', err));
+          if (INCOME_ITEMS && INCOME_ITEMS.length > 0) {
+            fillBudgetDropdowns(INCOME_ITEMS, DEPARTMENTS, EXPENSE_ITEMS_BY_DEPT);
+          } else {
+            api('GET', '/api/master')
+              .then(result => {
+                if (!result.success || !result.data) return;
+                const d = result.data;
+                fillBudgetDropdowns(
+                  d.incomeItems || d.INCOME_ITEMS || [],
+                  d.departments || d.DEPARTMENTS || [],
+                  d.expenseItemsByDept || d.EXPENSE_ITEMS_BY_DEPT || {}
+                );
+              })
+              .catch(err => console.error('예산 옵션 로딩 오류:', err));
+          }
         }
 
 
