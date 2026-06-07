@@ -1848,6 +1848,49 @@
             to { opacity: 0; transform: translate(-50%, -20px); }
         }
     </style>
+    <script>
+    // =============================================
+    // Node.js 백엔드 연결 헬퍼
+    // =============================================
+    const API_BASE_URL = 'https://churchbook-backend-production.up.railway.app';
+
+    function getAuthToken() {
+        return sessionStorage.getItem('cb_token') || '';
+    }
+    function setAuthToken(token) {
+        sessionStorage.setItem('cb_token', token);
+    }
+    function clearAuthToken() {
+        sessionStorage.removeItem('cb_token');
+    }
+
+    // qs: 객체 → URL 쿼리스트링 (null/undefined 제외)
+    function qs(params) {
+        return Object.entries(params)
+            .filter(([, v]) => v !== null && v !== undefined && v !== '')
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join('&');
+    }
+
+    // api: fetch 래퍼 — JSON 반환, 인증 헤더 자동 포함
+    async function api(method, path, body) {
+        const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
+        const opts = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getAuthToken()}`,
+            },
+        };
+        if (body !== undefined) opts.body = JSON.stringify(body);
+        const res = await fetch(url, opts);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ message: res.statusText }));
+            throw new Error(err.message || `HTTP ${res.status}`);
+        }
+        return res.json();
+    }
+    </script>
 </head>
 <body>
     <!-- 로딩 스피너 -->
@@ -3086,11 +3129,6 @@
                 month = parseInt(monthValue);
             }
 
-            if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                showAlert('직접 출력은 배포된 환경에서만 동작합니다.', 'error');
-                return;
-            }
-
             showLoading();
 
             // 보고서 유형별 백엔드 함수 및 파라미터 결정
@@ -3114,35 +3152,35 @@
                     return;
             }
 
-            google.script.run
-                .withSuccessHandler(function(result) {
+            // backendFn → Node.js API 매핑
+            const reportEndpointMap = {
+                getMonthlyReportHTMLForPrint: (p) => `/api/reports/monthly/html?${qs({ year: p[0], month: p[1] })}`,
+                getLedgerHTMLForPrint:        (p) => `/api/reports/ledger/html?${qs({ year: p[0], month: p[1] })}`,
+                getDonorReportHTMLForPrint:   (p) => `/api/reports/donor/html?${qs({ year: p[0] })}`,
+            };
+            const endpoint = reportEndpointMap[backendFn] ? reportEndpointMap[backendFn](params) : null;
+            if (!endpoint) { hideLoading(); showAlert('알 수 없는 보고서 유형입니다.', 'error'); return; }
+
+            api('GET', endpoint)
+                .then(result => {
                     hideLoading();
-                    if (result && result.success) {
-                        // 새 창을 열고 HTML을 직접 주입한 뒤 인쇄 다이얼로그 실행
+                    if (result && result.success && result.html) {
                         const printWin = window.open('', '_blank', 'width=900,height=700');
-                        if (!printWin) {
-                            showAlert('팝업이 차단되었습니다. 브라우저에서 팝업 허용 후 다시 시도하세요.', 'error');
-                            return;
-                        }
+                        if (!printWin) { showAlert('팝업이 차단되었습니다.', 'error'); return; }
                         printWin.document.open();
                         printWin.document.write(result.html);
                         printWin.document.close();
-                        // HTML 렌더링 완료 후 인쇄 다이얼로그 자동 실행
-                        printWin.onload = function() {
-                            printWin.focus();
-                            printWin.print();
-                        };
+                        printWin.onload = function() { printWin.focus(); printWin.print(); };
                         hideReportForm();
                     } else {
                         showAlert(result ? result.message : '보고서 생성에 실패했습니다.', 'error');
                     }
                 })
-                .withFailureHandler(function(error) {
+                .catch(err => {
                     hideLoading();
                     showAlert('보고서 출력 중 오류가 발생했습니다.', 'error');
-                    console.error('직접 출력 오류:', error);
-                })
-                [backendFn](...params);
+                    console.error('직접 출력 오류:', err);
+                });
         }
 
         // === 보고서 생성 함수 수정 (전역 변수에 정보 저장) ===
@@ -3182,131 +3220,88 @@
 
         // === 1. 미리보기 API 호출 함수들 ===
 
-        // 미리보기 생성
+        // 미리보기 생성 (Node.js: POST /api/reports/preview)
         async function createPreview(type, data) {
           try {
             showLoadingState('미리보기 생성 중...');
-            
-            const result = await new Promise((resolve, reject) => {
-              google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)
-                .previewAPI('create', { type: type, ...data });
-            });
-            
+            const result = await api('POST', '/api/reports/preview', { type, ...data });
             hideLoadingState();
-            
             if (result.success) {
               currentPreviewId = result.previewId;
               currentPreviewTitle = result.title;
-              
-              showSuccessMessage(`미리보기가 생성되었습니다. (${result.expiryMinutes}분 후 자동 삭제)`);
-              return result;
+              showSuccessMessage(`미리보기가 생성되었습니다. (${result.expiryMinutes || 10}분 후 자동 삭제)`);
             } else {
               showErrorMessage(result.message);
-              return result;
             }
-            
+            return result;
           } catch (error) {
             hideLoadingState();
             console.error('미리보기 생성 오류:', error);
             showErrorMessage('미리보기 생성 중 오류가 발생했습니다.');
-            return { success: false, error: error };
+            return { success: false, error };
           }
         }
 
-        // 미리보기 조회 및 표시
+        // 미리보기 조회 (Node.js: GET /api/reports/preview/:id)
         async function showPreview(previewId) {
           try {
             showLoadingState('미리보기 로딩 중...');
-            
-            const result = await new Promise((resolve, reject) => {
-              google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)
-                .previewAPI('get', { previewId: previewId });
-            });
-            
+            const result = await api('GET', `/api/reports/preview/${previewId}`);
             hideLoadingState();
-            
             if (result.success) {
               displayPreview(result);
-              return result;
             } else {
               showErrorMessage(result.message);
-              return result;
             }
-            
+            return result;
           } catch (error) {
             hideLoadingState();
             console.error('미리보기 조회 오류:', error);
             showErrorMessage('미리보기 조회 중 오류가 발생했습니다.');
-            return { success: false, error: error };
+            return { success: false, error };
           }
         }
 
-        // 미리보기에서 이메일 발송
+        // 미리보기 이메일 발송 (Node.js: POST /api/reports/preview/:id/send)
         async function sendEmailFromPreview(previewId, email) {
           try {
             if (!email || !email.includes('@')) {
               showErrorMessage('올바른 이메일 주소를 입력하세요.');
               return { success: false };
             }
-            
             showLoadingState('이메일 발송 중...');
-            
-            const result = await new Promise((resolve, reject) => {
-              google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)
-                .previewAPI('send', { previewId: previewId, email: email });
-            });
-            
+            const result = await api('POST', `/api/reports/preview/${previewId}/send`, { email });
             hideLoadingState();
-            
             if (result.success) {
               showSuccessMessage('이메일이 성공적으로 발송되었습니다.');
-              
-              // 발송 성공시 미리보기 정리
               currentPreviewId = null;
               currentPreviewTitle = null;
               closePreview();
-              
-              return result;
             } else {
               showErrorMessage(result.message);
-              return result;
             }
-            
+            return result;
           } catch (error) {
             hideLoadingState();
             console.error('이메일 발송 오류:', error);
             showErrorMessage('이메일 발송 중 오류가 발생했습니다.');
-            return { success: false, error: error };
+            return { success: false, error };
           }
         }
 
-        // 미리보기 삭제
+        // 미리보기 삭제 (Node.js: DELETE /api/reports/preview/:id)
         async function deletePreview(previewId) {
           try {
-            const result = await new Promise((resolve, reject) => {
-              google.script.run
-                .withSuccessHandler(resolve)
-                .withFailureHandler(reject)
-                .previewAPI('delete', { previewId: previewId });
-            });
-            
+            const result = await api('DELETE', `/api/reports/preview/${previewId}`);
             if (result.success) {
               currentPreviewId = null;
               currentPreviewTitle = null;
               closePreview();
             }
-            
             return result;
-            
           } catch (error) {
             console.error('미리보기 삭제 오류:', error);
-            return { success: false, error: error };
+            return { success: false, error };
           }
         }
 
@@ -3785,27 +3780,20 @@
             
             const monthValue = month === 'half' ? 'half' : parseInt(month);
             
-            google.script.run
-                .withSuccessHandler(function(result) {
+            api('POST', '/api/reports/monthly/send', { email, year, month: monthValue })
+                .then(result => {
                     hideLoading();
                     if (result.success) {
-                        showAlert(result.message, 'success');
-                        // 미리보기 버튼 표시 및 활성화
+                        showAlert(result.message || '월회계보고서가 발송되었습니다.', 'success');
                         const previewSection = document.getElementById('reportPreviewSection');
                         const previewButton = document.getElementById('previewReportButton');
                         if (previewSection && previewButton) {
                             previewSection.style.display = 'block';
                             previewButton.disabled = false;
                         }
-                    } else {
-                        showAlert(result.message, 'error');
-                    }
+                    } else { showAlert(result.message, 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('월회계보고서 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .sendMonthlyReport(email, year, monthValue);
+                .catch(err => { hideLoading(); showAlert('월회계보고서 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 연간계보고서 생성 수정 ===
@@ -3833,27 +3821,20 @@
                 reportData: null
             };
             
-            google.script.run
-                .withSuccessHandler(function(result) {
+            api('POST', '/api/reports/monthly/send', { email, year, month: null })
+                .then(result => {
                     hideLoading();
                     if (result.success) {
-                        showAlert(result.message, 'success');
-                        // 미리보기 버튼 표시 및 활성화
+                        showAlert(result.message || '연간계보고서가 발송되었습니다.', 'success');
                         const previewSection = document.getElementById('yearlyReportPreviewSection');
                         const previewButton = document.getElementById('previewYearlyReportButton');
                         if (previewSection && previewButton) {
                             previewSection.style.display = 'block';
                             previewButton.disabled = false;
                         }
-                    } else {
-                        showAlert(result.message, 'error');
-                    }
+                    } else { showAlert(result.message, 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('연간계보고서 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .sendMonthlyReport(email, year, null); // null = 연간계
+                .catch(err => { hideLoading(); showAlert('연간계보고서 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 회계장부 생성 수정 ===
@@ -3882,27 +3863,20 @@
                 reportData: null
             };
             
-            google.script.run
-                .withSuccessHandler(function(result) {
+            api('POST', '/api/reports/ledger/send', { email, year, month })
+                .then(result => {
                     hideLoading();
                     if (result.success) {
-                        showAlert(result.message, 'success');
-                        // 미리보기 버튼 표시 및 활성화
+                        showAlert(result.message || '회계장부가 발송되었습니다.', 'success');
                         const previewSection = document.getElementById('ledgerPreviewSection');
                         const previewButton = document.getElementById('previewLedgerButton');
                         if (previewSection && previewButton) {
                             previewSection.style.display = 'block';
                             previewButton.disabled = false;
                         }
-                    } else {
-                        showAlert(result.message, 'error');
-                    }
+                    } else { showAlert(result.message, 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('회계장부 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .sendLedgerReport(email, year, month);
+                .catch(err => { hideLoading(); showAlert('회계장부 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 보고서 미리보기 함수들 수정 ===
@@ -3914,22 +3888,15 @@
             
             showLoading('월회계보고서 미리보기 생성 중...');
             
-            google.script.run
-                .withSuccessHandler(function(reportData) {
+            api('GET', `/api/reports/monthly?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
+                .then(result => {
                     hideLoading();
-                    if (reportData) {
-                        // 보고서 데이터 저장
-                        currentReportInfo.reportData = reportData;
-                        showReportPreview(reportData, 'monthly');
-                    } else {
-                        showAlert('보고서 데이터를 가져올 수 없습니다.', 'error');
-                    }
+                    if (result && result.data) {
+                        currentReportInfo.reportData = result.data;
+                        showReportPreview(result.data, 'monthly');
+                    } else { showAlert('보고서 데이터를 가져올 수 없습니다.', 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('미리보기 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .generateMonthlyReportData(currentReportInfo.year, currentReportInfo.month);
+                .catch(err => { hideLoading(); showAlert('미리보기 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function previewYearlyReport() {
@@ -3940,21 +3907,15 @@
             
             showLoading('연간계보고서 미리보기 생성 중...');
             
-            google.script.run
-                .withSuccessHandler(function(reportData) {
+            api('GET', `/api/reports/monthly?${qs({ year: currentReportInfo.year, month: '' })}`)
+                .then(result => {
                     hideLoading();
-                    if (reportData) {
-                        currentReportInfo.reportData = reportData;
-                        showReportPreview(reportData, 'yearly');
-                    } else {
-                        showAlert('보고서 데이터를 가져올 수 없습니다.', 'error');
-                    }
+                    if (result && result.data) {
+                        currentReportInfo.reportData = result.data;
+                        showReportPreview(result.data, 'yearly');
+                    } else { showAlert('보고서 데이터를 가져올 수 없습니다.', 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('미리보기 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .generateMonthlyReportData(currentReportInfo.year, null); // null = 연간계
+                .catch(err => { hideLoading(); showAlert('미리보기 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function previewLedger() {
@@ -3965,21 +3926,15 @@
             
             showLoading('회계장부 미리보기 생성 중...');
             
-            google.script.run
-                .withSuccessHandler(function(reportData) {
+            api('GET', `/api/reports/ledger?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
+                .then(result => {
                     hideLoading();
-                    if (reportData) {
-                        currentReportInfo.reportData = reportData;
-                        showLedgerPreview(reportData);
-                    } else {
-                        showAlert('회계장부 데이터를 가져올 수 없습니다.', 'error');
-                    }
+                    if (result && result.data) {
+                        currentReportInfo.reportData = result.data;
+                        showLedgerPreview(result.data);
+                    } else { showAlert('회계장부 데이터를 가져올 수 없습니다.', 'error'); }
                 })
-                .withFailureHandler(function(error) {
-                    hideLoading();
-                    showAlert('미리보기 생성 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                })
-                .generateLedgerData(currentReportInfo.year, currentReportInfo.month);
+                .catch(err => { hideLoading(); showAlert('미리보기 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 보고서 미리보기 표시 함수 수정 ===
@@ -4591,13 +4546,15 @@
 
         // === 상수 초기화 함수 ===
         function initializeConstants() {
-          google.script.run
-            .withSuccessHandler(function(constants) {
-              DEPARTMENTS = constants.DEPARTMENTS;
-              INCOME_ITEMS = constants.INCOME_ITEMS;
-              EXPENSE_ITEMS_BY_DEPT = constants.EXPENSE_ITEMS_BY_DEPT;
+          api('GET', '/api/master/constants')
+            .then(result => {
+              if (result.success && result.data) {
+                DEPARTMENTS = result.data.DEPARTMENTS || [];
+                INCOME_ITEMS = result.data.INCOME_ITEMS || [];
+                EXPENSE_ITEMS_BY_DEPT = result.data.EXPENSE_ITEMS_BY_DEPT || {};
+              }
             })
-            .generateConstantsFromMasterSheet();
+            .catch(err => console.error('상수 초기화 오류:', err));
         }
 
         // 페이지 로드 시 상수 초기화
@@ -4629,26 +4586,16 @@
         // === 1. 결재권한자 로드 함수 수정 (Promise 기반) ===
         function loadApprovalAuthorities() {
             return new Promise((resolve, reject) => {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    google.script.run
-                        .withSuccessHandler(function(authorities) {
-                            approvalAuthorities = authorities || [];
-                            console.log('결재권한자 로드 완료:', authorities);
-                            resolve(authorities);
-                        })
-                        .withFailureHandler(function(error) {
-                            console.error('결재권한자 로드 실패:', error);
-                            // 백엔드 연결 실패 시 기본값 사용
-                            approvalAuthorities = getDefaultAuthorities();
-                            resolve(approvalAuthorities);
-                        })
-                        .getApprovalAuthorities();
-                } else {
-                    // 로컬 테스트 환경
-                    const defaultAuthorities = getDefaultAuthorities();
-                    approvalAuthorities = defaultAuthorities;
-                    resolve(defaultAuthorities);
-                }
+                api('GET', '/api/approvals/authorities')
+                    .then(result => {
+                        approvalAuthorities = (result.success && result.data) ? result.data : getDefaultAuthorities();
+                        resolve(approvalAuthorities);
+                    })
+                    .catch(err => {
+                        console.error('결재권한자 로드 실패:', err);
+                        approvalAuthorities = getDefaultAuthorities();
+                        resolve(approvalAuthorities);
+                    });
             });
         }
 
@@ -5296,76 +5243,72 @@
         // === 초기화 함수들 === 섹션에서 기존 populateOptions() 함수를 다음과 같이 수정
         // 기존 populateOptions() 함수만 수정
         function populateOptions() {
-            google.script.run
-                .withSuccessHandler(function(constants) {
-                    // 전역 변수 업데이트
-                    DEPARTMENTS = constants.DEPARTMENTS;
-                    INCOME_ITEMS = constants.INCOME_ITEMS;
-                    EXPENSE_ITEMS_BY_DEPT = constants.EXPENSE_ITEMS_BY_DEPT;
-                    
-                    // 기존 거래등록 탭용 부서 옵션
-                    const deptSelects = ['transactionDepartment', 'editDepartment', 'requestDepartment']; // requestDepartment 추가
+            api('GET', '/api/master/constants')
+                .then(result => {
+                    if (!result.success || !result.data) return;
+                    const constants = result.data;
+                    DEPARTMENTS = constants.DEPARTMENTS || [];
+                    INCOME_ITEMS = constants.INCOME_ITEMS || [];
+                    EXPENSE_ITEMS_BY_DEPT = constants.EXPENSE_ITEMS_BY_DEPT || {};
+
+                    const deptSelects = ['transactionDepartment', 'editDepartment', 'requestDepartment'];
                     deptSelects.forEach(selectId => {
                         const select = document.getElementById(selectId);
                         if (select) {
                             select.innerHTML = '<option value="">선택하세요</option>';
-                            constants.DEPARTMENTS.forEach(dept => {
+                            DEPARTMENTS.forEach(dept => {
                                 const option = document.createElement('option');
-                                option.value = dept;
-                                option.textContent = dept;
+                                option.value = dept; option.textContent = dept;
                                 select.appendChild(option);
                             });
                         }
                     });
 
-                    // 수입항목 옵션
                     const incomeSelects = ['transactionIncomeItem', 'editIncomeItem'];
                     incomeSelects.forEach(selectId => {
                         const select = document.getElementById(selectId);
                         if (select) {
                             select.innerHTML = '<option value="">선택하세요</option>';
-                            constants.INCOME_ITEMS.forEach(item => {
+                            INCOME_ITEMS.forEach(item => {
                                 const option = document.createElement('option');
-                                option.value = item;
-                                option.textContent = item;
+                                option.value = item; option.textContent = item;
                                 select.appendChild(option);
                             });
                         }
                     });
                 })
-                .withFailureHandler(function(error) {
-                    console.error('옵션 로딩 실패:', error);
-                })
-                .generateConstantsFromMasterSheet();
+                .catch(err => console.error('옵션 로딩 실패:', err));
         }
 
         function populateBudgetOptions() {
-          // 백엔드에서 상수 가져오기
-          google.script.run
-            .withSuccessHandler(function(constants) {
-              // 수입 항목 옵션
-              const budgetIncomeSelect = document.getElementById('budgetIncomeItem');
-              budgetIncomeSelect.innerHTML = '<option value="">선택하세요</option>';
-              constants.INCOME_ITEMS.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item;
-                option.textContent = item;
-                budgetIncomeSelect.appendChild(option);
-              });
+          api('GET', '/api/master/constants')
+            .then(result => {
+              if (!result.success || !result.data) return;
+              const constants = result.data;
 
-              // 부서 옵션
-              const budgetExpenseDeptSelect = document.getElementById('budgetExpenseDept');
-              budgetExpenseDeptSelect.innerHTML = '<option value="">선택하세요</option>';
-              constants.DEPARTMENTS.forEach(dept => {
-                if (constants.EXPENSE_ITEMS_BY_DEPT[dept]) {
+              const budgetIncomeSelect = document.getElementById('budgetIncomeItem');
+              if (budgetIncomeSelect) {
+                budgetIncomeSelect.innerHTML = '<option value="">선택하세요</option>';
+                (constants.INCOME_ITEMS || []).forEach(item => {
                   const option = document.createElement('option');
-                  option.value = dept;
-                  option.textContent = dept;
-                  budgetExpenseDeptSelect.appendChild(option);
-                }
-              });
+                  option.value = item; option.textContent = item;
+                  budgetIncomeSelect.appendChild(option);
+                });
+              }
+
+              const budgetExpenseDeptSelect = document.getElementById('budgetExpenseDept');
+              if (budgetExpenseDeptSelect) {
+                budgetExpenseDeptSelect.innerHTML = '<option value="">선택하세요</option>';
+                (constants.DEPARTMENTS || []).forEach(dept => {
+                  if (constants.EXPENSE_ITEMS_BY_DEPT[dept]) {
+                    const option = document.createElement('option');
+                    option.value = dept; option.textContent = dept;
+                    budgetExpenseDeptSelect.appendChild(option);
+                  }
+                });
+              }
             })
-            .generateConstantsFromMasterSheet();
+            .catch(err => console.error('예산 옵션 로딩 오류:', err));
         }
 
 
@@ -5427,38 +5370,29 @@
 
             showLoading();
 
-            // Google Apps Script 환경에서 실제 함수 호출
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(isValid) {
-                        hideLoading();
-                        if (isValid) {
-                            document.getElementById('loginScreen').style.display = 'none';
-                            document.getElementById('mainApp').style.display = 'block';
-                        } else {
-                            document.getElementById('loginError').classList.remove('hidden');
-                            document.getElementById('passwordInput').value = '';
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('로그인 중 오류가 발생했습니다.', 'error');
-                        console.error('로그인 오류:', error);
-                    })
-                    .checkPassword(password);
-            } else {
-                // 로컬 테스트용 - 비밀번호 1234
-                setTimeout(() => {
+            // spreadsheetId: URL 파라미터 또는 환경변수에서 가져옴
+            const spreadsheetId = new URLSearchParams(window.location.search).get('spreadsheetId') || '';
+
+            api('POST', '/api/auth/login', { password, spreadsheetId })
+                .then(result => {
                     hideLoading();
-                    if (password === '1234') {
+                    if (result.success && result.token) {
+                        setAuthToken(result.token);
                         document.getElementById('loginScreen').style.display = 'none';
                         document.getElementById('mainApp').style.display = 'block';
+                        initializeAllYearSelects(); // 로그인 후 연도 드롭다운 초기화
+                        populateOptions();          // 부서/항목 옵션도 재초기화
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
                     }
-                }, 1000);
-            }
+                })
+                .catch(err => {
+                    hideLoading();
+                    document.getElementById('loginError').classList.remove('hidden');
+                    document.getElementById('passwordInput').value = '';
+                    console.error('로그인 오류:', err);
+                });
         }
 
         // === 탭 관리 ===
@@ -5731,53 +5665,29 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        console.log('백엔드 응답:', result);
-                        hideLoading();
-                        _resetSaveBtn(); // [수정] 버튼 복원
-                        if (result && result.success) {
-                            showAlert(result.message);
-                            document.getElementById('transactionForm').reset();
-                            document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
-                            updateCategoryOptions();
-                            
-                            // 결재 관련 거래등록 완료 후 처리
-                            if (approvalId) {
-                                console.log('결재 관련 거래등록 완료, 결재 ID:', approvalId);
-                                setTimeout(() => {
-                                    console.log('결재 목록 새로고침 시작');
-                                    searchApprovals();
-                                }, 2000);
-                                showAlert(`거래등록 완료! 결재번호 ${approvalId}의 상태가 업데이트됩니다.`);
-                            }
-                        } else {
-                            showAlert(result ? result.message : '거래 저장에 실패했습니다.', 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('백엔드 호출 오류:', error);
-                        hideLoading();
-                        _resetSaveBtn(); // [수정] 실패 시에도 버튼 복원
-                        showAlert('거래 저장 중 오류가 발생했습니다.', 'error');
-                    })
-                    .saveTransaction(formData);
-            } else {
-                // 로컬 테스트용
-                console.log('로컬 테스트 모드 - 전송할 데이터:', formData);
-                setTimeout(() => {
+            api('POST', '/api/transactions', formData)
+                .then(result => {
                     hideLoading();
-                    _resetSaveBtn(); // [수정] 로컬 테스트에서도 버튼 복원
-                    showAlert('거래가 성공적으로 저장되었습니다.');
-                    document.getElementById('transactionForm').reset();
-                    document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
-                    updateCategoryOptions();
-                    if (approvalId && document.getElementById('approval').classList.contains('active')) {
-                        setTimeout(() => { searchApprovals(); }, 500);
+                    _resetSaveBtn();
+                    if (result && result.success) {
+                        showAlert(result.message || '거래가 저장되었습니다.');
+                        document.getElementById('transactionForm').reset();
+                        document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
+                        updateCategoryOptions();
+                        if (approvalId) {
+                            setTimeout(() => { searchApprovals(); }, 2000);
+                            showAlert(`거래등록 완료! 결재번호 ${approvalId}의 상태가 업데이트됩니다.`);
+                        }
+                    } else {
+                        showAlert(result ? result.message : '거래 저장에 실패했습니다.', 'error');
                     }
-                }, 1000);
-            }
+                })
+                .catch(err => {
+                    hideLoading();
+                    _resetSaveBtn();
+                    showAlert('거래 저장 중 오류가 발생했습니다.', 'error');
+                    console.error('거래 저장 오류:', err);
+                });
         }
 
         // === 검색 관리 기능 ===
@@ -5819,24 +5729,17 @@
             const tbody = document.getElementById('searchResults');
             tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 30px; color: #4fc3f7;"><div class="spinner" style="width: 20px; height: 20px; margin: 0 auto 10px;"></div>조회 중...</td></tr>';
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(results) {
-                        hideLoading();
-                        displaySearchResults(results);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('조회 중 오류가 발생했습니다.', 'error');
-                        console.error('월별 조회 오류:', error);
-                    })
-                    .searchTransactionsByMonthWithKeyword(year, month, keyword);
-            } else {
-                setTimeout(() => {
+            const params = qs({ year, month: month === 'all' ? '' : month, keyword });
+            api('GET', `/api/transactions?${params}`)
+                .then(result => {
                     hideLoading();
-                    displaySearchResults([]);
-                }, 1000);
-            }
+                    displaySearchResults(result.data || []);
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('조회 중 오류가 발생했습니다.', 'error');
+                    console.error('월별 조회 오류:', err);
+                });
         }
 
         function performRealTimeSearch() {
@@ -5857,36 +5760,25 @@
 
         async function searchTransactions(keyword = '') {
             showLoading();
-            
             const tbody = document.getElementById('searchResults');
             tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 30px; color: #4fc3f7;"><div class="spinner" style="width: 20px; height: 20px; margin: 0 auto 10px;"></div>검색 중...</td></tr>';
 
-            try {
-                let results;
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    results = await new Promise((resolve, reject) => {
-                        google.script.run
-                            .withSuccessHandler(resolve)
-                            .withFailureHandler(reject)
-                            .searchTransactions(keyword);
-                    });
-                } else {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                    results = [];
-                }
-
-                hideLoading();
-                if (results && results.length > 0) {
-                    displaySearchResults(results);
-                } else {
-                    displaySearchResults([], `"${keyword}" 검색 결과가 없습니다.`);
-                }
-            } catch (error) {
-                hideLoading();
-                displaySearchResults([], '검색 중 오류가 발생했습니다.');
-                showAlert('검색 중 오류가 발생했습니다.', 'error');
-                console.error('검색 오류:', error);
-            }
+            api('GET', `/api/transactions?${qs({ keyword })}`)
+                .then(result => {
+                    hideLoading();
+                    const results = result.data || [];
+                    if (results.length > 0) {
+                        displaySearchResults(results);
+                    } else {
+                        displaySearchResults([], `"${keyword}" 검색 결과가 없습니다.`);
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    displaySearchResults([], '검색 중 오류가 발생했습니다.');
+                    showAlert('검색 중 오류가 발생했습니다.', 'error');
+                    console.error('검색 오류:', err);
+                });
         }
         
         // displaySearchResults 함수에서 버튼 생성 부분 수정
@@ -6026,67 +5918,47 @@
             document.getElementById('editModal').style.display = 'block';
         }
 
+
+        // 거래 목록 새로고침 (삭제/수정 후 현재 검색 상태 유지)
+        function refreshTransactionList(sheetName) {
+            const year    = document.getElementById('searchYear')  ? parseInt(document.getElementById('searchYear').value)  : null;
+            const monthEl = document.getElementById('searchMonth');
+            const month   = monthEl ? (monthEl.value ? parseInt(monthEl.value) : 'all') : null;
+            const keyword = document.getElementById('searchKeyword') ? document.getElementById('searchKeyword').value.trim() : '';
+            const isTF    = sheetName === '교사회비';
+
+            if (year) {
+                const params = qs({ year, month: month === 'all' ? '' : month, keyword });
+                const endpoint = isTF ? `/api/teacher-fees?${params}` : `/api/transactions?${params}`;
+                api('GET', endpoint).then(r => displaySearchResults(r.data || [])).catch(() => {});
+            } else if (keyword) {
+                const endpoint = isTF ? `/api/teacher-fees?${qs({keyword})}` : `/api/transactions?${qs({keyword})}`;
+                api('GET', endpoint).then(r => displaySearchResults(r.data || [])).catch(() => {});
+            }
+        }
+
         function deleteTransactionFromButton(button) {
             const rowIndex = parseInt(button.getAttribute('data-row-index'));
             const sheetName = button.getAttribute('data-sheet-name');
 
             if (confirm('정말로 이 거래를 삭제하시겠습니까?')) {
                 showLoading();
-
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    google.script.run
-                        .withSuccessHandler(function(result) {
-                            hideLoading();
-                            if (result.success) {
-                                showAlert(result.message);
-                                // [수정] 삭제 후 현재 조회 상태(연도/월/키워드)로 무조건 새로고침
-                                // (기존에는 키워드가 없으면 새로고침하지 않아 이미 삭제된 항목 버튼이 화면에 남는 문제가 있었음)
-                                const yearEl  = document.getElementById('searchYear');
-                                const monthEl = document.getElementById('searchMonth');
-                                const kwEl    = document.getElementById('searchKeyword');
-                                const year    = yearEl  ? parseInt(yearEl.value)  : null;
-                                const month   = monthEl ? (monthEl.value ? parseInt(monthEl.value) : 'all') : null;
-                                const keyword = kwEl    ? kwEl.value.trim() : '';
-
-                                if (year) {
-                                    // 월별 조회 상태였으면 월별 조회로 새로고침
-                                    if (sheetName === TEACHERFEE_SHEET || sheetName === '교사회비') {
-                                        google.script.run
-                                            .withSuccessHandler(displaySearchResults)
-                                            .searchTeacherFeeByMonthWithKeyword(year, month === 'all' ? null : month, keyword);
-                                    } else {
-                                        google.script.run
-                                            .withSuccessHandler(displaySearchResults)
-                                            .searchTransactionsByMonthWithKeyword(year, month, keyword);
-                                    }
-                                } else {
-                                    // 키워드 검색 상태였으면 키워드로 새로고침
-                                    if (sheetName === TEACHERFEE_SHEET || sheetName === '교사회비') {
-                                        google.script.run
-                                            .withSuccessHandler(displaySearchResults)
-                                            .searchTeacherFeeTransactions(keyword);
-                                    } else {
-                                        google.script.run
-                                            .withSuccessHandler(displaySearchResults)
-                                            .searchTransactions(keyword);
-                                    }
-                                }
-                            } else {
-                                showAlert(result.message, 'error');
-                            }
-                        })
-                        .withFailureHandler(function(error) {
-                            hideLoading();
-                            showAlert('삭제 중 오류가 발생했습니다.', 'error');
-                            console.error('삭제 오류:', error);
-                        })
-                        .deleteTransaction(rowIndex, sheetName);
-                } else {
-                    setTimeout(() => {
+                const endpoint = (sheetName === '교사회비') ? `/api/teacher-fees/${rowIndex}` : `/api/transactions/${rowIndex}`;
+                api('DELETE', endpoint)
+                    .then(result => {
                         hideLoading();
-                        showAlert('삭제 기능은 백엔드 연결 후 작동합니다.');
-                    }, 1000);
-                }
+                        if (result.success) {
+                            showAlert(result.message || '삭제되었습니다.');
+                            refreshTransactionList(sheetName);
+                        } else {
+                            showAlert(result.message, 'error');
+                        }
+                    })
+                    .catch(err => {
+                        hideLoading();
+                        showAlert('삭제 중 오류가 발생했습니다.', 'error');
+                        console.error('삭제 오류:', err);
+                    });
             }
         }
 
@@ -6165,59 +6037,22 @@
             loadingElement.style.zIndex = '10000'; // 최상위 z-index 설정
             loadingElement.style.display = 'block';
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            closeEditModal();
-                            // [수정] 수정 후 현재 조회 상태(연도/월/키워드)로 무조건 새로고침
-                            const yearEl  = document.getElementById('searchYear');
-                            const monthEl = document.getElementById('searchMonth');
-                            const kwEl    = document.getElementById('searchKeyword');
-                            const year    = yearEl  ? parseInt(yearEl.value)  : null;
-                            const month   = monthEl ? (monthEl.value ? parseInt(monthEl.value) : 'all') : null;
-                            const keyword = kwEl    ? kwEl.value.trim() : '';
-
-                            if (year) {
-                                if (currentEditSheetName === TEACHERFEE_SHEET || currentEditSheetName === '교사회비') {
-                                    google.script.run
-                                        .withSuccessHandler(displaySearchResults)
-                                        .searchTeacherFeeByMonthWithKeyword(year, month === 'all' ? null : month, keyword);
-                                } else {
-                                    google.script.run
-                                        .withSuccessHandler(displaySearchResults)
-                                        .searchTransactionsByMonthWithKeyword(year, month, keyword);
-                                }
-                            } else {
-                                if (currentEditSheetName === TEACHERFEE_SHEET || currentEditSheetName === '교사회비') {
-                                    google.script.run
-                                        .withSuccessHandler(displaySearchResults)
-                                        .searchTeacherFeeTransactions(keyword);
-                                } else {
-                                    google.script.run
-                                        .withSuccessHandler(displaySearchResults)
-                                        .searchTransactions(keyword);
-                                }
-                            }
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        loadingElement.style.display = 'none'; // 로딩 숨기기
-                        showAlert('거래 수정 중 오류가 발생했습니다.', 'error');
-                        console.error('거래 수정 오류:', error);
-                    })
-                    .updateTransaction(currentEditRow, formData);
-            } else {
-                setTimeout(() => {
-                    loadingElement.style.display = 'none'; // 로딩 숨기기
-                    showAlert('수정 기능은 백엔드 연결 후 작동합니다.');
-                    closeEditModal();
-                }, 1000);
-            }
+            api('PUT', `/api/transactions/${currentEditRow}`, formData)
+                .then(result => {
+                    hideLoading();
+                    if (result.success) {
+                        showAlert(result.message || '수정되었습니다.');
+                        closeEditModal();
+                        refreshTransactionList(currentEditSheetName);
+                    } else {
+                        showAlert(result.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('거래 수정 중 오류가 발생했습니다.', 'error');
+                    console.error('거래 수정 오류:', err);
+                });
         }
 
         function generateVoucher() {
@@ -6241,30 +6076,13 @@
             showLoading();
             saveLastEmail(email);
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            closeVoucherModal();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('지출청구서 생성 중 오류가 발생했습니다.', 'error');
-                        console.error('지출청구서 생성 오류:', error);
-                    })
-                    .generateVoucher(currentVoucherData, email);
-            } else {
-                setTimeout(() => {
+            api('POST', '/api/vouchers/expense', { transaction: currentVoucherData, email })
+                .then(result => {
                     hideLoading();
-                    showAlert('지출청구서 생성 기능은 백엔드 연결 후 작동합니다.');
-                    closeVoucherModal();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || '지출청구서가 발송되었습니다.'); closeVoucherModal(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('지출청구서 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
         
         // === 수입전표 발행
@@ -6307,30 +6125,13 @@
             showLoading();
             saveLastEmail(email);
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            closeIncomeVoucherModal();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('수입전표 생성 중 오류가 발생했습니다.', 'error');
-                        console.error('수입전표 생성 오류:', error);
-                    })
-                    .generateIncomeVoucher(currentIncomeVoucherData, email);
-            } else {
-                setTimeout(() => {
+            api('POST', '/api/vouchers/income', { transaction: currentIncomeVoucherData, email })
+                .then(result => {
                     hideLoading();
-                    showAlert('수입전표 생성 기능은 백엔드 연결 후 작동합니다.');
-                    closeIncomeVoucherModal();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || '수입전표가 발송되었습니다.'); closeIncomeVoucherModal(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('수입전표 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
  
         // === 교사회비 관리 기능 ===
@@ -6382,24 +6183,9 @@
             const tbody = document.getElementById('teacherFeeResults');
             tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 30px; color: #4fc3f7;"><div class="spinner" style="width: 20px; height: 20px; margin: 0 auto 10px;"></div>조회 중...</td></tr>';
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(results) {
-                        hideLoading();
-                        displayTeacherFeeResults(results);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('교사회비 조회 중 오류가 발생했습니다.', 'error');
-                        console.error('교사회비 월별 조회 오류:', error);
-                    })
-                    .searchTeacherFeeByMonth(year, month);
-            } else {
-                setTimeout(() => {
-                    hideLoading();
-                    displayTeacherFeeResults([]);
-                }, 1000);
-            }
+            api('GET', `/api/teacher-fees?${qs({ year, month: month || '' })}`)
+                .then(result => { hideLoading(); displayTeacherFeeResults(result.data || []); })
+                .catch(err => { hideLoading(); showAlert('교사회비 조회 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function performTeacherFeeRealTimeSearch() {
@@ -6420,25 +6206,9 @@
 
         function searchTeacherFeeTransactions(keyword = '') {
             showLoading();
-
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(results) {
-                        hideLoading();
-                        displayTeacherFeeResults(results);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('교사회비 검색 중 오류가 발생했습니다.', 'error');
-                        console.error('교사회비 검색 오류:', error);
-                    })
-                    .searchTeacherFeeTransactions(keyword);
-            } else {
-                setTimeout(() => {
-                    hideLoading();
-                    displayTeacherFeeResults([]);
-                }, 1000);
-            }
+            api('GET', `/api/teacher-fees?${qs({ keyword })}`)
+                .then(result => { hideLoading(); displayTeacherFeeResults(result.data || []); })
+                .catch(err => { hideLoading(); showAlert('교사회비 검색 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function displayTeacherFeeResults(results) {
@@ -6620,36 +6390,18 @@
             
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            closeBudgetCopyModal();
-                            
-                            // 예산 조회 화면이 열려있다면 새로고침
-                            if (!document.getElementById('budgetViewSection').classList.contains('hidden')) {
-                                refreshFullBudgetData();
-                            }
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('예산 복사 중 오류가 발생했습니다.', 'error');
-                        console.error('예산 복사 오류:', error);
-                    })
-                    .copyBudgetToNextYear(fromYear, toYear);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', '/api/budget/copy', { fromYear, toYear })
+                .then(result => {
                     hideLoading();
-                    showAlert(`${fromYear}년 예산이 ${toYear}년으로 성공적으로 복사되었습니다. (테스트 모드)`);
-                    closeBudgetCopyModal();
-                }, 1500);
-            }
+                    if (result.success) {
+                        showAlert(result.message || `${fromYear}년 예산이 ${toYear}년으로 복사되었습니다.`);
+                        closeBudgetCopyModal();
+                        if (!document.getElementById('budgetViewSection').classList.contains('hidden')) {
+                            refreshFullBudgetData();
+                        }
+                    } else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('예산 복사 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 프론트엔드 함수 - 예산 입력 화면의 지출 항목 업데이트 (수정됨) ===
@@ -6667,83 +6419,58 @@
           }
 
           // 백엔드에서 지출 항목 목록 가져오기
-          if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run
-              .withSuccessHandler(function(items) {
-                console.log("백엔드에서 받은 지출 항목:", items);
-                
-                // 특별 플래그 'ONLY_BLANK_ALLOWED' 확인
-                const onlyBlankAllowed = items.includes('ONLY_BLANK_ALLOWED');
-                
-                if (onlyBlankAllowed) {
-                  // 'ONLY_BLANK_ALLOWED'가 있으면, 드롭다운에 "선택안함 (기타)"만 추가
+          // 전역 캐시에서 가져오거나 API 호출
+          const items = EXPENSE_ITEMS_BY_DEPT[dept] || [];
+          if (items.length > 0) {
+            const onlyBlankAllowed = items.includes('ONLY_BLANK_ALLOWED');
+            if (onlyBlankAllowed) {
+              expenseItemSelect.innerHTML = '<option value="선택안함 (기타)">선택안함 (기타)</option>';
+            } else {
+              items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item; option.textContent = item;
+                expenseItemSelect.appendChild(option);
+              });
+            }
+            amountInput.disabled = false;
+          } else {
+            api('GET', `/api/master/departments/${encodeURIComponent(dept)}/expense-items`)
+              .then(result => {
+                const fetchedItems = result.data || [];
+                const onlyBlank = fetchedItems.includes('ONLY_BLANK_ALLOWED');
+                if (onlyBlank) {
                   expenseItemSelect.innerHTML = '<option value="선택안함 (기타)">선택안함 (기타)</option>';
-                  // 금액 입력란 활성화 (필수 입력 검증은 saveBudget에서 처리)
-                  amountInput.disabled = false; 
-                } else if (items && items.length > 0) {
-                  // 일반적인 항목이 있는 경우
-                  items.forEach(function(item) {
+                } else if (fetchedItems.length > 0) {
+                  fetchedItems.forEach(item => {
                     const option = document.createElement('option');
-                    option.value = item;
-                    option.textContent = item;
+                    option.value = item; option.textContent = item;
                     expenseItemSelect.appendChild(option);
                   });
-                  // 금액 입력란 활성화
-                  amountInput.disabled = false;
                 } else {
-                  // 항목이 없는 경우 (기존 로직)
                   expenseItemSelect.innerHTML = '<option value="">(등록된 항목 없음)</option>';
-                  // 금액 입력란 비활성화
-                  amountInput.disabled = true;
+                  amountInput.disabled = true; return;
                 }
+                amountInput.disabled = false;
               })
-              .withFailureHandler(function(error) {
-                console.error("지출 항목 로드 실패:", error);
-                showAlert('지출 항목을 불러오는 데 실패했습니다.', 'error');
-                // 오류 시 금액 입력란 비활성화
+              .catch(err => {
+                console.error('지출 항목 로드 실패:', err);
                 amountInput.disabled = true;
-              })
-              .getExpenseItemsForDepartment(dept);
-          } else {
-            // 로컬 테스트용 더미 데이터
-            console.warn("로컬 테스트 환경입니다. 더미 데이터를 사용합니다.");
-            const dummyItems = EXPENSE_ITEMS_BY_DEPT[dept] || [];
-            dummyItems.forEach(function(item) {
-              const option = document.createElement('option');
-              option.value = item;
-              option.textContent = item;
-              expenseItemSelect.appendChild(option);
-            });
-            // 로컬 테스트 시 금액 입력란 활성화
-            amountInput.disabled = false;
+              });
           }
         }
 
         function loadBudgetItems() {
             showLoading();
-
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(items) {
-                        hideLoading();
-                        currentBudgetItems = items;
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        console.error('예산 항목 로드 오류:', error);
-                    })
-                    .getBudgetItems();
-            } else {
-                setTimeout(() => {
+            api('GET', '/api/budget/items')
+                .then(result => {
                     hideLoading();
-                    currentBudgetItems = [];
-                }, 500);
-            }
+                    currentBudgetItems = result.data || [];
+                })
+                .catch(err => { hideLoading(); console.error('예산 항목 로드 오류:', err); });
         }
 
         function loadCurrentBudgetAmount(category) {
             let department, item;
-            
             if (category === 'income') {
                 department = document.getElementById('budgetIncomeItem').value;
                 item = '';
@@ -6751,64 +6478,29 @@
                 department = document.getElementById('budgetExpenseDept').value;
                 item = document.getElementById('budgetExpenseItem').value;
             }
-
             if (!department) return;
             if (category === 'expense' && !item) return;
 
             const selectedYear = parseInt(document.getElementById('budgetInputYear').value) || new Date().getFullYear();
-            const currentAmountDiv = category === 'income' ? 
-                document.getElementById('currentIncomeAmount') : 
+            const currentAmountDiv = category === 'income' ?
+                document.getElementById('currentIncomeAmount') :
                 document.getElementById('currentExpenseAmount');
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                // GAS 환경: year 포함하여 조회
-                google.script.run
-                    .withSuccessHandler(function(amount) {
-                        currentAmountDiv.textContent = amount > 0 ? 
-                            `${selectedYear}년 현재 예산: ${formatAmount(amount)}원` : 
-                            `${selectedYear}년 예산이 설정되지 않았습니다.`;
-                        currentAmountDiv.style.display = 'block';
-                        
-                        if (amount > 0) {
-                            if (category === 'income') {
-                                document.getElementById('budgetIncomeAmount').value = amount;
-                            } else {
-                                document.getElementById('budgetExpenseAmount').value = amount;
-                            }
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        currentAmountDiv.textContent = '현재 예산 조회 실패';
-                        currentAmountDiv.style.display = 'block';
-                        console.error('현재 예산 조회 오류:', error);
-                    })
-                    .getCurrentBudgetAmount(selectedYear, category, department, item);
-            } else if (typeof API_BASE_URL !== 'undefined') {
-                // Node.js 백엔드 환경: year 포함하여 조회
-                const params = new URLSearchParams({ year: selectedYear });
-                fetch(`${API_BASE_URL}/api/budget?${params}`, {
-                    headers: { 'Authorization': `Bearer ${getAuthToken()}` }
-                })
-                .then(r => r.json())
+            api('GET', `/api/budget?${qs({ year: selectedYear })}`)
                 .then(result => {
-                    if (result.success && result.data) {
-                        const found = result.data.find(row =>
-                            row.category === (category === 'income' ? '수입' : '지출') &&
-                            row.department === department &&
-                            (item ? row.item === item : true)
-                        );
-                        const amount = found ? found.amount : 0;
-                        currentAmountDiv.textContent = amount > 0 ?
-                            `${selectedYear}년 현재 예산: ${formatAmount(amount)}원` :
-                            `${selectedYear}년 예산이 설정되지 않았습니다.`;
-                        currentAmountDiv.style.display = 'block';
-                        if (amount > 0) {
-                            if (category === 'income') {
-                                document.getElementById('budgetIncomeAmount').value = amount;
-                            } else {
-                                document.getElementById('budgetExpenseAmount').value = amount;
-                            }
-                        }
+                    const data = result.data || [];
+                    const found = data.find(row =>
+                        row.category === (category === 'income' ? '수입' : '지출') &&
+                        row.department === department &&
+                        (item ? row.item === item : true)
+                    );
+                    const amount = found ? found.amount : 0;
+                    currentAmountDiv.textContent = amount > 0 ?
+                        `${selectedYear}년 현재 예산: ${formatAmount(amount)}원` :
+                        `${selectedYear}년 예산이 설정되지 않았습니다.`;
+                    currentAmountDiv.style.display = 'block';
+                    if (amount > 0) {
+                        document.getElementById(category === 'income' ? 'budgetIncomeAmount' : 'budgetExpenseAmount').value = amount;
                     }
                 })
                 .catch(err => {
@@ -6816,10 +6508,6 @@
                     currentAmountDiv.style.display = 'block';
                     console.error('현재 예산 조회 오류:', err);
                 });
-            } else {
-                currentAmountDiv.textContent = `${selectedYear}년 예산이 설정되지 않았습니다.`;
-                currentAmountDiv.style.display = 'block';
-            }
         }
 
         function saveBudget(category) {
@@ -6860,62 +6548,17 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                // GAS 환경: year 포함하여 저장
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(`${selectedYear}년 예산이 저장되었습니다.`);
-                            resetBudgetForm();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('예산 저장 중 오류가 발생했습니다.', 'error');
-                        console.error('예산 저장 오류:', error);
-                    })
-                    .saveBudgetAmount(selectedYear, category, department, item, amount);
-            } else if (typeof API_BASE_URL !== 'undefined') {
-                // Node.js 백엔드 환경: year 포함하여 저장
-                fetch(`${API_BASE_URL}/api/budget`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getAuthToken()}`
-                    },
-                    body: JSON.stringify({
-                        year: selectedYear,
-                        category: category === 'income' ? '수입' : '지출',
-                        department,
-                        item: item || '',
-                        amount: Number(amount)
-                    })
+            api('POST', '/api/budget', {
+                    year: selectedYear,
+                    category: category === 'income' ? '수입' : '지출',
+                    department, item: item || '', amount: Number(amount)
                 })
-                .then(r => r.json())
                 .then(result => {
                     hideLoading();
-                    if (result.success) {
-                        showAlert(`${selectedYear}년 예산이 저장되었습니다.`);
-                        resetBudgetForm();
-                    } else {
-                        showAlert(result.message || '예산 저장에 실패했습니다.', 'error');
-                    }
+                    if (result.success) { showAlert(`${selectedYear}년 예산이 저장되었습니다.`); resetBudgetForm(); }
+                    else { showAlert(result.message || '예산 저장에 실패했습니다.', 'error'); }
                 })
-                .catch(err => {
-                    hideLoading();
-                    showAlert('예산 저장 중 오류가 발생했습니다.', 'error');
-                    console.error('예산 저장 오류:', err);
-                });
-            } else {
-                setTimeout(() => {
-                    hideLoading();
-                    showAlert(`${selectedYear}년 예산이 저장되었습니다.`);
-                    resetBudgetForm();
-                }, 1000);
-            }
+                .catch(err => { hideLoading(); showAlert('예산 저장 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function resetBudgetForm() {
@@ -6951,74 +6594,22 @@
             console.log('예산 데이터 새로고침:', selectedYear);
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(data) {
-                        hideLoading();
-                        console.log('백엔드에서 받은 예산 데이터:', data);
-                        
-                        // 🔥 데이터 전처리 추가 - 지출실적 절댓값 변환
-                        if (data && data.summary) {
-                            // 지출실적이 음수인 경우 양수로 변환
-                            if (data.summary.totalExpenseActual < 0) {
-                                data.summary.totalExpenseActual = Math.abs(data.summary.totalExpenseActual);
-                            }
-                            
-                            // 개별 지출 항목도 처리
-                            if (data.expense && Array.isArray(data.expense)) {
-                                data.expense = data.expense.map(item => ({
-                                    ...item,
-                                    actual: Math.abs(item.actual || 0)
-                                }));
-                            }
-                        }
-                        
-                        displayFullBudgetData(data);
-                        showAlert(`${selectedYear}년 예산 데이터가 새로고침되었습니다.`);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('예산 데이터 조회 중 오류가 발생했습니다.', 'error');
-                        console.error('예산 데이터 조회 오류:', error);
-                        
-                        // 오류 시 빈 데이터 표시
-                        displayFullBudgetData({
-                            income: [],
-                            expense: [],
-                            summary: {
-                                totalIncomeBudget: 0,
-                                totalIncomeActual: 0,
-                                totalExpenseBudget: 0,
-                                totalExpenseActual: 0
-                            }
-                        });
-                    })
-                    .getFullBudgetDataByYear(selectedYear);
-            } else {
-                // 로컬 테스트용 데이터
-                setTimeout(() => {
+            api('GET', `/api/budget/full?${qs({ year: selectedYear })}`)
+                .then(result => {
                     hideLoading();
-                    const testData = {
-                        income: [
-                            { item: '주일헌금', budget: 1000000, actual: 800000, rate: '80.0' },
-                            { item: '감사헌금', budget: 500000, actual: 300000, rate: '60.0' }
-                        ],
-                        expense: [
-                            { department: '교육부', item: '공과책', budget: 200000, actual: 150000, rate: '75.0' },
-                            { department: '음악부', item: '찬양대', budget: 100000, actual: 80000, rate: '80.0' }
-                        ],
-                        summary: {
-                            totalIncomeBudget: 1500000,
-                            totalIncomeActual: 1100000,
-                            totalExpenseBudget: 300000,
-                            totalExpenseActual: 230000 // 양수로 표시
-                        }
-                    };
-                    
-                    displayFullBudgetData(testData);
+                    const data = result.data || { income: [], expense: [], summary: {} };
+                    if (data.summary && data.summary.totalExpenseActual < 0) {
+                        data.summary.totalExpenseActual = Math.abs(data.summary.totalExpenseActual);
+                    }
+                    if (data.expense) data.expense = data.expense.map(item => ({ ...item, actual: Math.abs(item.actual || 0) }));
+                    displayFullBudgetData(data);
                     showAlert(`${selectedYear}년 예산 데이터가 새로고침되었습니다.`);
-                }, 1000);
-            }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('예산 데이터 조회 중 오류가 발생했습니다.', 'error');
+                    displayFullBudgetData({ income: [], expense: [], summary: { totalIncomeBudget:0, totalIncomeActual:0, totalExpenseBudget:0, totalExpenseActual:0 } });
+                });
         }
 
         // === 1. displayFullBudgetData 함수 완전 수정 ===
@@ -7094,136 +6685,44 @@
         // 연도별 예산 시스템 초기화
         function initializeYearlyBudgetSystem() {
             // 로딩 표시 없이 백그라운드에서 실행
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        // 성공해도 알림 표시 안함 (콘솔 로그만)
-                        console.log('연도별 예산 시스템 초기화 완료:', result.details);
-                    })
-                    .withFailureHandler(function(error) {
-                        // 오류시에만 알림 표시
-                        console.error('초기화 오류:', error);
-                        showAlert('예산 시스템 초기화 중 오류가 발생했습니다.', 'error');
-                    })
-                    .initializeYearlyBudgetSystem();
-            }
-            // 로컬 테스트용도 알림 제거
+            api('POST', '/api/budget/init-yearly')
+                .then(result => { console.log('연도별 예산 시스템 초기화 완료:', result); })
+                .catch(err => { console.error('초기화 오류:', err); showAlert('예산 시스템 초기화 중 오류가 발생했습니다.', 'error'); });
         }
         
         // 특정 연도의 예산 데이터 조회
         function getBudgetDataByYear(year) {
-            return new Promise((resolve, reject) => {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    google.script.run
-                        .withSuccessHandler(function(data) {
-                            resolve(data);
-                        })
-                        .withFailureHandler(function(error) {
-                            console.error('연도별 예산 데이터 조회 오류:', error);
-                            reject(error);
-                        })
-                        .getBudgetDataByYear(year);
-                } else {
-                    // 로컬 테스트용
-                    setTimeout(() => {
-                        resolve({ income: {}, expense: {} });
-                    }, 500);
-                }
-            });
+            return api('GET', `/api/budget?${qs({ year })}`).then(r => r.data || { income: [], expense: [] });
         }
         
         // 연도별 예산 저장
         function saveYearlyBudget(year, category, department, item, amount) {
             showLoading();
-            
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('연도별 예산 저장 중 오류가 발생했습니다.', 'error');
-                        console.error('예산 저장 오류:', error);
-                    })
-                    .saveYearlyBudgetAmount(year, category, department, item, amount);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', '/api/budget', { year, category, department, item, amount })
+                .then(result => {
                     hideLoading();
-                    showAlert(`${year}년 예산이 성공적으로 저장되었습니다.`);
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || `${year}년 예산이 저장되었습니다.`); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('연도별 예산 저장 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
         
         // 연도별 전체 예산 데이터 조회 (보고서용)
         function getFullBudgetDataByYear(year) {
-            return new Promise((resolve, reject) => {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    google.script.run
-                        .withSuccessHandler(function(data) {
-                            resolve(data);
-                        })
-                        .withFailureHandler(function(error) {
-                            console.error('연도별 전체 예산 데이터 조회 오류:', error);
-                            reject(error);
-                        })
-                        .getFullBudgetDataByYear(year);
-                } else {
-                    // 로컬 테스트용
-                    setTimeout(() => {
-                        resolve({
-                            year: year,
-                            income: [],
-                            expense: [],
-                            summary: {
-                                totalIncomeBudget: 0,
-                                totalExpenseBudget: 0,
-                                totalIncomeActual: 0,
-                                totalExpenseActual: 0
-                            }
-                        });
-                    }, 500);
-                }
-            });
+            return api('GET', `/api/budget/full?${qs({ year })}`).then(r => r.data || { year, income: [], expense: [], summary: {} });
         }
         
         // 다음 연도 예산 복사
         function copyBudgetToNextYear(fromYear, toYear) {
-            if (!confirm(`${fromYear}년 예산을 ${toYear}년으로 복사하시겠습니까?`)) {
-                return;
-            }
-            
+            if (!confirm(`${fromYear}년 예산을 ${toYear}년으로 복사하시겠습니까?`)) return;
             showLoading();
-            
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('예산 복사 중 오류가 발생했습니다.', 'error');
-                        console.error('예산 복사 오류:', error);
-                    })
-                    .copyBudgetToNextYear(fromYear, toYear);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', '/api/budget/copy', { fromYear, toYear })
+                .then(result => {
                     hideLoading();
-                    showAlert(`${fromYear}년 예산이 ${toYear}년으로 성공적으로 복사되었습니다.`);
-                }, 1500);
-            }
+                    if (result.success) { showAlert(result.message || `${fromYear}년 → ${toYear}년 복사 완료`); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('예산 복사 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
         
         // 연도별 예산 조회 화면 표시
@@ -7258,14 +6757,10 @@
         
         // 페이지 로드 시 연도별 예산 시스템 자동 초기화
         document.addEventListener('DOMContentLoaded', function() {
-            // 기존 초기화 로직에 추가
+            // Node.js 백엔드: 연도별 예산 시스템 자동 초기화
             setTimeout(() => {
-                if (typeof google !== 'undefined' && google.script && google.script.run) {
-                    // 백엔드가 연결된 경우에만 자동 초기화
-                    console.log('연도별 예산 시스템 자동 초기화 중...');
-                    initializeYearlyBudgetSystem();
-                }
-            }, 2000); // 다른 초기화가 완료된 후 실행
+                initializeYearlyBudgetSystem();
+            }, 2000);
         });
 
         // === showReportForm 함수 개선 ===
@@ -7344,68 +6839,29 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                let reportFunction;
-                switch(currentReportType) {
-                    case 'ledger':
-                        reportFunction = 'sendLedgerReport';
-                        break;
-                    case 'monthly':
-                        reportFunction = 'sendMonthlyReport';
-                        break;
-                    case 'donor':
-                        reportFunction = 'sendDonorReport';
-                        break;
-                    default:
-                        hideLoading();
-                        showAlert('알 수 없는 보고서 유형입니다.', 'error');
-                        return;
-                }
+            const endpointMap = {
+                ledger:  `/api/reports/ledger/send`,
+                monthly: `/api/reports/monthly/send`,
+                donor:   `/api/reports/donor/send`,
+            };
+            const bodyMap = {
+                ledger:  { email, year, month },
+                monthly: { email, year, month },
+                donor:   { email, year, startMonth: 1, endMonth: 12 },
+            };
+            const endpoint = endpointMap[currentReportType];
+            if (!endpoint) { hideLoading(); showAlert('알 수 없는 보고서 유형입니다.', 'error'); return; }
 
-                // 파라미터 설정
-                let params;
-                switch(currentReportType) {
-                    case 'ledger':
-                        params = [email, year, month];
-                        break;
-                    case 'monthly':
-                        params = [email, year, month]; // month가 'half'일 수도 있음
-                        break;
-                    case 'donor':
-                        params = [email, year, 1, 12];
-                        break;
-                }
-                
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            saveLastEmail(email);
-                            
-                            // 🔥 수정된 부분: 성공 후 폼을 숨기기
-                            hideReportForm();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('보고서 생성 중 오류가 발생했습니다.', 'error');
-                        console.error('보고서 생성 오류:', error);
-                    })
-                    [reportFunction](...params);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', endpoint, bodyMap[currentReportType])
+                .then(result => {
                     hideLoading();
-                    showAlert('보고서가 성공적으로 전송되었습니다.');
-                    saveLastEmail(email);
-                    
-                    // 🔥 수정된 부분: 로컬 테스트에서도 폼 숨기기
-                    hideReportForm();
-                }, 2000);
-            }
+                    if (result.success) {
+                        showAlert(result.message || '보고서가 전송되었습니다.');
+                        saveLastEmail(email);
+                        hideReportForm();
+                    } else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('보고서 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 새로 추가: 보고서 폼 초기화 함수 ===
@@ -7437,48 +6893,24 @@
         }
 
         function loadLastEmail(emailInputId) {
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(email) {
-                        if (email) {
-                            document.getElementById(emailInputId).value = email;
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('마지막 이메일 로드 오류:', error);
-                    })
-                    .getLastUsedEmail();
-            } else {
-                // 로컬 환경에서는 localStorage 사용
-                try {
-                    const savedEmail = localStorage.getItem('lastEmail');
-                    if (savedEmail) {
-                        document.getElementById(emailInputId).value = savedEmail;
+            api('GET', '/api/settings/last-email')
+                .then(result => {
+                    if (result.success && result.email) {
+                        const el = document.getElementById(emailInputId);
+                        if (el) el.value = result.email;
                     }
-                } catch (e) {
-                    // localStorage 지원하지 않는 환경에서는 무시
-                }
-            }
+                })
+                .catch(() => {
+                    try {
+                        const saved = localStorage.getItem('lastEmail');
+                        if (saved) { const el = document.getElementById(emailInputId); if (el) el.value = saved; }
+                    } catch(e) {}
+                });
         }
 
         function saveLastEmail(email) {
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        // 저장 성공
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('마지막 이메일 저장 오류:', error);
-                    })
-                    .setLastUsedEmail(email);
-            } else {
-                // 로컬 환경에서는 localStorage 사용
-                try {
-                    localStorage.setItem('lastEmail', email);
-                } catch (e) {
-                    // localStorage 지원하지 않는 환경에서는 무시
-                }
-            }
+            api('PUT', '/api/settings/last-email', { email })
+                .catch(() => { try { localStorage.setItem('lastEmail', email); } catch(e) {} });
         }
 
         // === 영수증 관리 기능 ===
@@ -7631,32 +7063,14 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                const fileName = `영수증_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
-                
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            hideCameraSection();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('영수증 저장 중 오류가 발생했습니다.', 'error');
-                        console.error('영수증 저장 오류:', error);
-                    })
-                    .saveReceiptImage(capturedImageData, fileName);
-            } else {
-                setTimeout(() => {
+            const fileName = `영수증_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
+            api('POST', '/api/receipts', { imageData: capturedImageData, fileName })
+                .then(result => {
                     hideLoading();
-                    showAlert('영수증이 성공적으로 저장되었습니다.');
-                    hideCameraSection();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || '영수증이 저장되었습니다.'); hideCameraSection(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('영수증 저장 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function stopCamera() {
@@ -7694,30 +7108,13 @@
             showLoading();
             saveLastEmail(email);
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            hideEmailSection();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('영수증 목록 전송 중 오류가 발생했습니다.', 'error');
-                        console.error('영수증 이메일 전송 오류:', error);
-                    })
-                    .sendReceiptList(email, startDate, endDate);
-            } else {
-                setTimeout(() => {
+            api('POST', '/api/receipts/send', { email, startDate, endDate })
+                .then(result => {
                     hideLoading();
-                    showAlert('영수증 목록이 성공적으로 전송되었습니다.');
-                    hideEmailSection();
-                }, 1500);
-            }
+                    if (result.success) { showAlert(result.message || '영수증 목록이 전송되었습니다.'); hideEmailSection(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('영수증 목록 전송 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 페이지 로드 시 초기화 ===
@@ -7770,7 +7167,8 @@
             const yearSelects = ['reportYear', 'searchYear', 'teacherFeeSearchYear'];
             yearSelects.forEach(selectId => {
                 const yearSelect = document.getElementById(selectId);
-                for (let year = currentYear - 2; year <= currentYear + 1; year++) {
+                if (!yearSelect || yearSelect.options.length > 0) return; // 이미 초기화됨
+                for (let year = currentYear - 3; year <= currentYear + 1; year++) {
                     const option = document.createElement('option');
                     option.value = year;
                     option.textContent = year + '년';
@@ -7910,84 +7308,23 @@
         function loadApprovalForTransaction(approvalId) {
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(approvalInfo) {
-                        hideLoading();
-                        if (approvalInfo) {
-                            // 거래등록 폼 자동 채우기
-                            document.getElementById('transactionType').value = 'expense';
-                            document.getElementById('transactionDate').value = approvalInfo.requestDate;
-                            
-                            // 부서 선택
-                            const departmentSelect = document.getElementById('transactionDepartment');
-                            departmentSelect.value = approvalInfo.department;
-                            
-                            // 지출 항목 업데이트
-                            updateExpenseItems();
-                            
-                            // 잠시 후 지출 항목 선택
-                            setTimeout(() => {
-                                document.getElementById('transactionExpenseItem').value = approvalInfo.expenseItem || '기타';
-                            }, 100);
-
-                            // 금액 설정
-                            document.getElementById('transactionAmount').value = approvalInfo.amount;
-                            
-                            // 적요 설정
-                            document.getElementById('transactionDescription').value = 
-                                `[결재번호: ${approvalInfo.id}] ${approvalInfo.content}`;
-                            
-                            // 카테고리 옵션 업데이트
-                            updateCategoryOptions();
-                            
-                            showAlert(`결재번호 ${approvalId}의 정보가 로드되었습니다.`);
-                        } else {
-                            showAlert('결재 정보를 찾을 수 없습니다.', 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('결재 정보 로드 중 오류가 발생했습니다.', 'error');
-                        console.error('결재 정보 로드 오류:', error);
-                    })
-                    .getApprovedApprovalForVoucher(approvalId);
-            } else {
-                // 로컬 테스트용 더미 데이터
-                setTimeout(() => {
+            api('GET', `/api/approvals/${approvalId}`)
+                .then(result => {
                     hideLoading();
-                    const dummyApprovalInfo = {
-                        id: approvalId,
-                        requestDate: new Date().toISOString().split('T')[0],
-                        department: '교육부',
-                        expenseItem: '공과책',
-                        amount: 50000,
-                        content: '2024년 1분기 교육 자료 구입'
-                    };
-                    
-                    // 위의 로드 로직과 동일하게 처리
-                    document.getElementById('transactionType').value = 'expense';
-                    document.getElementById('transactionDate').value = dummyApprovalInfo.requestDate;
-                    
-                    const departmentSelect = document.getElementById('transactionDepartment');
-                    departmentSelect.value = dummyApprovalInfo.department;
-                    
-                    updateExpenseItems();
-                    
-                    setTimeout(() => {
-                        document.getElementById('transactionExpenseItem').value = dummyApprovalInfo.expenseItem;
-                    }, 100);
-
-                    document.getElementById('transactionAmount').value = dummyApprovalInfo.amount;
-                    
-                    document.getElementById('transactionDescription').value = 
-                        `[결재번호: ${dummyApprovalInfo.id}] ${dummyApprovalInfo.content}`;
-                    
-                    updateCategoryOptions();
-                    
-                    showAlert(`결재번호 ${approvalId}의 정보가 로드되었습니다.`);
-                }, 1000);
-            }
+                    const approvalInfo = result.data;
+                    if (approvalInfo) {
+                        document.getElementById('transactionType').value = 'expense';
+                        document.getElementById('transactionDate').value = approvalInfo.requestDate;
+                        document.getElementById('transactionDepartment').value = approvalInfo.department;
+                        updateExpenseItems();
+                        setTimeout(() => { document.getElementById('transactionExpenseItem').value = approvalInfo.expenseItem || '기타'; }, 100);
+                        document.getElementById('transactionAmount').value = approvalInfo.amount;
+                        document.getElementById('transactionDescription').value = `[결재번호: ${approvalInfo.id}] ${approvalInfo.content}`;
+                        updateCategoryOptions();
+                        showAlert(`결재번호 ${approvalId}의 정보가 로드되었습니다.`);
+                    } else { showAlert('결재 정보를 찾을 수 없습니다.', 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('결재 정보 로드 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 승인/반려 처리 함수 ===
@@ -8003,31 +7340,13 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            searchApprovals(); // 목록 새로고침
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('승인 처리 중 오류가 발생했습니다.', 'error');
-                        console.error('승인 처리 오류:', error);
-                    })
-                    .processApprovalDecision(approvalId, currentUserAuthority.phone, 'approve', comment);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('PUT', `/api/approvals/${approvalId}/decision`, { phone: currentUserAuthority.phone, decision: 'approve', comment })
+                .then(result => {
                     hideLoading();
-                    showAlert('결재가 승인되었습니다.');
-                    searchApprovals();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || '승인되었습니다.'); searchApprovals(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('승인 처리 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function rejectRequest(approvalId) {
@@ -8042,31 +7361,13 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            searchApprovals(); // 목록 새로고침
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('반려 처리 중 오류가 발생했습니다.', 'error');
-                        console.error('반려 처리 오류:', error);
-                    })
-                    .processApprovalDecision(approvalId, currentUserAuthority.phone, 'reject', comment);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('PUT', `/api/approvals/${approvalId}/decision`, { phone: currentUserAuthority.phone, decision: 'reject', comment })
+                .then(result => {
                     hideLoading();
-                    showAlert('결재가 반려되었습니다.');
-                    searchApprovals();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || '반려되었습니다.'); searchApprovals(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('반려 처리 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // 자동삭제 즉시 실행
@@ -8077,31 +7378,13 @@
             
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(`${result.deletedCount}건의 결재가 자동삭제되었습니다.`);
-                            loadDeletableApprovals(); // 목록 새로고침
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('자동삭제 실행 중 오류가 발생했습니다.', 'error');
-                        console.error('자동삭제 오류:', error);
-                    })
-                    .executeAutoDeleteNow();
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('DELETE', '/api/approvals/auto-delete')
+                .then(result => {
                     hideLoading();
-                    showAlert('테스트 모드: 3건의 결재가 자동삭제되었습니다.');
-                    loadDeletableApprovals();
-                }, 1500);
-            }
+                    if (result.success) { showAlert(`${result.deletedCount || 0}건의 결재가 자동삭제되었습니다.`); loadDeletableApprovals(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('자동삭제 실행 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // 삭제 가능한 결재 목록 로드
@@ -8109,67 +7392,17 @@
             console.log('삭제 가능한 결재 조회 시작'); // 디버깅 로그 추가
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                console.log('백엔드 함수 호출 중...'); // 디버깅 로그
-                google.script.run
-                    .withSuccessHandler(function(approvals) {
-                        console.log('백엔드 응답 받음:', approvals); // 디버깅 로그
-                        hideLoading();
-                        
-                        if (approvals && Array.isArray(approvals)) {
-                            displayDeletableApprovals(approvals);
-                        } else {
-                            console.error('잘못된 응답 형식:', approvals);
-                            showAlert('응답 형식이 올바르지 않습니다.', 'error');
-                            displayDeletableApprovals([]);
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('백엔드 호출 실패:', error);
-                        hideLoading();
-                        showAlert('삭제 가능한 결재 목록 조회 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                        
-                        // 에러 발생시에도 빈 목록 표시
-                        displayDeletableApprovals([]);
-                    })
-                    .getDeletableApprovals();
-            } else {
-                console.log('로컬 테스트 모드 실행'); // 디버깅 로그
-                // 로컬 테스트용 - 더 현실적인 테스트 데이터
-                setTimeout(() => {
+            api('GET', '/api/approvals/deletable')
+                .then(result => {
                     hideLoading();
-                    const testData = [
-                        {
-                            id: 'AR20241201123456',
-                            requestDate: '2024-12-01',
-                            department: '교육부',
-                            expenseItem: '공과책',
-                            amount: 50000,
-                            status: '승인완료',
-                            transactionRecorded: true,
-                            daysSinceRequest: 15,
-                            autoDeleteDate: '2024-12-11',
-                            isAutoDeleteTarget: true,
-                            canForceDelete: true
-                        },
-                        {
-                            id: 'AR20241205140000',
-                            requestDate: '2024-12-05',
-                            department: '음악부',
-                            expenseItem: '찬양대',
-                            amount: 30000,
-                            status: '반려',
-                            transactionRecorded: false,
-                            daysSinceRequest: 11,
-                            autoDeleteDate: '2024-12-15',
-                            isAutoDeleteTarget: false,
-                            canForceDelete: true
-                        }
-                    ];
-                    console.log('테스트 데이터 표시:', testData);
-                    displayDeletableApprovals(testData);
-                }, 1000);
-            }
+                    displayDeletableApprovals(result.data || []);
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('삭제 가능한 결재 목록 조회 중 오류가 발생했습니다.', 'error');
+                    displayDeletableApprovals([]);
+                    console.error(err);
+                });
         }
         // 삭제 가능한 결재 목록 표시
         function displayDeletableApprovals(approvals) {
@@ -8267,31 +7500,13 @@
             
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            loadDeletableApprovals(); // 목록 새로고침
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('강제삭제 중 오류가 발생했습니다.', 'error');
-                        console.error('강제삭제 오류:', error);
-                    })
-                    .forceDeleteApproval(approvalId);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('DELETE', `/api/approvals/${approvalId}/force`)
+                .then(result => {
                     hideLoading();
-                    showAlert(`결재번호 ${approvalId}가 강제삭제되었습니다.`);
-                    loadDeletableApprovals();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || `결재번호 ${approvalId}가 삭제되었습니다.`); loadDeletableApprovals(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('강제삭제 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 페이지 로드 시 초기화 ===
@@ -8356,67 +7571,25 @@
 
           showLoading();
 
-          if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run
-              .withSuccessHandler(function(result) {
-                hideLoading();
-                if (result.success) {
-                  currentUserAuthority = result.approver;
-                  showAlert(result.message);
-                  // 여기서 추가적인 UI 업데이트나 페이지 이동 로직 추가
-                  searchApprovals(); // 결재 목록 조회
-                } else {
-                  showAlert(result.message, 'error');
-                }
-              })
-              .withFailureHandler(function(error) {
-                hideLoading();
-                showAlert('인증 중 오류가 발생했습니다.', 'error');
-                console.error('인증 오류:', error);
-              })
-              .authenticateApprover(phoneNumber, password);
-          } else {
-            // 로컬 테스트용 (필요시)
-            setTimeout(() => {
+          api('POST', '/api/approvals/authenticate', { phone: phoneNumber, password })
+            .then(result => {
               hideLoading();
-              if (phoneNumber === '010-4731-8201' && password === '1234') {
-                currentUserAuthority = { 
-                  position: '회계', 
-                  name: '김찬호', 
-                  phone: phoneNumber 
-                };
-                showAlert('회계 권한으로 인증되었습니다.');
+              if (result.success) {
+                currentUserAuthority = result.approver;
+                showAlert(result.message || '인증되었습니다.');
                 searchApprovals();
-              } else {
-                showAlert('전화번호 또는 패스워드가 일치하지 않습니다.', 'error');
-              }
-            }, 1000);
-          }
+              } else { showAlert(result.message, 'error'); }
+            })
+            .catch(err => { hideLoading(); showAlert('인증 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // 대기중인 결재 로드
         function loadPendingApprovals() {
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(approvals) {
-                        hideLoading();
-                        displayPendingApprovals(approvals);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('대기중인 결재 조회 중 오류가 발생했습니다.', 'error');
-                        console.error('결재 조회 오류:', error);
-                    })
-                    .getPendingApprovals();  // currentApprover 파라미터 제거
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
-                    hideLoading();
-                    displayPendingApprovals([]);
-                }, 1000);
-            }
+            api('GET', '/api/approvals/pending')
+                .then(result => { hideLoading(); displayPendingApprovals(result.data || []); })
+                .catch(err => { hideLoading(); showAlert('대기중인 결재 조회 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function displayPendingApprovals(approvals) {
@@ -8496,33 +7669,14 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        closeApprovalModal();
-                        if (result.success) {
-                            showAlert(result.message);
-                            loadPendingApprovals(); // 목록 새로고침
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('결재 처리 중 오류가 발생했습니다.', 'error');
-                        console.error('결재 처리 오류:', error);
-                    })
-                    .processApprovalDecision(currentApprovalId, currentApprover.phone, decision, comment);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('PUT', `/api/approvals/${currentApprovalId}/decision`, { phone: currentApprover.phone, decision, comment })
+                .then(result => {
                     hideLoading();
                     closeApprovalModal();
-                    showAlert(`결재가 ${decision === 'approve' ? '승인' : '반려'}되었습니다.`);
-                    loadPendingApprovals();
-                }, 1000);
-            }
+                    if (result.success) { showAlert(result.message || `결재가 ${decision === 'approve' ? '승인' : '반려'}되었습니다.`); loadPendingApprovals(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('결재 처리 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 전역 변수 추가 ===
@@ -8531,46 +7685,10 @@
         // === 결재 검색 및 목록 조회 함수 ===
         function searchApprovals() {
             const keyword = document.getElementById('searchApprovalKeyword').value.trim();
-            
-            console.log('결재 검색 시작:', keyword);
-            
             showLoading();
-
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(results) {
-                        console.log('결재 검색 결과:', results);
-                        hideLoading();
-                        displayApprovalList(results);
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error('결재 검색 오류:', error);
-                        hideLoading();
-                        showAlert('결재 목록 조회 중 오류가 발생했습니다.', 'error');
-                    })
-                    .getApprovalList(keyword);
-            } else {
-                // 로컬 테스트용 더미 데이터
-                setTimeout(() => {
-                    hideLoading();
-                    const testData = [
-                        {
-                            id: 'AR20241215123456',
-                            requestDate: '2024-12-15',
-                            department: '교육부',
-                            expenseItem: '공과책',
-                            amount: 50000,
-                            status: '승인완료',
-                            finalApprover: '김찬호 회계',
-                            accountingComment: '예산 범위 내 승인',
-                            generalAffairsComment: '필요한 지출로 판단됨',
-                            managerComment: '최종 승인'
-                        }
-                    ];
-                    console.log('테스트 데이터:', testData);
-                    displayApprovalList(testData);
-                }, 1000);
-            }
+            api('GET', `/api/approvals?${qs({ keyword })}`)
+                .then(result => { hideLoading(); displayApprovalList(result.data || []); })
+                .catch(err => { hideLoading(); showAlert('결재 목록 조회 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         // === 디버깅을 위한 표시 함수 수정 ===
@@ -8757,31 +7875,13 @@
                 memo: memo
             };
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            resetVoucherSection();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('지출청구서 생성 중 오류가 발생했습니다.', 'error');
-                        console.error('지출청구서 생성 오류:', error);
-                    })
-                    .createVoucherFromApproval(voucherData);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', '/api/vouchers/from-approval', voucherData)
+                .then(result => {
                     hideLoading();
-                    showAlert('지출청구서가 생성되어 이메일로 전송되었습니다.');
-                    resetVoucherSection();
-                }, 1500);
-            }
+                    if (result.success) { showAlert(result.message || '지출청구서가 전송되었습니다.'); resetVoucherSection(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('지출청구서 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function recordTransactionFromApproval() {
@@ -8803,31 +7903,13 @@
                 date: new Date().toISOString().split('T')[0] // 오늘 날짜
             };
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            resetVoucherSection();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('거래내역 등록 중 오류가 발생했습니다.', 'error');
-                        console.error('거래내역 등록 오류:', error);
-                    })
-                    .recordTransactionFromApproval(transactionData);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('POST', '/api/transactions/from-approval', transactionData)
+                .then(result => {
                     hideLoading();
-                    showAlert('거래내역이 회계장부에 등록되었습니다.');
-                    resetVoucherSection();
-                }, 1500);
-            }
+                    if (result.success) { showAlert(result.message || '거래내역이 등록되었습니다.'); resetVoucherSection(); }
+                    else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('거래내역 등록 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
         function createApprovalRequest() {
@@ -8856,42 +7938,16 @@
 
             showLoading();
 
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(result) {
-                        hideLoading();
-                        if (result.success) {
-                            showAlert(result.message);
-                            
-                            // 결재요청 성공 후 문자 발송 버튼 보이기
-                            currentApprovalDataForSMS = formData;
-                            document.getElementById('sendSmsBtn').classList.remove('hidden');
-                            
-                            // 폼 초기화하지 않음 (문자 발송을 위해)
-                            // document.getElementById('approvalRequestForm').reset();
-                        } else {
-                            showAlert(result.message, 'error');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        showAlert('결재요청 생성 중 오류가 발생했습니다.', 'error');
-                        console.error('결재요청 오류:', error);
-                    })
-                    .createApprovalRequest(formData);
-            } else {
-                setTimeout(() => {
+            api('POST', '/api/approvals', formData)
+                .then(result => {
                     hideLoading();
-                    showAlert('결재요청이 성공적으로 생성되었습니다.');
-                    
-                    // 결재요청 성공 후 문자 발송 버튼 보이기
-                    currentApprovalDataForSMS = formData;
-                    document.getElementById('sendSmsBtn').classList.remove('hidden');
-                    
-                    // 폼 초기화하지 않음 (문자 발송을 위해)
-                    // document.getElementById('approvalRequestForm').reset();
-                }, 1000);
-}
+                    if (result.success) {
+                        showAlert(result.message || '결재요청이 생성되었습니다.');
+                        currentApprovalDataForSMS = formData;
+                        document.getElementById('sendSmsBtn').classList.remove('hidden');
+                    } else { showAlert(result.message, 'error'); }
+                })
+                .catch(err => { hideLoading(); showAlert('결재요청 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
 
 // ... (나머지 전자결재 함수들 계속)
@@ -8918,17 +7974,55 @@
 
         // === Google Apps Script 연동 추가 함수들 ===
         // Google Apps Script 환경에서만 동작하는 추가 초기화
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-            // 예산설정 시트 초기화
-            google.script.run
-                .withSuccessHandler(function(result) {
-                    console.log('예산설정 시트 초기화 완료:', result);
-                })
-                .withFailureHandler(function(error) {
-                    console.error('예산설정 시트 초기화 오류:', error);
-                })
-                .initializeBudgetSheet();
+        // 예산설정 시트 초기화 (Node.js 백엔드)
+        api('POST', '/api/budget/init')
+            .then(r => console.log('예산설정 초기화:', r))
+            .catch(err => console.error('예산설정 초기화 오류:', err));
+
+        // 로그인 후 모든 연도 드롭다운 일괄 초기화
+        function initializeAllYearSelects() {
+            const currentYear = new Date().getFullYear();
+
+            // 조회관리 + 보고서 + 교사회비 연도 (공통)
+            ['reportYear', 'searchYear', 'teacherFeeSearchYear'].forEach(selectId => {
+                const sel = document.getElementById(selectId);
+                if (!sel || sel.options.length > 0) return;
+                for (let y = currentYear - 3; y <= currentYear + 1; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y; opt.textContent = y + '년';
+                    if (y === currentYear) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            });
+
+            // 예산 조회 연도
+            const budgetViewSel = document.getElementById('budgetViewYear');
+            if (budgetViewSel && budgetViewSel.options.length === 0) {
+                for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y; opt.textContent = y + '년';
+                    if (y === currentYear) opt.selected = true;
+                    budgetViewSel.appendChild(opt);
+                }
+            }
+
+            // 예산 알림 연도
+            const alertSel = document.getElementById('alertViewYear');
+            if (alertSel && alertSel.options.length === 0) {
+                for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+                    const opt = document.createElement('option');
+                    opt.value = y; opt.textContent = y + '년';
+                    if (y === currentYear) opt.selected = true;
+                    alertSel.appendChild(opt);
+                }
+            }
+
+            // 월 기본값
+            const currentMonth = new Date().getMonth() + 1;
+            const reportMonth = document.getElementById('reportMonth');
+            if (reportMonth && !reportMonth.value) reportMonth.value = currentMonth;
         }
+
         // 예산 조회 연도 드롭다운 초기화
         function initializeBudgetViewYears() {
             const budgetViewYear = document.getElementById('budgetViewYear');
@@ -8960,78 +8054,20 @@
             console.log('선택된 연도:', selectedYear);
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(data) {
-                        hideLoading();
-                        console.log('연도별 예산 데이터:', data);
-                        
-                        // 🔥 데이터 전처리 추가
-                        if (data && data.summary) {
-                            // 지출실적이 음수인 경우 양수로 변환
-                            if (data.summary.totalExpenseActual < 0) {
-                                data.summary.totalExpenseActual = Math.abs(data.summary.totalExpenseActual);
-                            }
-                            
-                            // 개별 지출 항목도 처리
-                            if (data.expense && Array.isArray(data.expense)) {
-                                data.expense = data.expense.map(item => ({
-                                    ...item,
-                                    actual: Math.abs(item.actual || 0)
-                                }));
-                            }
-                        }
-                        
-                        displayFullBudgetData(data);
-                        showAlert(`${selectedYear}년 예산 데이터가 로드되었습니다.`);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        console.error('연도별 예산 데이터 조회 오류:', error);
-                        showAlert('예산 데이터 조회 중 오류가 발생했습니다.', 'error');
-                        
-                        // 오류 시에도 빈 데이터 표시
-                        displayFullBudgetData({
-                            year: selectedYear,
-                            income: [],
-                            expense: [],
-                            summary: {
-                                totalIncomeBudget: 0,
-                                totalIncomeActual: 0,
-                                totalExpenseBudget: 0,
-                                totalExpenseActual: 0
-                            }
-                        });
-                    })
-                    .getFullBudgetDataByYear(selectedYear);
-            } else {
-                // 로컬 테스트용
-                setTimeout(() => {
+            api('GET', `/api/budget/full?${qs({ year: selectedYear })}`)
+                .then(result => {
                     hideLoading();
-                    console.log('로컬 테스트: 연도별 예산 데이터');
-                    
-                    const testData = {
-                        year: selectedYear,
-                        income: [
-                            { item: '주일헌금', budget: 1000000, actual: 800000, rate: '80.0' },
-                            { item: '감사헌금', budget: 500000, actual: 300000, rate: '60.0' }
-                        ],
-                        expense: [
-                            { department: '교육부', item: '공과책', budget: 200000, actual: 150000, rate: '75.0' },
-                            { department: '음악부', item: '찬양대', budget: 100000, actual: 80000, rate: '80.0' }
-                        ],
-                        summary: {
-                            totalIncomeBudget: 1500000,
-                            totalIncomeActual: 1100000,
-                            totalExpenseBudget: 300000,
-                            totalExpenseActual: 230000 // 양수로 표시
-                        }
-                    };
-                    
-                    displayFullBudgetData(testData);
+                    const data = result.data || { year: selectedYear, income: [], expense: [], summary: {} };
+                    if (data.summary && data.summary.totalExpenseActual < 0) data.summary.totalExpenseActual = Math.abs(data.summary.totalExpenseActual);
+                    if (data.expense) data.expense = data.expense.map(item => ({ ...item, actual: Math.abs(item.actual || 0) }));
+                    displayFullBudgetData(data);
                     showAlert(`${selectedYear}년 예산 데이터가 로드되었습니다.`);
-                }, 1000);
-            }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('예산 데이터 조회 중 오류가 발생했습니다.', 'error');
+                    displayFullBudgetData({ year: selectedYear, income: [], expense: [], summary: { totalIncomeBudget:0, totalIncomeActual:0, totalExpenseBudget:0, totalExpenseActual:0 } });
+                });
         }
         // 선택된 연도 예산 데이터 새로고침
         function refreshBudgetDataForSelectedYear() {
@@ -9052,37 +8088,10 @@
         
         showLoading();
         
-        if (typeof google !== 'undefined' && google.script && google.script.run) {
-          google.script.run
-            .withSuccessHandler(function(result) {
-              hideLoading();
-              if (result.success) {
-                currentReportUrl = result.fileUrl;
-                currentReportFolderId = result.folderId;
-                currentReportFileId = result.fileId;
-                
-                document.getElementById('reportPreviewContent').innerHTML = `
-                  <iframe src="${currentReportUrl}" style="width: 100%; height: 100%; border: none;"></iframe>
-                `;
-                document.getElementById('reportPreviewModal').style.display = 'block';
-              } else {
-                showAlert(result.message, 'error');
-              }
-            })
-            .withFailureHandler(function(error) {
-              hideLoading();
-              showAlert('미리보기 파일 생성 중 오류가 발생했습니다.', 'error');
-              console.error('미리보기 오류:', error);
-            })
-            .createTemporaryHTMLFile(reportContent, fileName);
-        } else {
-          // 로컬 테스트용
-          setTimeout(() => {
-            hideLoading();
-            document.getElementById('reportPreviewContent').innerHTML = reportContent;
-            document.getElementById('reportPreviewModal').style.display = 'block';
-          }, 1000);
-        }
+        // 로컬 미리보기 (Node.js는 별도 파일 저장 불필요)
+        hideLoading();
+        document.getElementById('reportPreviewContent').innerHTML = reportContent;
+        document.getElementById('reportPreviewModal').style.display = 'block';
       }
 
       function closeReportPreviewModal() {
@@ -9091,16 +8100,9 @@
         
         if (currentReportFolderId && currentReportFileId) {
           // 임시 파일 삭제 요청
-          if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run
-              .withSuccessHandler(function(result) {
-                console.log('임시 파일 삭제 완료');
-              })
-              .withFailureHandler(function(error) {
-                console.error('임시 파일 삭제 오류:', error);
-              })
-              .deleteTemporaryFile(currentReportFolderId, currentReportFileId);
-          }
+          // Node.js 환경에서는 임시 파일 없음 (브라우저 메모리만 사용)
+          currentReportFolderId = null;
+          currentReportFileId = null;
         }
         
         currentReportUrl = null;
@@ -9456,87 +8458,17 @@
             
             showLoading();
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                google.script.run
-                    .withSuccessHandler(function(alertData) {
-                        hideLoading();
-                        console.log('예산 알림 데이터:', alertData);
-                        displayBudgetAlerts(alertData);
-                        showAlert(`${selectedYear}년 예산 알림이 업데이트되었습니다.`);
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        console.error('예산 알림 조회 오류:', error);
-                        showAlert('예산 알림 조회 중 오류가 발생했습니다.', 'error');
-                        
-                        // 오류 시에도 빈 데이터 표시
-                        displayBudgetAlerts({
-                            year: selectedYear,
-                            overBudgetItems: [],
-                            underBudgetItems: [],
-                            normalItems: [],
-                            summary: {
-                                totalItems: 0,
-                                overBudgetCount: 0,
-                                underBudgetCount: 0,
-                                normalCount: 0
-                            }
-                        });
-                    })
-                    .getBudgetAlerts(selectedYear, overThreshold, underThreshold);
-            } else {
-                // 로컬 테스트용 더미 데이터
-                setTimeout(() => {
+            api('GET', `/api/budget/alerts?${qs({ year: selectedYear, overThreshold, underThreshold })}`)
+                .then(result => {
                     hideLoading();
-                    const testAlertData = {
-                        year: selectedYear,
-                        overBudgetItems: [
-                            {
-                                category: '지출',
-                                department: '교육부',
-                                item: '공과책',
-                                budget: 100000,
-                                actual: 120000,
-                                rate: 120.0,
-                                overAmount: 20000
-                            }
-                        ],
-                        underBudgetItems: [
-                            {
-                                category: '수입',
-                                department: '',
-                                item: '감사헌금',
-                                budget: 500000,
-                                actual: 200000,
-                                rate: 40.0,
-                                remainingAmount: 300000
-                            }
-                        ],
-                        normalItems: [
-                            {
-                                category: '수입',
-                                department: '',
-                                item: '주일헌금',
-                                budget: 1000000,
-                                actual: 800000,
-                                rate: 80.0,
-                                status: '정상'
-                            }
-                        ],
-                        summary: {
-                            totalItems: 3,
-                            overBudgetCount: 1,
-                            underBudgetCount: 1,
-                            normalCount: 1
-                        }
-                    };
-                    
-                    console.log('테스트 알림 데이터:', testAlertData);
-                    displayBudgetAlerts(testAlertData);
+                    displayBudgetAlerts(result.data || { year: selectedYear, overBudgetItems: [], underBudgetItems: [], normalItems: [], summary: {} });
                     showAlert(`${selectedYear}년 예산 알림이 업데이트되었습니다.`);
-                }, 1000);
-            }
-        }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('예산 알림 조회 중 오류가 발생했습니다.', 'error');
+                    displayBudgetAlerts({ year: selectedYear, overBudgetItems: [], underBudgetItems: [], normalItems: [], summary: {} });
+                });
 
         // 예산 알림 데이터 표시
         function displayBudgetAlerts(alertData) {
@@ -9956,71 +8888,22 @@
             // 기존 데이터 초기화
             displayFullBudgetData(createEmptyBudgetData());
             
-            if (typeof google !== 'undefined' && google.script && google.script.run) {
-                console.log('백엔드 함수 호출: getFullBudgetDataByYear');
-                
-                google.script.run
-                    .withSuccessHandler(function(data) {
-                        hideLoading();
-                        console.log('백엔드 응답 데이터:', data);
-                        
-                        if (!data) {
-                            console.error('백엔드에서 null 데이터를 받았습니다.');
-                            showAlert('백엔드에서 데이터를 받지 못했습니다. 데이터베이스를 확인하세요.', 'error');
-                            return;
-                        }
-                        
-                        displayFullBudgetData(data);
-                        
-                        // 지출실적이 여전히 0인지 확인
-                        const expenseActualElement = document.getElementById('summaryExpenseActual');
-                        if (expenseActualElement && expenseActualElement.textContent === '0원') {
-                            showAlert('⚠️ 지출실적이 0원입니다. 백엔드 데이터 집계를 확인해주세요.', 'warning');
-                            console.warn('백엔드 확인 사항:');
-                            console.warn('1. 지출 거래가 올바르게 저장되어 있는지');
-                            console.warn('2. getFullBudgetDataByYear 함수의 지출실적 계산 로직');
-                            console.warn('3. 연도별 필터링이 올바른지');
-                        } else {
-                            showAlert(`${selectedYear}년 예산 데이터가 성공적으로 로드되었습니다.`, 'success');
-                        }
-                    })
-                    .withFailureHandler(function(error) {
-                        hideLoading();
-                        console.error('백엔드 호출 실패:', error);
-                        showAlert('예산 데이터 조회 중 오류가 발생했습니다: ' + error.toString(), 'error');
-                        displayFullBudgetData(createEmptyBudgetData());
-                    })
-                    .getFullBudgetDataByYear(selectedYear);
-            } else {
-                // 로컬 테스트용 - 실제 지출 데이터가 있는 것처럼 시뮬레이션
-                setTimeout(() => {
+            api('GET', `/api/budget/full?${qs({ year: selectedYear })}`)
+                .then(result => {
                     hideLoading();
-                    
-                    const testData = {
-                        year: selectedYear,
-                        income: [
-                            { item: '주일헌금', budget: 15000000, actual: 4200000, rate: '28.0' },
-                            { item: '감사헌금', budget: 6990000, actual: 2235215, rate: '32.0' }
-                        ],
-                        expense: [
-                            { department: '교육부', item: '공과책', budget: 50000000, actual: 15000000, rate: '30.0' },
-                            { department: '음악부', item: '찬양대', budget: 30000000, actual: 8000000, rate: '26.7' },
-                            { department: '행정부', item: '사무용품', budget: 20000000, actual: 5000000, rate: '25.0' },
-                            { department: '시설부', item: '시설관리', budget: 30400000, actual: 12000000, rate: '39.5' }
-                        ],
-                        summary: {
-                            totalIncomeBudget: 21990000,
-                            totalIncomeActual: 6435215,
-                            totalExpenseBudget: 130400000,
-                            totalExpenseActual: 40000000 // 🔥 실제 지출실적 데이터
-                        }
-                    };
-                    
-                    console.log('로컬 테스트 데이터 사용:', testData);
-                    displayFullBudgetData(testData);
-                    showAlert(`${selectedYear}년 예산 데이터 (테스트)가 로드되었습니다.`, 'success');
-                }, 1000);
-            }
+                    const data = result.data;
+                    if (!data) { showAlert('데이터를 받지 못했습니다.', 'error'); return; }
+                    if (data.summary && data.summary.totalExpenseActual < 0) data.summary.totalExpenseActual = Math.abs(data.summary.totalExpenseActual);
+                    if (data.expense) data.expense = data.expense.map(item => ({ ...item, actual: Math.abs(item.actual || 0) }));
+                    displayFullBudgetData(data);
+                    showAlert(`${selectedYear}년 예산 데이터가 로드되었습니다.`, 'success');
+                })
+                .catch(err => {
+                    hideLoading();
+                    showAlert('예산 데이터 조회 중 오류가 발생했습니다.', 'error');
+                    displayFullBudgetData(createEmptyBudgetData());
+                    console.error(err);
+                });
         }
 
         // === 7. 기존 함수들 수정 ===
