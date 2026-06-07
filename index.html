@@ -5384,6 +5384,7 @@
                         populateOptions();          // 부서/항목 옵션도 재초기화
                         // 예산설정 시트 초기화 (로그인 후 실행)
                         api('POST', '/api/budget/init').catch(() => {});
+                        setTimeout(() => initializeYearlyBudgetSystem(), 1000);
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
@@ -6689,7 +6690,7 @@
             // 로딩 표시 없이 백그라운드에서 실행
             api('POST', '/api/budget/init-yearly')
                 .then(result => { console.log('연도별 예산 시스템 초기화 완료:', result); })
-                .catch(err => { console.error('초기화 오류:', err); showAlert('예산 시스템 초기화 중 오류가 발생했습니다.', 'error'); });
+                .catch(err => { console.error('초기화 오류:', err); }); // 로그인 후 실행되므로 오류 알림 불필요
         }
         
         // 특정 연도의 예산 데이터 조회
@@ -6757,13 +6758,7 @@
             displayFullBudgetData(data);
         }
         
-        // 페이지 로드 시 연도별 예산 시스템 자동 초기화
-        document.addEventListener('DOMContentLoaded', function() {
-            // Node.js 백엔드: 연도별 예산 시스템 자동 초기화
-            setTimeout(() => {
-                initializeYearlyBudgetSystem();
-            }, 2000);
-        });
+        // 연도별 예산 시스템 초기화는 로그인 성공 후 실행됨
 
         // === showReportForm 함수 개선 ===
         function showReportForm(reportType) {
