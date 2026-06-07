@@ -5382,6 +5382,8 @@
                         document.getElementById('mainApp').style.display = 'block';
                         initializeAllYearSelects(); // 로그인 후 연도 드롭다운 초기화
                         populateOptions();          // 부서/항목 옵션도 재초기화
+                        // 예산설정 시트 초기화 (로그인 후 실행)
+                        api('POST', '/api/budget/init').catch(() => {});
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
@@ -7973,11 +7975,7 @@
         });
 
         // === Google Apps Script 연동 추가 함수들 ===
-        // Google Apps Script 환경에서만 동작하는 추가 초기화
-        // 예산설정 시트 초기화 (Node.js 백엔드)
-        api('POST', '/api/budget/init')
-            .then(r => console.log('예산설정 초기화:', r))
-            .catch(err => console.error('예산설정 초기화 오류:', err));
+        // 예산설정 초기화는 로그인 성공 후 initializeAllYearSelects()와 함께 실행됨
 
         // 로그인 후 모든 연도 드롭다운 일괄 초기화
         function initializeAllYearSelects() {
