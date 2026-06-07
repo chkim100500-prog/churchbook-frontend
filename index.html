@@ -5271,12 +5271,17 @@
           api('GET', '/api/master')
             .then(result => {
               if (!result.success || !result.data) return;
-              const constants = result.data;
+              const d = result.data;
+              const constants = {
+                INCOME_ITEMS: d.incomeItems || d.INCOME_ITEMS || [],
+                DEPARTMENTS: d.departments || d.DEPARTMENTS || [],
+                EXPENSE_ITEMS_BY_DEPT: d.expenseItemsByDept || d.EXPENSE_ITEMS_BY_DEPT || {},
+              };
 
               const budgetIncomeSelect = document.getElementById('budgetIncomeItem');
               if (budgetIncomeSelect) {
                 budgetIncomeSelect.innerHTML = '<option value="">선택하세요</option>';
-                (constants.INCOME_ITEMS || []).forEach(item => {
+                constants.INCOME_ITEMS.forEach(item => {
                   const option = document.createElement('option');
                   option.value = item; option.textContent = item;
                   budgetIncomeSelect.appendChild(option);
@@ -5286,7 +5291,7 @@
               const budgetExpenseDeptSelect = document.getElementById('budgetExpenseDept');
               if (budgetExpenseDeptSelect) {
                 budgetExpenseDeptSelect.innerHTML = '<option value="">선택하세요</option>';
-                (constants.DEPARTMENTS || []).forEach(dept => {
+                constants.DEPARTMENTS.forEach(dept => {
                   if (constants.EXPENSE_ITEMS_BY_DEPT[dept]) {
                     const option = document.createElement('option');
                     option.value = dept; option.textContent = dept;
