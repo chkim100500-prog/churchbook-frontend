@@ -4546,12 +4546,13 @@
 
         // === 상수 초기화 함수 ===
         function initializeConstants() {
-          api('GET', '/api/master/constants')
+          api('GET', '/api/master')
             .then(result => {
               if (result.success && result.data) {
-                DEPARTMENTS = result.data.DEPARTMENTS || [];
-                INCOME_ITEMS = result.data.INCOME_ITEMS || [];
-                EXPENSE_ITEMS_BY_DEPT = result.data.EXPENSE_ITEMS_BY_DEPT || {};
+                const d = result.data;
+                DEPARTMENTS = d.departments || d.DEPARTMENTS || [];
+                INCOME_ITEMS = d.incomeItems || d.INCOME_ITEMS || [];
+                EXPENSE_ITEMS_BY_DEPT = d.expenseItemsByDept || d.EXPENSE_ITEMS_BY_DEPT || {};
               }
             })
             .catch(err => console.error('상수 초기화 오류:', err));
@@ -5243,7 +5244,7 @@
         // === 초기화 함수들 === 섹션에서 기존 populateOptions() 함수를 다음과 같이 수정
         // 기존 populateOptions() 함수만 수정
         function populateOptions() {
-            api('GET', '/api/master/constants')
+            api('GET', '/api/master')
                 .then(result => {
                     if (!result.success || !result.data) return;
                     const constants = result.data;
@@ -5281,7 +5282,7 @@
         }
 
         function populateBudgetOptions() {
-          api('GET', '/api/master/constants')
+          api('GET', '/api/master')
             .then(result => {
               if (!result.success || !result.data) return;
               const constants = result.data;
@@ -5382,9 +5383,7 @@
                         document.getElementById('mainApp').style.display = 'block';
                         initializeAllYearSelects(); // 로그인 후 연도 드롭다운 초기화
                         populateOptions();          // 부서/항목 옵션도 재초기화
-                        // 예산설정 시트 초기화 (로그인 후 실행)
-                        api('POST', '/api/budget/init').catch(() => {});
-                        setTimeout(() => initializeYearlyBudgetSystem(), 1000);
+                        // 예산 시스템 초기화는 필요 시 수동으로 실행
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
@@ -7123,9 +7122,7 @@
             document.getElementById('receiptStartDate').value = today;
             document.getElementById('receiptEndDate').value = today;
             
-            // 여기에 추가
-            populateOptions();
-            populateBudgetOptions();
+            // populateOptions/populateBudgetOptions는 로그인 후 실행됨
             // 전화번호 입력 필드들에 자동 포맷팅 적용
             const phoneInputs = ['requestPhone', 'approverPhone'];
             
