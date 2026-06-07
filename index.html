@@ -8469,6 +8469,7 @@
                     showAlert('예산 알림 조회 중 오류가 발생했습니다.', 'error');
                     displayBudgetAlerts({ year: selectedYear, overBudgetItems: [], underBudgetItems: [], normalItems: [], summary: {} });
                 });
+        }  // loadBudgetAlerts 끝
 
         // 예산 알림 데이터 표시
         function displayBudgetAlerts(alertData) {
