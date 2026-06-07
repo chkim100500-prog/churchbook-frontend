@@ -6263,8 +6263,45 @@
             document.getElementById('budgetInputSection').classList.remove('hidden');
             document.getElementById('budgetViewSection').classList.add('hidden');
             document.getElementById('budgetAlertSection').classList.add('hidden');
+            initializeBudgetInputYears(); // 연도 드롭다운 초기화
             loadBudgetItems();
-            populateBudgetOptions(); // 수입항목/부서 드롭다운 채우기
+            // 전역변수에 데이터가 있으면 즉시, 없으면 API 호출 후 채우기
+            if (INCOME_ITEMS && INCOME_ITEMS.length > 0) {
+                _fillBudgetDropdowns();
+            } else {
+                api('GET', '/api/master').then(result => {
+                    if (result.success && result.data) {
+                        const d = result.data;
+                        INCOME_ITEMS = d.incomeItems || d.INCOME_ITEMS || [];
+                        DEPARTMENTS = d.departments || d.DEPARTMENTS || [];
+                        EXPENSE_ITEMS_BY_DEPT = d.expenseItemsByDept || d.EXPENSE_ITEMS_BY_DEPT || {};
+                    }
+                    _fillBudgetDropdowns();
+                }).catch(() => _fillBudgetDropdowns());
+            }
+        }
+
+        function _fillBudgetDropdowns() {
+            const incomeSelect = document.getElementById('budgetIncomeItem');
+            if (incomeSelect) {
+                incomeSelect.innerHTML = '<option value="">선택하세요</option>';
+                (INCOME_ITEMS || []).forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item; opt.textContent = item;
+                    incomeSelect.appendChild(opt);
+                });
+            }
+            const deptSelect = document.getElementById('budgetExpenseDept');
+            if (deptSelect) {
+                deptSelect.innerHTML = '<option value="">선택하세요</option>';
+                (DEPARTMENTS || []).forEach(dept => {
+                    if ((EXPENSE_ITEMS_BY_DEPT || {})[dept]) {
+                        const opt = document.createElement('option');
+                        opt.value = dept; opt.textContent = dept;
+                        deptSelect.appendChild(opt);
+                    }
+                });
+            }
         }
 
         function hideBudgetInput() {
@@ -8896,5 +8933,4 @@
         }
     </script>
 </body>
-</html>< ! - -   c a c h e   b u s t   0 6 / 0 8 / 2 0 2 6   0 0 : 0 0 : 1 8   - - >  
- 
+</html>
