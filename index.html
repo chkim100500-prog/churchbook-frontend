@@ -4580,9 +4580,7 @@
         // 화면 크기 변경 시 재적용 (태블릿 회전 등)
         window.addEventListener('resize', detectMobileAndApply);
 
-        document.addEventListener('DOMContentLoaded', function() {
-          initializeConstants();
-        });
+        // initializeConstants는 로그인 후 실행됨
 
         // === 1. 결재권한자 로드 함수 수정 (Promise 기반) ===
         function loadApprovalAuthorities() {
@@ -4945,19 +4943,7 @@
         }
         
 
-        // 페이지 로드 시 결재권한자 목록 로드
-        document.addEventListener('DOMContentLoaded', function() {
-            // ... 기존 코드 ...
-            
-            // 결재권한자 목록 미리 로드
-            loadApprovalAuthorities()
-                .then(() => {
-                    console.log('결재권한자 목록 사전 로드 완료');
-                })
-                .catch(error => {
-                    console.error('결재권한자 초기 로드 실패:', error);
-                });
-        });
+        // loadApprovalAuthorities는 로그인 후 실행됨
 
         // === 9. 디버깅용 헬퍼 함수 추가 ===
         function debugApprovalSMS() {
@@ -5382,8 +5368,9 @@
                         document.getElementById('loginScreen').style.display = 'none';
                         document.getElementById('mainApp').style.display = 'block';
                         initializeAllYearSelects(); // 로그인 후 연도 드롭다운 초기화
-                        populateOptions();          // 부서/항목 옵션도 재초기화
-                        // 예산 시스템 초기화는 필요 시 수동으로 실행
+                        populateOptions();          // 부서/항목 옵션 초기화
+                        initializeConstants();      // 상수 초기화
+                        loadApprovalAuthorities();  // 결재권한자 로드
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
