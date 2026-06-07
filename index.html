@@ -6250,8 +6250,9 @@
         function showBudgetInput() {
             document.getElementById('budgetInputSection').classList.remove('hidden');
             document.getElementById('budgetViewSection').classList.add('hidden');
-            document.getElementById('budgetAlertSection').classList.add('hidden'); // ← 이 줄 추가!
+            document.getElementById('budgetAlertSection').classList.add('hidden');
             loadBudgetItems();
+            populateBudgetOptions(); // 수입항목/부서 드롭다운 채우기
         }
 
         function hideBudgetInput() {
