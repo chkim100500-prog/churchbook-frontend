@@ -5795,43 +5795,30 @@
                     <td>${escapeHtml(row.incomeItem)}</td>
                     <td>${escapeHtml(row.expenseItem)}</td>
                     <td>${escapeHtml(row.description)}</td>
-                    // 수정된 코드 ('회비환불' 항목의 음수 금액을 괄호로 표시)
                     <td class="number">
-                      ${(() => {
-                        // '회비환불'이고 금액이 음수인 경우
-                        if (row.incomeItem === '회비환불' && row.income < 0) {
-                          // 절댓값을 취하고 괄호로 표시
-                          return `(${formatAmount(Math.abs(row.income))})`; // '원' 단위 제거 (기존 스타일 유지)
-                        }
-                        // 일반적인 수입 (양수)
-                        else if (row.income) {
-                          return formatAmount(row.income); // '원' 단위 제거 (기존 스타일 유지)
-                        }
-                        // 그 외의 경우 (0이거나, 음수지만 회비환불이 아닌 경우)
-                        else {
-                          return '';
-                        }
-                      })()}
+                      ${row.incomeItem === '회비환불' && row.income < 0
+                        ? '(' + formatAmount(Math.abs(row.income)) + ')'
+                        : row.income ? formatAmount(row.income) : ''}
                     </td>
                     <td class="number ${row.expense < 0 ? 'negative-amount' : ''}">${row.expense !== 0 ? formatAmount(row.expense) : ''}</td>
                     <td class="number">${formatAmount(row.balance)}</td>
-                    <td>${escapeHtml(row.donationRecipient)}</td>
+                    <td>${escapeHtml(row.donor || '')}</td>
                     <td>
                         <div class="btn-group">
                             <button class="btn-sm btn-edit" onclick="editTransactionFromButton(this)" 
-                                data-row-index="${row.rowIndex}" 
-                                data-sheet-name="${row.sheetName}" 
+                                data-row-index="${row.id}" 
+                                data-sheet-name="${row.type === 'teacherfee' ? '교사회비' : '회계원장'}" 
                                 data-date="${row.date}" 
                                 data-type="${row.type}" 
                                 data-department="${escapeHtml(row.department)}" 
                                 data-income-item="${escapeHtml(row.incomeItem)}" 
                                 data-expense-item="${escapeHtml(row.expenseItem)}" 
-                                data-amount="${row.amount}" 
+                                data-amount="${row.income || row.expense || 0}" 
                                 data-description="${escapeHtml(row.description)}" 
-                                data-donation-recipient="${escapeHtml(row.donationRecipient)}">수정</button>
+                                data-donation-recipient="${escapeHtml(row.donor || '')}">수정</button>
                             <button class="btn-sm btn-delete" onclick="deleteTransactionFromButton(this)" 
-                                data-row-index="${row.rowIndex}" 
-                                data-sheet-name="${row.sheetName}">삭제</button>
+                                data-row-index="${row.id}" 
+                                data-sheet-name="${row.type === 'teacherfee' ? '교사회비' : '회계원장'}">삭제</button>
                             ${row.type === 'expense' && row.expense > 0 ? 
                                 `<button class="btn-sm btn-voucher" onclick="openVoucherModalFromButton(this)" 
                                     data-transaction='${JSON.stringify(row).replace(/'/g, "&#39;")}'
