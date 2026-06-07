@@ -3154,9 +3154,9 @@
 
             // backendFn → Node.js API 매핑
             const reportEndpointMap = {
-                getMonthlyReportHTMLForPrint: (p) => `/api/reports/monthly/html?${qs({ year: p[0], month: p[1] })}`,
-                getLedgerHTMLForPrint:        (p) => `/api/reports/ledger/html?${qs({ year: p[0], month: p[1] })}`,
-                getDonorReportHTMLForPrint:   (p) => `/api/reports/donor/html?${qs({ year: p[0] })}`,
+                getMonthlyReportHTMLForPrint: (p) => `/api/reports/monthly/print?${qs({ year: p[0], month: p[1] })}`,
+                getLedgerHTMLForPrint:        (p) => `/api/reports/ledger/print?${qs({ year: p[0], month: p[1] })}`,
+                getDonorReportHTMLForPrint:   (p) => `/api/reports/donor/print?${qs({ year: p[0] })}`,
             };
             const endpoint = reportEndpointMap[backendFn] ? reportEndpointMap[backendFn](params) : null;
             if (!endpoint) { hideLoading(); showAlert('알 수 없는 보고서 유형입니다.', 'error'); return; }
@@ -3888,7 +3888,7 @@
             
             showLoading('월회계보고서 미리보기 생성 중...');
             
-            api('GET', `/api/reports/monthly?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
+            api('GET', `/api/reports/monthly/data?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
                 .then(result => {
                     hideLoading();
                     if (result && result.data) {
@@ -3907,7 +3907,7 @@
             
             showLoading('연간계보고서 미리보기 생성 중...');
             
-            api('GET', `/api/reports/monthly?${qs({ year: currentReportInfo.year, month: '' })}`)
+            api('GET', `/api/reports/monthly/data?${qs({ year: currentReportInfo.year, month: '' })}`)
                 .then(result => {
                     hideLoading();
                     if (result && result.data) {
@@ -3926,7 +3926,7 @@
             
             showLoading('회계장부 미리보기 생성 중...');
             
-            api('GET', `/api/reports/ledger?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
+            api('GET', `/api/reports/ledger/data?${qs({ year: currentReportInfo.year, month: currentReportInfo.month })}`)
                 .then(result => {
                     hideLoading();
                     if (result && result.data) {
@@ -5248,9 +5248,9 @@
                 .then(result => {
                     if (!result.success || !result.data) return;
                     const constants = result.data;
-                    DEPARTMENTS = constants.DEPARTMENTS || [];
-                    INCOME_ITEMS = constants.INCOME_ITEMS || [];
-                    EXPENSE_ITEMS_BY_DEPT = constants.EXPENSE_ITEMS_BY_DEPT || {};
+                    DEPARTMENTS = constants.departments || constants.DEPARTMENTS || [];
+                    INCOME_ITEMS = constants.incomeItems || constants.INCOME_ITEMS || [];
+                    EXPENSE_ITEMS_BY_DEPT = constants.expenseItemsByDept || constants.EXPENSE_ITEMS_BY_DEPT || {};
 
                     const deptSelects = ['transactionDepartment', 'editDepartment', 'requestDepartment'];
                     deptSelects.forEach(selectId => {
@@ -6889,7 +6889,7 @@
         }
 
         function loadLastEmail(emailInputId) {
-            api('GET', '/api/settings/last-email')
+            api('GET', '/api/settings/email')
                 .then(result => {
                     if (result.success && result.email) {
                         const el = document.getElementById(emailInputId);
@@ -6905,7 +6905,7 @@
         }
 
         function saveLastEmail(email) {
-            api('PUT', '/api/settings/last-email', { email })
+            api('PUT', '/api/settings/email', { email })
                 .catch(() => { try { localStorage.setItem('lastEmail', email); } catch(e) {} });
         }
 
@@ -7214,9 +7214,7 @@
                     });
                 }
             });
-            // 옵션 채우기
-            populateOptions();
-            populateBudgetOptions();
+            // 옵션 채우기는 로그인 후 실행됨
             setupAmountValidation();
 
         });
@@ -8911,5 +8909,4 @@
         }
     </script>
 </body>
-</html> 
- 
+</html>
