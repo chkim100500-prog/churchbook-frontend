@@ -1977,8 +1977,168 @@
         var b = document.getElementById('cbPrintViewerBody');
         if (b) b.innerHTML = '';
     }
-    </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+        // =============================================
+        // 결재권한자 관리
+        // =============================================
+        function loadAuthorityList() {
+          api('GET', '/api/approvals/authorities').then(result => {
+            const list = document.getElementById('authorityList');
+            if (!result.success || result.data.length === 0) {
+              list.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">등록된 결재권한자가 없습니다.</p>';
+              return;
+            }
+            list.innerHTML = result.data.sort((a,b) => a.order - b.order).map(a => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid #e1e5e9;border-radius:8px;margin-bottom:8px;">
+                <div>
+                  <span style="background:#29b6f6;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
+                  <strong>${a.position}</strong> ${a.name}
+                  <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #29b6f6;color:#29b6f6;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
+                </div>
+              </div>
+            `).join('');
+          });
+        }
+
+        function showAddAuthorityModal() {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 추가';
+          document.getElementById('authorityEditPhone').value = '';
+          document.getElementById('authorityOrder').value = '1';
+          document.getElementById('authorityPosition').value = '';
+          document.getElementById('authorityName').value = '';
+          document.getElementById('authorityPhone').value = '';
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function showEditAuthorityModal(order, position, name, phone) {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
+          document.getElementById('authorityEditPhone').value = phone;
+          document.getElementById('authorityOrder').value = order;
+          document.getElementById('authorityPosition').value = position;
+          document.getElementById('authorityName').value = name;
+          document.getElementById('authorityPhone').value = phone;
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function closeAuthorityModal() {
+          document.getElementById('authorityModal').style.display = 'none';
+        }
+
+        function saveAuthority() {
+          const editPhone = document.getElementById('authorityEditPhone').value;
+          const order = document.getElementById('authorityOrder').value;
+          const position = document.getElementById('authorityPosition').value.trim();
+          const name = document.getElementById('authorityName').value.trim();
+          const phone = document.getElementById('authorityPhone').value.trim();
+          const password = document.getElementById('authorityPassword').value;
+          if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
+          showLoading();
+          if (editPhone) {
+            const body = { order, position, name, newPhone: phone };
+            if (password) body.password = password;
+            api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          } else {
+            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          }
+        }
+
+        function deleteAuthority(phone, name) {
+          if (!confirm(`${name}님을 결재권한자에서 삭제하시겠습니까?`)) return;
+          showLoading();
+          api('DELETE', `/api/approvals/authorities/${encodeURIComponent(phone)}`)
+            .then(r => { hideLoading(); if (r.success) { showAlert(r.message); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+        }
+</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+        // =============================================
+        // 결재권한자 관리
+        // =============================================
+        function loadAuthorityList() {
+          api('GET', '/api/approvals/authorities').then(result => {
+            const list = document.getElementById('authorityList');
+            if (!result.success || result.data.length === 0) {
+              list.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">등록된 결재권한자가 없습니다.</p>';
+              return;
+            }
+            list.innerHTML = result.data.sort((a,b) => a.order - b.order).map(a => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid #e1e5e9;border-radius:8px;margin-bottom:8px;">
+                <div>
+                  <span style="background:#29b6f6;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
+                  <strong>${a.position}</strong> ${a.name}
+                  <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #29b6f6;color:#29b6f6;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
+                </div>
+              </div>
+            `).join('');
+          });
+        }
+
+        function showAddAuthorityModal() {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 추가';
+          document.getElementById('authorityEditPhone').value = '';
+          document.getElementById('authorityOrder').value = '1';
+          document.getElementById('authorityPosition').value = '';
+          document.getElementById('authorityName').value = '';
+          document.getElementById('authorityPhone').value = '';
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function showEditAuthorityModal(order, position, name, phone) {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
+          document.getElementById('authorityEditPhone').value = phone;
+          document.getElementById('authorityOrder').value = order;
+          document.getElementById('authorityPosition').value = position;
+          document.getElementById('authorityName').value = name;
+          document.getElementById('authorityPhone').value = phone;
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function closeAuthorityModal() {
+          document.getElementById('authorityModal').style.display = 'none';
+        }
+
+        function saveAuthority() {
+          const editPhone = document.getElementById('authorityEditPhone').value;
+          const order = document.getElementById('authorityOrder').value;
+          const position = document.getElementById('authorityPosition').value.trim();
+          const name = document.getElementById('authorityName').value.trim();
+          const phone = document.getElementById('authorityPhone').value.trim();
+          const password = document.getElementById('authorityPassword').value;
+          if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
+          showLoading();
+          if (editPhone) {
+            const body = { order, position, name, newPhone: phone };
+            if (password) body.password = password;
+            api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          } else {
+            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          }
+        }
+
+        function deleteAuthority(phone, name) {
+          if (!confirm(`${name}님을 결재권한자에서 삭제하시겠습니까?`)) return;
+          showLoading();
+          api('DELETE', `/api/approvals/authorities/${encodeURIComponent(phone)}`)
+            .then(r => { hideLoading(); if (r.success) { showAlert(r.message); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+        }
+</script>
 </head>
 <body>
     <!-- 로딩 스피너 -->
@@ -3288,7 +3448,55 @@
                         </div>
                     </div>
                 </div>
-                </div><!-- /settings container -->
+                                <!-- 결재권한자 관리 -->
+                <div class="card" style="margin-top:20px;">
+                  <h2>👤 결재권한자 관리</h2>
+                  <p style="color:#666;font-size:13px;margin-bottom:15px;">전자결재 승인권한자를 순서대로 등록하세요. (1차→2차→3차 순으로 결재)</p>
+                  <div id="authorityList" style="margin-bottom:15px;"></div>
+                  <button class="btn" onclick="showAddAuthorityModal()" style="background:#29b6f6;">➕ 권한자 추가</button>
+                </div>
+
+                <!-- 결재권한자 추가 모달 -->
+                <div class="modal" id="authorityModal" style="display:none;">
+                  <div class="modal-content" style="max-width:400px;">
+                    <div class="modal-header">
+                      <h2 id="authorityModalTitle">👤 결재권한자 추가</h2>
+                      <button class="modal-close" onclick="closeAuthorityModal()">&times;</button>
+                    </div>
+                    <div style="padding:15px;">
+                      <input type="hidden" id="authorityEditPhone">
+                      <div class="form-group">
+                        <label>결재순서</label>
+                        <select id="authorityOrder" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                          <option value="1">1차</option>
+                          <option value="2">2차</option>
+                          <option value="3">3차</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label>직책명</label>
+                        <input type="text" id="authorityPosition" placeholder="예: 회계, 총무, 부장, 담임목사" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                      </div>
+                      <div class="form-group">
+                        <label>이름</label>
+                        <input type="text" id="authorityName" placeholder="홍길동" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                      </div>
+                      <div class="form-group">
+                        <label>전화번호</label>
+                        <input type="text" id="authorityPhone" placeholder="010-1234-5678" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                      </div>
+                      <div class="form-group">
+                        <label>패스워드</label>
+                        <input type="password" id="authorityPassword" placeholder="결재 시 사용할 패스워드" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                      </div>
+                      <div style="display:flex;gap:10px;margin-top:15px;">
+                        <button class="btn" onclick="saveAuthority()" style="flex:1;">💾 저장</button>
+                        <button class="btn" onclick="closeAuthorityModal()" style="flex:1;background:#6c757d;">취소</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+</div><!-- /settings container -->
             </div>
 
     <!-- 수정 모달 -->
@@ -8158,7 +8366,7 @@
       var _addModalType = 'income';
 
       function loadSettingsTab() {
-          showLoading();
+          loadAuthorityList();showLoading();
           api('GET', '/api/master')
               .then(function(result) {
                   hideLoading();
@@ -9772,7 +9980,87 @@
         function refreshBudgetDataForSelectedYear() {
             forceRefreshBudgetData();
         }
-    </script>
+    
+        // =============================================
+        // 결재권한자 관리
+        // =============================================
+        function loadAuthorityList() {
+          api('GET', '/api/approvals/authorities').then(result => {
+            const list = document.getElementById('authorityList');
+            if (!result.success || result.data.length === 0) {
+              list.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">등록된 결재권한자가 없습니다.</p>';
+              return;
+            }
+            list.innerHTML = result.data.sort((a,b) => a.order - b.order).map(a => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid #e1e5e9;border-radius:8px;margin-bottom:8px;">
+                <div>
+                  <span style="background:#29b6f6;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
+                  <strong>${a.position}</strong> ${a.name}
+                  <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #29b6f6;color:#29b6f6;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
+                </div>
+              </div>
+            `).join('');
+          });
+        }
+
+        function showAddAuthorityModal() {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 추가';
+          document.getElementById('authorityEditPhone').value = '';
+          document.getElementById('authorityOrder').value = '1';
+          document.getElementById('authorityPosition').value = '';
+          document.getElementById('authorityName').value = '';
+          document.getElementById('authorityPhone').value = '';
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function showEditAuthorityModal(order, position, name, phone) {
+          document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
+          document.getElementById('authorityEditPhone').value = phone;
+          document.getElementById('authorityOrder').value = order;
+          document.getElementById('authorityPosition').value = position;
+          document.getElementById('authorityName').value = name;
+          document.getElementById('authorityPhone').value = phone;
+          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityModal').style.display = 'block';
+        }
+
+        function closeAuthorityModal() {
+          document.getElementById('authorityModal').style.display = 'none';
+        }
+
+        function saveAuthority() {
+          const editPhone = document.getElementById('authorityEditPhone').value;
+          const order = document.getElementById('authorityOrder').value;
+          const position = document.getElementById('authorityPosition').value.trim();
+          const name = document.getElementById('authorityName').value.trim();
+          const phone = document.getElementById('authorityPhone').value.trim();
+          const password = document.getElementById('authorityPassword').value;
+          if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
+          showLoading();
+          if (editPhone) {
+            const body = { order, position, name, newPhone: phone };
+            if (password) body.password = password;
+            api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          } else {
+            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+          }
+        }
+
+        function deleteAuthority(phone, name) {
+          if (!confirm(`${name}님을 결재권한자에서 삭제하시겠습니까?`)) return;
+          showLoading();
+          api('DELETE', `/api/approvals/authorities/${encodeURIComponent(phone)}`)
+            .then(r => { hideLoading(); if (r.success) { showAlert(r.message); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+        }
+</script>
 
                         <!-- SMS 모달을 form 외부로 이동 -->
                         <div class="modal" id="smsModal">
@@ -9811,4 +10099,7 @@
                         </div>
 </body>
 </html>
+
+
+
 
