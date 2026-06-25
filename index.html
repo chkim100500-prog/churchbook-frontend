@@ -1978,6 +1978,7 @@
         if (b) b.innerHTML = '';
     }
     </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <!-- 로딩 스피너 -->
@@ -2028,15 +2029,45 @@
     <!-- 로그인 화면 -->
     <div class="login-screen" id="loginScreen">
         <div class="login-card">
-            <h1> <?= DEPARTMENT_NAME ?> 회계관리 시스템</h1>
-            <h2> 노량진교회</h2>
+            <h1>회계관리 시스템</h1>
             <div class="input-group">
-                <input type="password" id="passwordInput" placeholder="비밀번호를 입력하세요" maxlength="10" lang="ko">
+                <input type="text" id="usernameInput" placeholder="아이디" lang="ko" autocomplete="username"
+                    onkeydown="if(event.key==='Enter') document.getElementById('passwordInput').focus()">
+            </div>
+            <div class="input-group">
+                <input type="password" id="passwordInput" placeholder="비밀번호를 입력하세요" maxlength="20" lang="ko"
+                    onkeydown="if(event.key==='Enter') login()">
             </div>
             <button class="btn" onclick="login()">로그인</button>
             <div id="loginError" class="alert alert-error hidden" style="margin-top: 15px;">
-                비밀번호가 올바르지 않습니다.
+                아이디 또는 비밀번호가 올바르지 않습니다.
             </div>
+            <div style="margin-top:16px;text-align:center;font-size:13px;">
+                <a href="#" onclick="openFindPassword()" style="color:#4fc3f7;text-decoration:none;">비밀번호 찾기</a>
+                <span style="margin:0 8px;color:rgba(255,255,255,0.3);">|</span>
+                <a href="https://open.kakao.com/o/withlab" target="_blank" style="color:rgba(255,255,255,0.5);text-decoration:none;">아이디 문의</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 비밀번호 찾기 모달 -->
+    <div id="findPasswordModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
+        <div style="background:white;border-radius:16px;padding:28px;width:90%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+            <h3 style="margin:0 0 8px;font-size:18px;color:#333;">비밀번호 찾기</h3>
+            <p style="margin:0 0 16px;font-size:13px;color:#666;">가입 시 등록된 이메일로 임시 비밀번호를 발송합니다.</p>
+            <div id="findPasswordAlert" style="margin-bottom:12px;"></div>
+            <input type="text" id="findPasswordUsername" placeholder="아이디를 입력해 주세요"
+                style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:12px;"
+                onkeydown="if(event.key==='Enter') submitFindPassword()">
+            <div style="display:flex;gap:8px;">
+                <button onclick="closeFindPassword()"
+                    style="flex:1;padding:10px;border:1px solid #ddd;background:white;border-radius:8px;cursor:pointer;font-size:14px;">취소</button>
+                <button onclick="submitFindPassword()" id="findPasswordBtn"
+                    style="flex:2;padding:10px;background:#1a73e8;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">발송</button>
+            </div>
+            <p style="margin:16px 0 0;font-size:12px;color:#aaa;text-align:center;">
+                아이디를 모르시면 <a href="https://open.kakao.com/o/withlab" target="_blank" style="color:#1a73e8;">관리자에게 문의</a>해 주세요.
+            </p>
         </div>
     </div>
 
@@ -2152,6 +2183,7 @@
                         <div class="form-group" style="display: flex; align-items: end; gap: 10px;">
                             <button class="btn" onclick="performSearch()">🔍 검색</button>
                             <button class="btn" onclick="showMonthlySearchModal()" style="background: #28a745;">📅 월별조회</button>
+                            <button class="btn" onclick="exportLedgerExcel()" style="background: #1a73e8; color:white;">📥 엑셀 다운로드</button>
                         </div>
                     </div>
                 </div>
@@ -5034,29 +5066,25 @@
         }
 
         function login() {
+            const username = document.getElementById('usernameInput').value.trim();
             const password = document.getElementById('passwordInput').value;
-            if (!password) {
-                showAlert('비밀번호를 입력하세요.', 'error');
-                return;
-            }
+            if (!username) { showAlert('아이디를 입력하세요.', 'error'); return; }
+            if (!password) { showAlert('비밀번호를 입력하세요.', 'error'); return; }
 
             showLoading();
 
-            // spreadsheetId: URL 파라미터 또는 환경변수에서 가져옴
-            const spreadsheetId = new URLSearchParams(window.location.search).get('spreadsheetId') || '';
-
-            api('POST', '/api/auth/login', { password, spreadsheetId })
+            api('POST', '/api/auth/login', { username, password })
                 .then(result => {
                     hideLoading();
                     if (result.success && result.token) {
                         setAuthToken(result.token);
                         document.getElementById('loginScreen').style.display = 'none';
                         document.getElementById('mainApp').style.display = 'block';
-                        initializeAllYearSelects(); // 로그인 후 연도 드롭다운 초기화
-                        populateOptions();          // 부서/항목 옵션 초기화
-                        initializeConstants();      // 상수 초기화
-                        loadApprovalAuthorities();  // 결재권한자 로드
-                        loadHeaderInfo();           // 헤더 부서명/교회명 표시
+                        initializeAllYearSelects();
+                        populateOptions();
+                        initializeConstants();
+                        loadApprovalAuthorities();
+                        loadHeaderInfo();
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
@@ -5067,6 +5095,59 @@
                     document.getElementById('loginError').classList.remove('hidden');
                     document.getElementById('passwordInput').value = '';
                     console.error('로그인 오류:', err);
+                });
+        }
+
+        // 비밀번호 찾기 모달
+        function openFindPassword() {
+            document.getElementById('findPasswordModal').style.display = 'flex';
+            document.getElementById('findPasswordUsername').value = document.getElementById('usernameInput').value || '';
+            document.getElementById('findPasswordAlert').innerHTML = '';
+            document.getElementById('findPasswordBtn').disabled = false;
+            document.getElementById('findPasswordBtn').textContent = '발송';
+        }
+
+        function closeFindPassword() {
+            document.getElementById('findPasswordModal').style.display = 'none';
+        }
+
+        function submitFindPassword() {
+            const username = document.getElementById('findPasswordUsername').value.trim();
+            if (!username) {
+                document.getElementById('findPasswordAlert').innerHTML =
+                    '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">아이디를 입력해 주세요.</div>';
+                return;
+            }
+            const btn = document.getElementById('findPasswordBtn');
+            btn.disabled = true;
+            btn.textContent = '발송 중...';
+
+            fetch(API_BASE_URL + '/api/auth/find-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            })
+                .then(res => res.json())
+                .then(result => {
+                    if (result.success) {
+                        document.getElementById('findPasswordAlert').innerHTML =
+                            '<div style="background:#e6f4ea;color:#2d8f47;padding:10px;border-radius:6px;font-size:13px;">✅ ' + result.message + '</div>';
+                        btn.textContent = '✅ 발송 완료';
+                    } else {
+                        const msg = result.contactAdmin
+                            ? '❌ ' + result.message + '<br><br><a href="https://open.kakao.com/o/withlab" target="_blank" style="color:#1a73e8;font-weight:bold;">👉 관리자에게 문의하기</a>'
+                            : '❌ ' + result.message;
+                        document.getElementById('findPasswordAlert').innerHTML =
+                            '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">' + msg + '</div>';
+                        btn.disabled = false;
+                        btn.textContent = '발송';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('findPasswordAlert').innerHTML =
+                        '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 서버 오류가 발생했습니다.<br><br><a href="https://open.kakao.com/o/withlab" target="_blank" style="color:#1a73e8;font-weight:bold;">👉 관리자에게 문의하기</a></div>';
+                    btn.disabled = false;
+                    btn.textContent = '발송';
                 });
         }
 
@@ -8780,6 +8861,72 @@
                 '<div style="text-align:right;margin-top:8px;font-size:11px;color:#666;">출력일: ' + new Date().toLocaleDateString('ko-KR') + '</div>' +
                 '</body></html>';
             mobilePrint(html);
+        }
+
+        // 회계원장 엑셀 다운로드 (현재 화면 조회 데이터만)
+        function exportLedgerExcel() {
+            // 현재 화면 테이블에서 데이터 추출
+            const tbody = document.getElementById('searchResults');
+            const rows = tbody.querySelectorAll('tr');
+
+            if (rows.length === 0 || (rows.length === 1 && rows[0].querySelector('td[colspan]'))) {
+                showAlert('먼저 데이터를 조회해 주세요.', 'error');
+                return;
+            }
+
+            const csvRows = [['날짜', '거래구분', '소부서', '수입항목', '지출항목', '적요', '수입금액', '지출금액', '차인잔고', '기부금영수증발급대상자']];
+
+            rows.forEach(function(tr) {
+                const cells = tr.querySelectorAll('td');
+                if (cells.length < 9) return; // 빈 행 또는 colspan 행 건너뜀
+                csvRows.push([
+                    cells[0].textContent.trim(),  // 날짜
+                    cells[1].textContent.trim(),  // 거래구분
+                    cells[2].textContent.trim(),  // 소부서
+                    cells[3].textContent.trim(),  // 수입항목
+                    cells[4].textContent.trim(),  // 지출항목
+                    cells[5].textContent.trim(),  // 적요
+                    cells[6].textContent.trim().replace(/,/g, ''),  // 수입금액
+                    cells[7].textContent.trim().replace(/,/g, ''),  // 지출금액
+                    cells[8].textContent.trim().replace(/,/g, ''),  // 차인잔고
+                    cells[9] ? cells[9].textContent.trim() : ''     // 기부금영수증발급대상자
+                ]);
+            });
+
+            if (csvRows.length <= 1) {
+                showAlert('다운로드할 데이터가 없습니다.', 'error');
+                return;
+            }
+
+            // 파일명: 검색어 또는 월별 조회 범위 표시
+            const keyword = document.getElementById('searchKeyword').value.trim();
+            const searchYear = document.getElementById('searchYear') ? document.getElementById('searchYear').value : '';
+            const searchMonthEl = document.getElementById('searchMonth');
+            const searchMonth = searchMonthEl ? searchMonthEl.value : '';
+            const searchMonthText = searchMonthEl && searchMonthEl.selectedIndex >= 0
+                ? searchMonthEl.options[searchMonthEl.selectedIndex].text : '';
+            const now = new Date();
+            let title;
+            if (keyword) {
+                title = `회계원장_${keyword}_${now.getFullYear()}`;
+            } else if (searchYear && searchMonth && searchMonth !== 'all') {
+                title = `회계원장_${searchYear}년_${searchMonth}월`;
+            } else if (searchYear) {
+                title = `회계원장_${searchYear}년_전체`;
+            } else {
+                title = `회계원장_조회결과_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            }
+
+            // SheetJS로 xlsx 생성
+            const ws = XLSX.utils.aoa_to_sheet(csvRows);
+            ws['!cols'] = [
+                {wch:12}, {wch:8}, {wch:12}, {wch:14}, {wch:14},
+                {wch:30}, {wch:12}, {wch:12}, {wch:12}, {wch:20}
+            ];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '회계원장');
+            XLSX.writeFile(wb, title + '.xlsx');
+            showAlert(`✅ ${csvRows.length - 1}건 다운로드 완료!`, 'success');
         }
 
         function exportDonorExcel() {
