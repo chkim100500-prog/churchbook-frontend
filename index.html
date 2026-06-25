@@ -7755,16 +7755,16 @@
                 const combinedOpinions = `
                     <div style="font-size: 10px; line-height: 1.3; max-width: 200px;">
                         <div style="margin-bottom: 6px; padding: 6px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #6c757d;">
-                            <strong style="color: #495057; font-size: 10px;">회계:</strong><br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.accountingComment || '의견 없음')}</span>
+                            <strong style="color: #495057; font-size: 10px;">${(row.authorities&&row.authorities[0])||{position:'1차'}}.position||'1차'}:</strong><br>
+                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment1 || '의견 없음')}</span>
                         </div>
                         <div style="margin-bottom: 6px; padding: 6px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #1565c0;">
                             <strong style="color: #1565c0; font-size: 10px;">총무:</strong><br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.generalAffairsComment || '의견 없음')}</span>
+                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment2 || '의견 없음')}</span>
                         </div>
                         <div style="padding: 6px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #e65100;">
                             <strong style="color: #e65100; font-size: 10px;">부장:</strong><br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.managerComment || '의견 없음')}</span>
+                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment3 || '의견 없음')}</span>
                         </div>
                     </div>
                 `;
@@ -10099,6 +10099,9 @@
                         </div>
 </body>
 </html>
+
+
+
 
 
 
