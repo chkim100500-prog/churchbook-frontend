@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChurchBook 출력</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Malgun Gothic', sans-serif; background: #fff; }
+
+  #toolbar {
+    position: fixed; top: 0; left: 0; width: 100%;
+    background: #2c3e50; color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; gap: 8px; z-index: 9999;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  }
+  #toolbar span { font-size: 13px; font-weight: bold; }
+  #toolbar button {
+    border: none; border-radius: 6px; padding: 10px 16px;
+    font-size: 14px; font-weight: bold; cursor: pointer; min-height: 44px;
+  }
+  #printBtn  { background: #27ae60; color: #fff; }
+  #closeBtn  { background: #e74c3c; color: #fff; }
+
+  #content { padding: 60px 16px 16px; }
+
+  #empty {
+    text-align: center; padding: 80px 20px; color: #888; font-size: 16px;
+    display: none;
+  }
+
+  @media print {
+    #toolbar { display: none !important; }
+    #content { padding: 0 !important; }
+    @page { size: A4; margin: 10mm; }
+    html, body { height: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span>🖨️ 출력 / PDF 저장</span>
+  <div style="display:flex;gap:6px;">
+    <button id="printBtn" onclick="window.print()">🖨️ 인쇄 · PDF저장</button>
+    <button id="closeBtn" onclick="window.close()">✕ 닫기</button>
+  </div>
+</div>
+
+<div id="content"></div>
+<div id="empty">내용을 불러오는 중입니다...</div>
+
+<script>
+  // localStorage에서 보고서 HTML 가져오기
+  var KEY = 'cb_viewer_html';
+  var content = document.getElementById('content');
+  var empty   = document.getElementById('empty');
+
+  function loadContent() {
+    try {
+      var html = localStorage.getItem(KEY);
+      if (!html) {
+        empty.style.display = 'block';
+        empty.textContent = '내용이 없습니다. 다시 시도해주세요.';
+        return;
+      }
+
+      // body 내용 + style 추출
+      var bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      var bodyHtml  = bodyMatch ? bodyMatch[1] : html;
+      var styles    = html.match(/<style[\s\S]*?<\/style>/gi) || [];
+
+      // no-print 버튼 숨김
+      bodyHtml = bodyHtml.replace(/class="no-print"/g, 'class="no-print" style="display:none"');
+
+      content.innerHTML = styles.join('') + bodyHtml;
+
+      // 사용 후 삭제 (보안)
+      localStorage.removeItem(KEY);
+
+    } catch(e) {
+      empty.style.display = 'block';
+      empty.textContent = '오류가 발생했습니다: ' + e.message;
+    }
+  }
+
+  loadContent();
+</script>
+</body>
+</html>
