@@ -2244,7 +2244,7 @@
             <div class="tab-nav">
                 <button class="tab-btn active" onclick="showTab('register')">거래등록</button>
                 <button class="tab-btn" onclick="showTab('search')">조회관리</button>
-                <button class="tab-btn" onclick="showTab('teacherfee')">교사회비</button>
+                <button class="tab-btn" id="teacherfeeTabBtn" onclick="showTab('teacherfee')">부서회비</button>
                 <button class="tab-btn" onclick="showTab('budget')">예산관리</button>
                 <button class="tab-btn" onclick="showTab('approval')">전자결재</button>
                 <button class="tab-btn" onclick="showTab('report')">보고서</button>
@@ -2381,9 +2381,9 @@
             <!-- 교사회비 탭 -->
             <div class="tab-content" id="teacherfee">
                 <div class="card">
-                    <h2>💼 교사회비 관리</h2>
+                    <h2>💼 부서회비 관리</h2>
                     <p style="color: #666; text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
-                        교사회비는 일반 회계와 별도로 관리되며, 예산 및 회계장부에 반영되지 않습니다.<br>
+                        부서회비는 일반 회계와 별도로 관리되며, 예산 및 회계장부에 반영되지 않습니다.<br>
                         월회계보고서에만 별도 항목으로 표시됩니다.
                     </p>
                     <!-- 교사회비 입력 버튼 -->
@@ -2396,21 +2396,37 @@
 
                 <!-- 교사회비 입력 폼 -->
                 <div class="card hidden" id="teacherFeeInputForm">
-                    <h2 id="teacherFeeInputTitle">💰 교사회비 납부 입력</h2>
+                    <h2 id="teacherFeeInputTitle">💰 부서회비 납부 입력</h2>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="tfDate">날짜</label>
                             <input type="date" id="tfDate">
                         </div>
                         <div class="form-group">
-                            <label id="tfDescLabel" for="tfDescription">교사 이름</label>
+                            <label for="tfDept">부서 선택</label>
+                            <select id="tfDept" onchange="onTfDeptChange()">
+                                <option value="">-- 부서 선택 --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tfDuesName">회비명</label>
+                            <input type="text" id="tfDuesName" placeholder="회비명 (자동 입력)" lang="ko">
+                        </div>
+                        <div class="form-group">
+                            <label id="tfDescLabel" for="tfDescription">납부자 이름</label>
                             <input type="text" id="tfDescription" placeholder="이름을 입력하세요" lang="ko">
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="tfAmount">금액</label>
-                            <input type="number" id="tfAmount" placeholder="금액을 입력하세요" min="1">
+                            <input type="number" id="tfAmount" placeholder="금액 (자동 입력)" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="tfCycle">납부주기</label>
+                            <input type="text" id="tfCycle" placeholder="월/분기/반기/년" readonly style="background:#f5f5f5;">
                         </div>
                     </div>
                     <div style="display: flex; gap: 10px;">
@@ -2421,7 +2437,7 @@
 
                 <!-- 연간 집계 -->
                 <div class="card hidden" id="teacherFeeSummarySection">
-                    <h2>📊 교사회비 내역 조회 및 출력</h2>
+                    <h2 id="teacherFeeSummaryTitle">📊 부서회비 내역 조회 및 출력</h2>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="tfSummaryYear">조회 연도</label>
@@ -2473,7 +2489,7 @@
                 </div>
 
                 <div class="card">
-                    <h2>🔍 교사회비 조회</h2>
+                    <h2 id="teacherFeeSearchTitle">🔍 부서회비 조회</h2>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="teacherFeeSearchKeyword">검색어</label>
@@ -3185,7 +3201,7 @@
                                 <textarea id="requestContent" rows="4" placeholder="지출 목적과 세부 내용을 자세히 입력하세요" required></textarea>
                             </div>
                             
-                            <button type="submit" class="btn">📤 결재요청 제출</button>
+                            <button type="submit" class="btn" id="approvalSubmitBtn">📤 결재요청 제출</button>
                             <button type="button" class="btn btn-secondary hidden" id="sendSmsBtn" onclick="sendApprovalSMS()">📱 문자 보내기 (모바일을 이용해 주세요)</button>
 
                             <!-- SMS 발송 모달 추가 -->
@@ -3259,7 +3275,7 @@
                                     <input type="password" id="approverPassword" placeholder="결재권한자 패스워드">
                                 </div>
                                 <div class="form-group">
-                                    <button class="btn" onclick="authenticateApprover()">✅ 인증</button>
+                                    <button class="btn" id="authBtn" onclick="authenticateApprover()">🔐 인증</button>
                                 </div>
                             </div>
                         </div>
@@ -3324,6 +3340,78 @@
                         </div>
                     </div>
                 </div>
+
+            <!-- ===== 결재 상세 + 전표 모달 ===== -->
+            <div class="modal" id="approvalDetailModal" style="display:none; z-index:10000;">
+                <div class="modal-content" style="max-width:720px; max-height:90vh; overflow-y:auto;">
+                    <div class="modal-header" style="position:sticky;top:0;background:#fff;z-index:1;">
+                        <h2 id="approvalDetailTitle">📋 결재 상세</h2>
+                        <button class="modal-close" onclick="closeApprovalDetailModal()">&times;</button>
+                    </div>
+                    <div id="approvalDetailContent" style="padding:4px 0;">
+                        <!-- 로딩 중 -->
+                        <div id="approvalDetailLoading" style="text-align:center;padding:40px;color:#999;">
+                            <div style="font-size:28px;margin-bottom:10px;">⏳</div>
+                            불러오는 중...
+                        </div>
+                        <!-- 결재 정보 영역 -->
+                        <div id="approvalDetailInfo" style="display:none;">
+                            <!-- 상태 배지 + 결재번호 -->
+                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+                                <span id="detailStatusBadge" style="font-size:14px;font-weight:bold;padding:6px 14px;border-radius:20px;"></span>
+                                <span id="detailId" style="font-size:13px;color:#666;"></span>
+                            </div>
+
+                            <!-- 기본 정보 카드 -->
+                            <div style="background:#f8f9fa;border-radius:10px;padding:16px;margin-bottom:16px;">
+                                <h3 style="font-size:14px;color:#333;margin:0 0 12px;">📄 결재 정보</h3>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">
+                                    <div><span style="color:#888;">요청일</span><br><strong id="detailDate"></strong></div>
+                                    <div><span style="color:#888;">요청자</span><br><strong id="detailRequester"></strong></div>
+                                    <div><span style="color:#888;">부서</span><br><strong id="detailDept"></strong></div>
+                                    <div><span style="color:#888;">지출항목</span><br><strong id="detailItem"></strong></div>
+                                    <div style="grid-column:1/-1;"><span style="color:#888;">금액</span><br><strong id="detailAmount" style="font-size:18px;color:#e74c3c;"></strong></div>
+                                    <div style="grid-column:1/-1;"><span style="color:#888;">결재내용</span><br><strong id="detailContent" style="white-space:pre-wrap;"></strong></div>
+                                </div>
+                            </div>
+
+                            <!-- 결재 진행 현황 -->
+                            <div style="background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:16px;margin-bottom:16px;">
+                                <h3 style="font-size:14px;color:#333;margin:0 0 12px;">✅ 결재 진행 현황</h3>
+                                <div id="detailApprovalFlow"></div>
+                            </div>
+
+                            <!-- 전표 미리보기 (승인완료 건만 표시) -->
+                            <div id="detailVoucherSection" style="display:none;margin-bottom:16px;">
+                                <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:16px;">
+                                    <h3 style="font-size:14px;color:#856404;margin:0 0 12px;">🧾 지출청구서 전표</h3>
+                                    <div id="detailVoucherPreview" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;font-size:13px;"></div>
+                                    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                                        <button class="btn" style="background:#f39c12;font-size:13px;" onclick="printVoucherFromDetail()">🖨️ 인쇄</button>
+                                        <button class="btn btn-secondary" style="font-size:13px;" id="detailRegisterTxnBtn" onclick="registerTxnFromDetail()">💰 거래등록</button>
+                                        <span id="detailTxnDoneTag" style="display:none;background:#28a745;color:#fff;border-radius:6px;padding:6px 12px;font-size:12px;">✅ 거래등록 완료</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 액션 버튼 (대기중/진행중인 경우) -->
+                            <div id="detailActionSection" style="display:none;">
+                                <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:10px;padding:16px;">
+                                    <h3 style="font-size:14px;color:#2e7d32;margin:0 0 12px;">🔏 결재 처리</h3>
+                                    <div class="form-group">
+                                        <label style="font-size:13px;">의견</label>
+                                        <textarea id="detailComment" rows="3" placeholder="승인 또는 반려 사유를 입력하세요" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;margin-top:4px;resize:vertical;"></textarea>
+                                    </div>
+                                    <div style="display:flex;gap:8px;margin-top:10px;">
+                                        <button class="btn btn-secondary" style="flex:1;" onclick="processDecisionFromDetail('approve')">✅ 승인</button>
+                                        <button class="btn btn-danger" style="flex:1;" onclick="processDecisionFromDetail('reject')">❌ 반려</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 승인/반려 모달 -->
             <div class="modal" id="approvalModal">
@@ -3448,6 +3536,61 @@
                         </div>
                     </div>
                 </div>
+                                <!-- 부서회비 설정 관리 -->
+                <div class="card" style="margin-top:20px;">
+                  <h2>💰 부서회비 설정</h2>
+                  <p style="color:#666;font-size:13px;margin-bottom:15px;">부서별 회비명, 납부주기, 금액을 설정합니다.</p>
+                  <div style="background:#e8f4fd;border-radius:8px;padding:14px;margin-bottom:16px;">
+                    <label style="font-size:13px;font-weight:bold;display:block;margin-bottom:6px;">📌 회비 탭 명칭</label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <input type="text" id="duesTabName" placeholder="예: 친목회비, 부서회비, 교사회비" style="flex:1;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;" lang="ko">
+                      <button class="btn" onclick="saveDuesTabName()" style="background:#3498db;white-space:nowrap;">저장</button>
+                    </div>
+                    <p style="font-size:11px;color:#888;margin:6px 0 0;">탭 이름, 제목, 메시지 등 전체에 반영됩니다.</p>
+                  </div>
+                  <div id="duesSettingsList" style="margin-bottom:15px;"></div>
+                  <button class="btn" onclick="showDuesAddForm()" style="width:100%;background:#28a745;">+ 회비 추가</button>
+
+                  <!-- 회비 추가/수정 폼 -->
+                  <div id="duesForm" style="display:none;margin-top:15px;background:#f8f9fa;border-radius:8px;padding:16px;">
+                    <h3 id="duesFormTitle" style="font-size:14px;margin:0 0 12px;">회비 추가</h3>
+                    <input type="hidden" id="duesFormId">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>부서명 *</label>
+                        <input type="text" id="duesFormDept" placeholder="예: 유치부, 남선교회" lang="ko">
+                      </div>
+                      <div class="form-group">
+                        <label>회비명 *</label>
+                        <input type="text" id="duesFormName" placeholder="예: 교사회비, 남선교회비" lang="ko">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>납부주기</label>
+                        <select id="duesFormCycle">
+                          <option value="월">월</option>
+                          <option value="분기">분기</option>
+                          <option value="반기">반기</option>
+                          <option value="년">년(연회비)</option>
+                        </select>
+                      </div>
+                      <div class="form-group">
+                        <label>납부금액</label>
+                        <input type="number" id="duesFormAmount" placeholder="0" min="0">
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label>비고</label>
+                      <input type="text" id="duesFormNote" placeholder="메모 (선택)" lang="ko">
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                      <button class="btn" onclick="saveDuesSetting()" style="flex:1;background:#3498db;">💾 저장</button>
+                      <button class="btn btn-secondary" onclick="hideDuesForm()" style="flex:1;">취소</button>
+                    </div>
+                  </div>
+                </div>
+
                                 <!-- 결재권한자 관리 -->
                 <div class="card" style="margin-top:20px;">
                   <h2>👤 결재권한자 관리</h2>
@@ -3648,7 +3791,7 @@
     <div class="modal" id="teacherFeeMonthlyModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📅 교사회비 월별 조회</h2>
+                <h2>📅 부서회비 월별 조회</h2>
                 <button class="modal-close" onclick="closeTeacherFeeMonthlyModal()">&times;</button>
             </div>
             <div class="form-row">
@@ -4140,7 +4283,7 @@
                         <!-- 교사회비 내역 -->
                         <div class="section" style="margin-bottom: 25px;">
                             <h4 style="background: #6f42c1; color: white; padding: 10px; margin: 0 0 10px 0; border-radius: 5px; font-size: 14px;">
-                                💼 교사회비 내역 (${reportPeriod})
+                                💼 ${_duesTabName || '부서회비'} 내역 (${reportPeriod})
                             </h4>
                             <div style="overflow-x: auto;">
                                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; background: white;">
@@ -4156,7 +4299,7 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td style="border: 1px solid #ddd; padding: 8px;">교사회비</td>
+                                            <td style="border: 1px solid #ddd; padding: 8px;">${_duesTabName || '부서회비'}</td>
                                             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${reportData.teacherFeeIncome > 0 ? formatAmount(reportData.teacherFeeIncome) + '원' : ''}</td>
                                             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${reportData.teacherFeeExpense > 0 ? formatAmount(reportData.teacherFeeExpense) + '원' : ''}</td>
                                             <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${reportData.teacherFeeCumulativeIncome > 0 ? formatAmount(reportData.teacherFeeCumulativeIncome) + '원' : ''}</td>
@@ -5108,7 +5251,7 @@
             switch(type) {
                 case 'income': return '수입';
                 case 'expense': return '지출';
-                case 'teacherfee': return '교사회비';
+                case 'teacherfee': return _duesTabName || '부서회비';
                 default: return type;
             }
         }
@@ -5293,6 +5436,13 @@
                         initializeConstants();
                         loadApprovalAuthorities();
                         loadHeaderInfo();
+                        loadDuesTabName();
+                        api('GET', '/api/dues').then(r => {
+                            _duesData = r.data || [];
+                            updateDuesTabVisibility();
+                            loadDuesToSelect();
+                        }).catch(() => {});
+
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
                         document.getElementById('passwordInput').value = '';
@@ -5376,6 +5526,7 @@
             } else if (tabName === 'report') {
             } else if (tabName === 'teacherfee') {
                 displayTeacherFeeResults([]);
+                setTimeout(applyDuesTabName, 50);
             } else if (tabName === 'receipt') {
                 stopCamera();
                 resetCamera();
@@ -5546,9 +5697,7 @@
             const description = document.getElementById('transactionDescription').value;
             console.log('적요 내용:', description);
             
-            const approvalIdMatch = description.match(/\[결재번호:\s*([^\]]+)\]/);
-            console.log('정규식 매칭 결과:', approvalIdMatch);
-            
+            const approvalIdMatch = description.match(/\[사전결재:\s*(AR[0-9]+)\]/) || description.match(/\[결재번호:\s*([^\]]+)\]/);
             const approvalId = approvalIdMatch ? approvalIdMatch[1].trim() : null;
             console.log('추출된 결재 ID:', approvalId);
             
@@ -5660,8 +5809,14 @@
                         document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
                         updateCategoryOptions();
                         if (approvalId) {
-                            setTimeout(() => { searchApprovals(); }, 2000);
-                            showAlert(`거래등록 완료! 결재번호 ${approvalId}의 상태가 업데이트됩니다.`);
+                            // 전자결재 거래등록 완료 상태 업데이트
+                            api('POST', `/api/approvals/${approvalId}/record-transaction`, { approvalId })
+                                .then(r => { 
+                                    if (r && r.success) searchApprovals();
+                                    else searchApprovals();
+                                })
+                                .catch(e => { console.warn('결재상태 업데이트 실패:', e); searchApprovals(); });
+                            showAlert(`✅ 거래등록 완료!\n결재번호 ${approvalId}의 거래등록 상태가 업데이트됩니다.`);
                         }
                     } else {
                         showAlert(result ? result.message : '거래 저장에 실패했습니다.', 'error');
@@ -6081,17 +6236,25 @@
             form.classList.remove('hidden');
             document.getElementById('teacherFeeSummarySection').classList.add('hidden');
             if (mode === 'income') {
-                title.textContent = '💰 교사회비 납부 입력';
-                descLabel.textContent = '교사 이름';
+                title.textContent = '💰 부서회비 납부 입력';
+                descLabel.textContent = '납부자 이름';
                 descInput.placeholder = '납부자 이름을 입력하세요';
+                document.getElementById('tfDept').closest('.form-group').parentElement.style.display = '';
             } else {
-                title.textContent = '💸 교사회비 지출 입력';
+                title.textContent = '💸 부서회비 지출 입력';
                 descLabel.textContent = '적요 (사용 내역)';
                 descInput.placeholder = '예: 음료구입, 회식비';
+                document.getElementById('tfDept').closest('.form-group').parentElement.style.display = 'none';
             }
             document.getElementById('tfDate').value = new Date().toISOString().split('T')[0];
             document.getElementById('tfAmount').value = '';
+            document.getElementById('tfDuesName').value = '';
+            document.getElementById('tfCycle').value = '';
+            document.getElementById('tfDept').value = '';
             descInput.value = '';
+            // 부서 드롭다운 최신화
+            if (_duesData.length === 0) loadDuesSettings();
+            else loadDuesToSelect();
             form.scrollIntoView({ behavior: 'smooth' });
         }
 
@@ -6099,19 +6262,28 @@
             const date = document.getElementById('tfDate').value;
             const description = document.getElementById('tfDescription').value.trim();
             const amount = parseFloat(document.getElementById('tfAmount').value);
+            const duesName = document.getElementById('tfDuesName') ? document.getElementById('tfDuesName').value.trim() : '';
+            const deptSel = document.getElementById('tfDept');
+            const deptId = deptSel ? parseInt(deptSel.value) : null;
+            const deptInfo = deptId ? _duesData.find(x => x.id === deptId) : null;
 
             if (!date || !description || !amount || amount <= 0) {
                 showAlert('날짜, 내용, 금액을 모두 입력하세요.', 'error');
                 return;
             }
 
+            // 적요: 납부 시 "[회비명] 납부자이름" 형식
+            const fullDesc = _tfMode === 'income' && duesName
+                ? `[${duesName}] ${description}`
+                : description;
+
             const apiData = {
                 date,
                 type: 'teacherfee',
-                department: '',
-                incomeItem: '',
+                department: deptInfo ? deptInfo.dept : '',
+                incomeItem: duesName || '',
                 expenseItem: '',
-                description,
+                description: fullDesc,
                 income: _tfMode === 'income' ? amount : 0,
                 expense: _tfMode === 'expense' ? amount : 0,
                 donor: '',
@@ -6368,7 +6540,7 @@
             tbody.innerHTML = '';
 
             if (results.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 30px; color: #999;">교사회비 내역이 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 30px; color: #999;">부서회비 내역이 없습니다.</td></tr>';
                 return;
             }
 
@@ -7280,6 +7452,9 @@
             if (event.target === teacherFeeMonthlyModal) {
                 closeTeacherFeeMonthlyModal();
             }
+            if (event.target === document.getElementById('approvalDetailModal')) {
+                closeApprovalDetailModal();
+            }
             if (event.target === document.getElementById('budgetCopyModal')) {
                 closeBudgetCopyModal();
             }
@@ -7339,20 +7514,28 @@
         function loadApprovalForTransaction(approvalId) {
             showLoading();
 
-            api('GET', `/api/approvals/${approvalId}`)
+            api('GET', `/api/approvals?keyword=${encodeURIComponent(approvalId)}`)
                 .then(result => {
                     hideLoading();
-                    const approvalInfo = result.data;
+                    const list = result.data || [];
+                    const approvalInfo = list.find(a => a.id === approvalId) || list[0];
                     if (approvalInfo) {
+                        // 거래일자: 오늘 날짜
+                        const today = new Date();
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
                         document.getElementById('transactionType').value = 'expense';
-                        document.getElementById('transactionDate').value = approvalInfo.requestDate;
-                        document.getElementById('transactionDepartment').value = approvalInfo.department;
+                        document.getElementById('transactionDate').value = todayStr;
+                        document.getElementById('transactionDepartment').value = approvalInfo.department || '';
                         updateExpenseItems();
-                        setTimeout(() => { document.getElementById('transactionExpenseItem').value = approvalInfo.expenseItem || '기타'; }, 100);
-                        document.getElementById('transactionAmount').value = approvalInfo.amount;
-                        document.getElementById('transactionDescription').value = `[결재번호: ${approvalInfo.id}] ${approvalInfo.content}`;
+                        setTimeout(() => {
+                            document.getElementById('transactionExpenseItem').value = approvalInfo.expenseItem || '기타';
+                        }, 150);
+                        document.getElementById('transactionAmount').value = approvalInfo.amount || '';
+                        document.getElementById('transactionDescription').value = `[사전결재: ${approvalInfo.id}] ${approvalInfo.content || ''}`;
                         updateCategoryOptions();
-                        showAlert(`결재번호 ${approvalId}의 정보가 로드되었습니다.`);
+                        // 거래등록 완료 후 자동으로 전자결재 연동 처리를 위해 결재ID 저장
+                        document.getElementById('transactionDescription').dataset.approvalId = approvalInfo.id;
+                        showAlert(`✅ 결재번호 ${approvalId} 정보가 자동 입력되었습니다.\n거래일자를 확인 후 [거래등록] 버튼을 누르세요.`);
                     } else { showAlert('결재 정보를 찾을 수 없습니다.', 'error'); }
                 })
                 .catch(err => { hideLoading(); showAlert('결재 정보 로드 중 오류가 발생했습니다.', 'error'); console.error(err); });
@@ -7374,7 +7557,7 @@
             api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'approve', comment })
                 .then(result => {
                     hideLoading();
-                    if (result.success) { showAlert(result.message || '승인되었습니다.'); searchApprovals(); }
+                    if (result.success) { showAlert(result.message || '승인되었습니다.'); resetAuthBtn(); searchApprovals(); }
                     else { showAlert(result.message, 'error'); }
                 })
                 .catch(err => { hideLoading(); showAlert('승인 처리 중 오류가 발생했습니다.', 'error'); console.error(err); });
@@ -7395,7 +7578,7 @@
             api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'reject', comment })
                 .then(result => {
                     hideLoading();
-                    if (result.success) { showAlert(result.message || '반려되었습니다.'); searchApprovals(); }
+                    if (result.success) { showAlert(result.message || '반려되었습니다.'); resetAuthBtn(); searchApprovals(); }
                     else { showAlert(result.message, 'error'); }
                 })
                 .catch(err => { hideLoading(); showAlert('반려 처리 중 오류가 발생했습니다.', 'error'); console.error(err); });
@@ -7550,6 +7733,16 @@
         function resetApprovalSection() {
             // 기본 섹션(request)을 활성화
             showApprovalSection('request');
+            // 인증 버튼 초기화
+            const authBtn = document.getElementById('authBtn');
+            if (authBtn) {
+                authBtn.textContent = '🔐 인증';
+                authBtn.style.background = '';
+                authBtn.onclick = authenticateApprover;
+            }
+            if (document.getElementById('approverPassword')) {
+                document.getElementById('approverPassword').value = '';
+            }
             
             // 폼 초기화
             document.getElementById('approvalRequestForm').reset();
@@ -7605,7 +7798,23 @@
               hideLoading();
               if (result.success) {
                 currentUserAuthority = result.approver;
-                showAlert(result.message || '인증되었습니다.');
+                // 패스워드 비우기
+                document.getElementById('approverPassword').value = '';
+                // 버튼 인증완료 상태로 변경
+                const authBtn = document.getElementById('authBtn');
+                const name = result.approver.name || '';
+                const position = result.approver.position || '';
+                authBtn.textContent = `✅ ${name} ${position} 인증완료`;
+                authBtn.style.background = '#28a745';
+                authBtn.onclick = () => {
+                  // 재인증: 버튼 원래대로
+                  currentUserAuthority = null;
+                  authBtn.textContent = '🔐 인증';
+                  authBtn.style.background = '';
+                  authBtn.onclick = authenticateApprover;
+                  document.getElementById('approverPassword').value = '';
+                  searchApprovals();
+                };
                 searchApprovals();
               } else { showAlert(result.message, 'error'); }
             })
@@ -7797,43 +8006,55 @@
 
         // === 권한별 액션 버튼 생성 함수 ===
         function generateActionButtons(row) {
-            console.log('버튼 생성:', row.id, '거래등록 상태:', row.transactionRecorded);
-            
-            // 상태와 권한에 따른 버튼 표시 로직
-            if (row.status === '승인완료') {
-                // 거래등록 완료 여부에 따라 다른 버튼 표시
-                if (row.transactionRecorded === true || row.transactionRecorded === 'true') {
-                    return `
-                        <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
-                        <button class="btn-sm" style="background-color: #28a745; color: white; cursor: default;" disabled>✅ 거래등록완료</button>
-                        ${currentUserAuthority ? `<button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>` : ''}
-                    `;
-                } else {
-                    return `
-                        <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
-                        <button class="btn-sm btn-secondary" onclick="prepareTransactionRegistration('${row.id}')">💰 거래등록</button>
-                        ${currentUserAuthority ? `<button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>` : ''}
-                    `;
-                }
+            // status 정규화: '승인완료', '완료', 'approved' → '승인완료'
+            //                '반려', 'rejected'              → '반려'
+            //                그 외 모든 값                   → '진행중'
+            const rawStatus = (row.status || '').trim();
+            let status = '진행중';
+            if (rawStatus === '승인완료' || rawStatus === '완료' || rawStatus === 'approved' || rawStatus === '승인') {
+                status = '승인완료';
+            } else if (rawStatus === '반려' || rawStatus === 'rejected') {
+                status = '반려';
+            } else if (rawStatus === '재상정완료') {
+                status = '재상정완료';
             }
+            // '대기중', '진행중', 그 외 → 모두 '진행중'으로 처리
 
-            if (!currentUserAuthority) {
-                // 권한 없는 사용자 - 대기중/진행중이면 문자 버튼도 표시
-                if (row.status === '대기중' || row.status === '진행중') {
-                    return `
-                        <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 결재</button>
-                        <button class="btn-sm" style="background:#ff9800;color:white;" onclick="sendSMSFromList('${row.id}')">📱 문자</button>
-                    `;
-                }
+            // 승인완료
+            if (status === '승인완료') {
+                const txnDone = row.transactionRecorded === true || row.transactionRecorded === 'true';
                 return `
-                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 결재</button>
+                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
+                    ${txnDone
+                        ? `<button class="btn-sm" style="background:#28a745;color:white;cursor:default;" disabled>✅ 거래등록완료</button>`
+                        : `<button class="btn-sm" style="background:#27ae60;color:white;" onclick="prepareTransactionRegistration('${row.id}')">💰 거래등록</button>`
+                    }
+                    ${currentUserAuthority ? `<button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>` : ''}
                 `;
             }
-            
-            // 권한 있는 사용자용 버튼
-            // 대기중 또는 진행중인 상태에서 승인/반려/삭제 버튼 표시
-            if (row.status === '대기중' || row.status === '진행중') {
+
+            // 재상정완료 (이미 재상정된 반려 건 - 재상정 버튼 없음)
+            if (status === '재상정완료') {
                 return `
+                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
+                    <span style="font-size:11px;color:#17a2b8;padding:4px;">🔄 재상정됨</span>
+                    ${currentUserAuthority ? `<button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>` : ''}
+                `;
+            }
+
+            // 반려 (아직 재상정 안 된 건)
+            if (status === '반려') {
+                return `
+                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
+                    <button class="btn-sm" style="background:#17a2b8;color:white;" onclick="resubmitApproval('${row.id}')">🔄 재상정</button>
+                    ${currentUserAuthority ? `<button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>` : ''}
+                `;
+            }
+
+            // 대기중 / 진행중 / 그 외 모든 상태 (1차만 승인돼 진행중인 경우 포함)
+            if (currentUserAuthority) {
+                return `
+                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
                     <button class="btn-sm btn-secondary" onclick="approveRequest('${row.id}')">✅ 승인</button>
                     <button class="btn-sm btn-danger" onclick="rejectRequest('${row.id}')">❌ 반려</button>
                     <button class="btn-sm" style="background:#ff9800;color:white;" onclick="sendSMSFromList('${row.id}')">📱 문자</button>
@@ -7841,15 +8062,11 @@
                 `;
             }
 
-            // 반려된 결재에는 삭제 버튼만 표시
-            if (row.status === '반려') {
-                return `
-                    <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
-                    <button class="btn-sm btn-danger" onclick="deleteApprovalRequest('${row.id}')">🗑️ 삭제</button>
-                `;
-            }
-
-            return '';
+            // 권한 없음
+            return `
+                <button class="btn-sm" onclick="loadApprovalDetails('${row.id}')">📋 상세</button>
+                <button class="btn-sm" style="background:#ff9800;color:white;" onclick="sendSMSFromList('${row.id}')">📱 문자</button>
+            `;
         }
         
         // 결재 목록에서 문자 발송
@@ -7927,16 +8144,468 @@
             }, 100);
         }
 
-        // === 결재 상세 정보 로드 함수 ===
+        // === 결재 상세 정보 로드 함수 (모달 표시) ===
+        let currentDetailApprovalId = null;
+        let currentDetailApproval = null;
+
         function loadApprovalDetails(approvalId) {
-            if (!currentUserAuthority) {
-                showAlert('결재를 처리하려면 먼저 결재권한자 인증이 필요합니다.\n아래 🔐 결재권한자 인증 영역에서 전화번호와 패스워드를 입력해 주세요.', 'error');
-                // 인증 영역으로 스크롤
-                const authSection = document.getElementById('approverPhone');
-                if (authSection) authSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            currentDetailApprovalId = approvalId;
+            currentDetailApproval = null;
+
+            // 모달 열기 & 로딩 상태
+            document.getElementById('approvalDetailModal').style.display = 'block';
+            document.getElementById('approvalDetailLoading').style.display = 'block';
+            document.getElementById('approvalDetailInfo').style.display = 'none';
+            document.getElementById('approvalDetailTitle').textContent = `📋 결재 상세 — ${approvalId}`;
+
+            // API: 전체 목록에서 해당 건 검색
+            api('GET', `/api/approvals?keyword=${encodeURIComponent(approvalId)}`)
+                .then(result => {
+                    document.getElementById('approvalDetailLoading').style.display = 'none';
+                    const list = result.data || [];
+                    const approval = list.find(a => a.id === approvalId) || list[0];
+                    if (!approval) {
+                        document.getElementById('approvalDetailInfo').style.display = 'block';
+                        document.getElementById('approvalDetailInfo').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:30px;">결재 정보를 찾을 수 없습니다.</p>';
+                        return;
+                    }
+                    currentDetailApproval = approval;
+                    renderApprovalDetailModal(approval);
+                })
+                .catch(err => {
+                    document.getElementById('approvalDetailLoading').style.display = 'none';
+                    document.getElementById('approvalDetailInfo').style.display = 'block';
+                    document.getElementById('approvalDetailInfo').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:30px;">오류가 발생했습니다.</p>';
+                    console.error(err);
+                });
+        }
+
+        function renderApprovalDetailModal(approval) {
+            // 상태 배지 색상
+            const statusColors = { '대기중': '#ff9800', '진행중': '#2196f3', '승인완료': '#4caf50', '반려': '#e74c3c' };
+            const statusColor = statusColors[approval.status] || '#666';
+
+            document.getElementById('detailStatusBadge').textContent = approval.status;
+            document.getElementById('detailStatusBadge').style.background = statusColor + '22';
+            document.getElementById('detailStatusBadge').style.color = statusColor;
+            document.getElementById('detailStatusBadge').style.border = `1px solid ${statusColor}`;
+            document.getElementById('detailId').textContent = `결재번호: ${approval.id}`;
+            document.getElementById('detailDate').textContent = approval.requestDate || '-';
+            document.getElementById('detailRequester').textContent = approval.requesterPhone || approval.phone || '-';
+            document.getElementById('detailDept').textContent = approval.department || '-';
+            document.getElementById('detailItem').textContent = approval.expenseItem || '-';
+            document.getElementById('detailAmount').textContent = `₩ ${formatAmount(approval.amount)}`;
+            document.getElementById('detailContent').textContent = approval.content || '-';
+
+            // 결재 흐름 렌더링
+            const flowEl = document.getElementById('detailApprovalFlow');
+            const authorities = approval.authorities || [];
+            const comments = [approval.comment1, approval.comment2, approval.comment3];
+            const decisions = [approval.decision1, approval.decision2, approval.decision3];
+
+            if (authorities.length === 0) {
+                flowEl.innerHTML = '<p style="color:#999;font-size:13px;">결재권한자 정보 없음</p>';
+            } else {
+                flowEl.innerHTML = authorities.map((auth, i) => {
+                    const decision = decisions[i];
+                    const comment = comments[i] || '';
+                    const stepColor = decision === 'approve' ? '#4caf50' : decision === 'reject' ? '#e74c3c' : '#bbb';
+                    const stepIcon = decision === 'approve' ? '✅' : decision === 'reject' ? '❌' : '⏳';
+                    const stepLabel = decision === 'approve' ? '승인' : decision === 'reject' ? '반려' : '대기중';
+                    return `
+                        <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
+                            <div style="width:36px;height:36px;border-radius:50%;background:${stepColor}22;border:2px solid ${stepColor};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${stepIcon}</div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:13px;font-weight:bold;color:#333;">${auth.position || (i+1)+'차'} · ${auth.name || ''}</div>
+                                <div style="font-size:12px;color:${stepColor};margin:2px 0;">${stepLabel}</div>
+                                ${comment ? `<div style="font-size:12px;color:#555;background:#f5f5f5;border-radius:6px;padding:6px 8px;margin-top:4px;">${escapeHtml(comment)}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // 승인완료 건: 전표 섹션 표시
+            const voucherSection = document.getElementById('detailVoucherSection');
+            if (approval.status === '승인완료' || approval.status === '승인') {
+                voucherSection.style.display = 'block';
+                renderVoucherPreview(approval);
+                // 거래등록 완료 여부
+                const txnDone = approval.transactionRecorded === true || approval.transactionRecorded === 'true';
+                document.getElementById('detailRegisterTxnBtn').style.display = txnDone ? 'none' : 'inline-block';
+                document.getElementById('detailTxnDoneTag').style.display = txnDone ? 'inline-block' : 'none';
+            } else {
+                voucherSection.style.display = 'none';
+            }
+
+            // 대기중/진행중이고 권한 있으면 액션 섹션 표시
+            const actionSection = document.getElementById('detailActionSection');
+            if (currentUserAuthority && (approval.status === '대기중' || approval.status === '진행중')) {
+                actionSection.style.display = 'block';
+                document.getElementById('detailComment').value = '';
+            } else {
+                actionSection.style.display = 'none';
+            }
+
+            document.getElementById('approvalDetailInfo').style.display = 'block';
+        }
+
+        function renderVoucherPreview(approval) {
+            const amount = Number(approval.amount) || 0;
+            const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+            document.getElementById('detailVoucherPreview').innerHTML = `
+                <div style="text-align:center;margin-bottom:16px;">
+                    <div style="font-size:16px;font-weight:bold;letter-spacing:2px;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px;">지 출 청 구 서</div>
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <colgroup><col style="width:30%"><col style="width:70%"></colgroup>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">결재번호</td><td style="border:1px solid #ddd;padding:8px;">${approval.id}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">결재일자</td><td style="border:1px solid #ddd;padding:8px;">${approval.requestDate}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">부서</td><td style="border:1px solid #ddd;padding:8px;">${approval.department}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">지출항목</td><td style="border:1px solid #ddd;padding:8px;">${approval.expenseItem}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">결재내용</td><td style="border:1px solid #ddd;padding:8px;">${escapeHtml(approval.content || '')}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">청구금액</td><td style="border:1px solid #ddd;padding:8px;font-size:15px;font-weight:bold;color:#e74c3c;">₩ ${amount.toLocaleString('ko-KR')} 원</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">최종승인자</td><td style="border:1px solid #ddd;padding:8px;">${approval.finalApprover || '-'}</td></tr>
+                    <tr><td style="border:1px solid #ddd;padding:8px;background:#f8f9fa;font-weight:bold;">작성일</td><td style="border:1px solid #ddd;padding:8px;">${today}</td></tr>
+                </table>
+                <div style="margin-top:16px;display:flex;justify-content:flex-end;gap:30px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#666;">
+                    <span>담당자: ________________</span>
+                    <span>결재: ________________</span>
+                </div>
+            `;
+        }
+
+        function closeApprovalDetailModal() {
+            document.getElementById('approvalDetailModal').style.display = 'none';
+            currentDetailApprovalId = null;
+            currentDetailApproval = null;
+        }
+
+        function printVoucherFromDetail() {
+            if (!currentDetailApproval) return;
+            const a = currentDetailApproval;
+            const amount = Number(a.amount) || 0;
+            const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+            const win = window.open('', '_blank');
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>지출청구서 - ${a.id}</title>
+            <style>body{font-family:'맑은 고딕',sans-serif;padding:30px;max-width:600px;margin:0 auto;}
+            h1{text-align:center;font-size:20px;letter-spacing:4px;border-bottom:2px solid #333;padding-bottom:12px;}
+            table{width:100%;border-collapse:collapse;margin:20px 0;}
+            td{border:1px solid #ddd;padding:10px;font-size:13px;}
+            .label{background:#f5f5f5;font-weight:bold;width:30%;}
+            .amount{font-size:18px;font-weight:bold;color:#e74c3c;}
+            .sign{display:flex;justify-content:flex-end;gap:40px;margin-top:30px;font-size:13px;}
+            @media print{@page{size:A4;margin:20mm}}</style></head><body>
+            <h1>지 출 청 구 서</h1>
+            <table>
+              <tr><td class="label">결재번호</td><td>${a.id}</td></tr>
+              <tr><td class="label">결재일자</td><td>${a.requestDate}</td></tr>
+              <tr><td class="label">부서</td><td>${a.department}</td></tr>
+              <tr><td class="label">지출항목</td><td>${a.expenseItem}</td></tr>
+              <tr><td class="label">결재내용</td><td>${escapeHtml(a.content||'')}</td></tr>
+              <tr><td class="label">청구금액</td><td class="amount">₩ ${amount.toLocaleString('ko-KR')} 원</td></tr>
+              <tr><td class="label">최종승인자</td><td>${a.finalApprover||'-'}</td></tr>
+              <tr><td class="label">작성일</td><td>${today}</td></tr>
+            </table>
+            <div class="sign"><span>담당자: _______________</span><span>결재: _______________</span></div>
+            <script>window.onload=()=>window.print();<\/script></body></html>`);
+            win.document.close();
+        }
+
+        function registerTxnFromDetail() {
+            if (!currentDetailApprovalId) return;
+            closeApprovalDetailModal();
+            prepareTransactionRegistration(currentDetailApprovalId);
+        }
+
+        function processDecisionFromDetail(decision) {
+            if (!currentDetailApprovalId || !currentUserAuthority) {
+                showAlert('결재 정보 또는 권한 정보가 없습니다.', 'error');
                 return;
             }
-            showAlert(`결재번호 ${approvalId}의 상세 정보`, 'info');
+            const comment = document.getElementById('detailComment').value.trim();
+            if (!comment) {
+                showAlert('의견을 입력하세요.', 'error');
+                return;
+            }
+            const label = decision === 'approve' ? '승인' : '반려';
+            if (!confirm(`정말 ${label}하시겠습니까?`)) return;
+
+            showLoading();
+            api('PUT', `/api/approvals/${currentDetailApprovalId}/decision`, {
+                authorizerPhone: currentUserAuthority.phone,
+                decision,
+                comment
+            }).then(result => {
+                hideLoading();
+                closeApprovalDetailModal();
+                if (result.success) {
+                    showAlert(result.message || `${label}되었습니다.`);
+                    searchApprovals();
+                } else {
+                    showAlert(result.message || '처리 중 오류가 발생했습니다.', 'error');
+                }
+            }).catch(err => {
+                hideLoading();
+                showAlert('처리 중 오류가 발생했습니다.', 'error');
+                console.error(err);
+            });
+        }
+
+        // 반려 건 재상정
+        function resubmitApproval(approvalId) {
+            if (!confirm(`결재번호 ${approvalId}를 재상정하시겠습니까?\n반려자 이전 승인은 유지되고, 반려자부터 재결재가 진행됩니다.`)) return;
+            showLoading();
+            api('POST', `/api/approvals/${approvalId}/resubmit`)
+                .then(result => {
+                    hideLoading();
+                    if (result.success) {
+                        showAlert(result.message);
+                        searchApprovals();
+                    } else {
+                        showAlert(result.message || '재상정 중 오류가 발생했습니다.', 'error');
+                    }
+                })
+                .catch(err => { hideLoading(); showAlert('재상정 중 오류가 발생했습니다.', 'error'); console.error(err); });
+        }
+
+
+        function resetAuthBtn() {
+            currentUserAuthority = null;
+            const authBtn = document.getElementById('authBtn');
+            if (authBtn) {
+                authBtn.textContent = '🔐 인증';
+                authBtn.style.background = '';
+                authBtn.onclick = authenticateApprover;
+            }
+            if (document.getElementById('approverPassword')) {
+                document.getElementById('approverPassword').value = '';
+            }
+            if (document.getElementById('approverPhone')) {
+                document.getElementById('approverPhone').value = '';
+            }
+        }
+
+
+
+        // ===== 회비 탭 명칭 관리 =====
+        let _duesTabName = '부서회비';
+
+        function loadDuesTabName() {
+            api('GET', '/api/settings/dues-tab-name')
+                .then(result => {
+                    if (result.success && result.data) {
+                        _duesTabName = result.data;
+                    }
+                    applyDuesTabName();
+                })
+                .catch(() => applyDuesTabName());
+        }
+
+        function applyDuesTabName() {
+            const name = _duesTabName || '부서회비';
+            // 탭 버튼
+            const tabBtn = document.getElementById('teacherfeeTabBtn');
+            if (tabBtn) tabBtn.textContent = name;
+            // 설정 입력란
+            const inp = document.getElementById('duesTabName');
+            if (inp && !inp.value) inp.value = name;
+            // 섹션 타이틀들
+            const titles = [
+                { id: 'teacherFeeSummaryTitle', text: `📊 ${name} 내역 조회 및 출력` },
+                { id: 'teacherFeeSearchTitle', text: `🔍 ${name} 조회` },
+            ];
+            titles.forEach(({ id, text }) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            });
+            // 관리 h2
+            document.querySelectorAll('#teacherfee h2').forEach(el => {
+                if (el.textContent.includes('관리')) el.textContent = `💼 ${name} 관리`;
+                if (el.textContent.includes('납부 입력')) el.textContent = `💰 ${name} 납부 입력`;
+                if (el.textContent.includes('지출 입력')) el.textContent = `💸 ${name} 지출 입력`;
+            });
+            // 빈 메시지
+            document.querySelectorAll('#teacherFeeResults td, #teacherFeeSummaryTable td').forEach(td => {
+                if (td.textContent.includes('내역이 없습니다')) {
+                    td.textContent = `${name} 내역이 없습니다.`;
+                }
+            });
+            // 안내 문구
+            const infoEl = document.querySelector('#teacherfee .teacherfee-info p, #teacherfee > .card > p');
+            if (infoEl && infoEl.textContent.includes('별도로 관리')) {
+                infoEl.innerHTML = `${name}는 일반 회계와 별도로 관리되며, 예산 및 회계장부에 반영되지 않습니다.<br>월회계보고서에만 별도 항목으로 표시됩니다.`;
+            }
+        }
+
+        function saveDuesTabName() {
+            const name = document.getElementById('duesTabName').value.trim();
+            if (!name) { showAlert('명칭을 입력하세요.', 'error'); return; }
+            showLoading();
+            api('PUT', '/api/settings/dues-tab-name', { name })
+                .then(result => {
+                    hideLoading();
+                    if (result.success) {
+                        _duesTabName = name;
+                        applyDuesTabName();
+                        showAlert(`'${name}'(으)로 변경되었습니다.`);
+                    } else showAlert(result.message, 'error');
+                })
+                .catch(() => { hideLoading(); showAlert('저장 중 오류가 발생했습니다.', 'error'); });
+        }
+
+        // ===== 부서회비 설정 관리 =====
+        let _duesData = [];
+
+        function loadDuesSettings() {
+            api('GET', '/api/dues').then(result => {
+                _duesData = result.data || [];
+                renderDuesSettings();
+                loadDuesToSelect();
+                updateDuesTabVisibility();
+            }).catch(e => console.warn('회비설정 로드 실패:', e));
+        }
+
+        function updateDuesTabVisibility() {
+            const btn = document.getElementById('teacherfeeTabBtn');
+            if (!btn) return;
+            const hasActive = _duesData.some(d => d.active);
+            btn.style.display = hasActive ? '' : 'none';
+            // 현재 부서회비 탭이 활성화된 상태에서 회비가 없어지면 거래등록 탭으로 이동
+            if (!hasActive && document.getElementById('teacherfee').classList.contains('active')) {
+                document.querySelector('.tab-btn[onclick*="transactions"]')?.click();
+            }
+        }
+
+        function renderDuesSettings() {
+            const el = document.getElementById('duesSettingsList');
+            if (!el) return;
+            const active = _duesData.filter(d => d.active);
+            if (active.length === 0) {
+                el.innerHTML = '<p style="color:#999;font-size:13px;text-align:center;padding:10px;">등록된 회비 설정이 없습니다.</p>';
+                return;
+            }
+            el.innerHTML = active.map(d => `
+                <div style="display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:8px;background:#fff;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:bold;font-size:14px;">${d.dept}</div>
+                        <div style="font-size:12px;color:#555;margin-top:2px;">
+                            ${d.duesName} · ${d.cycle} · ${d.amount > 0 ? Number(d.amount).toLocaleString()+'원' : '금액미정'}
+                            ${d.note ? ' · '+d.note : ''}
+                        </div>
+                    </div>
+                    <button class="btn-sm" onclick="editDuesSetting(${d.id})" style="flex-shrink:0;">수정</button>
+                    <button class="btn-sm btn-danger" onclick="deleteDuesSetting(${d.id})" style="flex-shrink:0;">삭제</button>
+                </div>
+            `).join('');
+        }
+
+        function showDuesAddForm() {
+            document.getElementById('duesFormTitle').textContent = '회비 추가';
+            document.getElementById('duesFormId').value = '';
+            document.getElementById('duesFormDept').value = '';
+            document.getElementById('duesFormName').value = '';
+            document.getElementById('duesFormCycle').value = '월';
+            document.getElementById('duesFormAmount').value = '';
+            document.getElementById('duesFormNote').value = '';
+            document.getElementById('duesForm').style.display = 'block';
+        }
+
+        function editDuesSetting(id) {
+            const d = _duesData.find(x => x.id === id);
+            if (!d) return;
+            document.getElementById('duesFormTitle').textContent = '회비 수정';
+            document.getElementById('duesFormId').value = id;
+            document.getElementById('duesFormDept').value = d.dept;
+            document.getElementById('duesFormName').value = d.duesName;
+            document.getElementById('duesFormCycle').value = d.cycle;
+            document.getElementById('duesFormAmount').value = d.amount;
+            document.getElementById('duesFormNote').value = d.note;
+            document.getElementById('duesForm').style.display = 'block';
+        }
+
+        function hideDuesForm() {
+            document.getElementById('duesForm').style.display = 'none';
+        }
+
+        function saveDuesSetting() {
+            const id = document.getElementById('duesFormId').value;
+            const dept = document.getElementById('duesFormDept').value.trim();
+            const duesName = document.getElementById('duesFormName').value.trim();
+            const cycle = document.getElementById('duesFormCycle').value;
+            const amount = document.getElementById('duesFormAmount').value;
+            const note = document.getElementById('duesFormNote').value.trim();
+            if (!dept || !duesName) { showAlert('부서명과 회비명은 필수입니다.', 'error'); return; }
+            const body = { dept, duesName, cycle, amount: Number(amount) || 0, note };
+            showLoading();
+            const req = id
+                ? api('PUT', `/api/dues/${id}`, { ...body, active: true })
+                : api('POST', '/api/dues', body);
+            req.then(result => {
+                hideLoading();
+                if (result.success) {
+                    showAlert(result.message);
+                    hideDuesForm();
+                    loadDuesSettings();
+                } else { showAlert(result.message, 'error'); }
+            }).catch(() => { hideLoading(); showAlert('저장 중 오류가 발생했습니다.', 'error'); });
+        }
+
+        function deleteDuesSetting(id) {
+            if (!confirm('이 회비 설정을 삭제하시겠습니까?')) return;
+            showLoading();
+            api('DELETE', `/api/dues/${id}`).then(result => {
+                hideLoading();
+                if (result.success) { showAlert(result.message); loadDuesSettings(); }
+                else showAlert(result.message, 'error');
+            }).catch(() => { hideLoading(); showAlert('삭제 중 오류가 발생했습니다.', 'error'); });
+        }
+
+        // 납부 입력 시 부서 드롭다운 로드
+        function loadDuesToSelect() {
+            const sel = document.getElementById('tfDept');
+            if (!sel) return;
+            const active = _duesData.filter(d => d.active);
+            sel.innerHTML = '<option value="">-- 부서 선택 --</option>' +
+                active.map(d => `<option value="${d.id}">${d.dept} (${d.duesName})</option>`).join('');
+        }
+
+        // 부서 선택 시 회비명/금액 자동 입력
+        function onTfDeptChange() {
+            const sel = document.getElementById('tfDept');
+            const id = parseInt(sel.value);
+            const d = _duesData.find(x => x.id === id);
+            if (d) {
+                document.getElementById('tfDuesName').value = d.duesName;
+                document.getElementById('tfAmount').value = d.amount || '';
+                document.getElementById('tfCycle').value = d.cycle;
+            } else {
+                document.getElementById('tfDuesName').value = '';
+                document.getElementById('tfAmount').value = '';
+                document.getElementById('tfCycle').value = '';
+            }
+        }
+
+        // deleteApprovalRequest (버튼에서 호출되지만 미선언 상태였던 함수)
+        function deleteApprovalRequest(approvalId) {
+            if (!currentUserAuthority) {
+                showAlert('삭제 권한이 없습니다.', 'error');
+                return;
+            }
+            if (!confirm(`결재번호 ${approvalId}를 삭제하시겠습니까?`)) return;
+            showLoading();
+            api('DELETE', `/api/approvals/${approvalId}`)
+                .then(result => {
+                    hideLoading();
+                    if (result.success) {
+                        showAlert('삭제되었습니다.');
+                        closeApprovalDetailModal();
+                        searchApprovals();
+                    } else {
+                        showAlert(result.message || '삭제 중 오류가 발생했습니다.', 'error');
+                    }
+                })
+                .catch(err => { hideLoading(); showAlert('삭제 중 오류가 발생했습니다.', 'error'); console.error(err); });
         }
         
         function displayVoucherInfo(approvalInfo) {
@@ -8046,6 +8715,10 @@
                 content: requestContent
             };
 
+            // 제출 버튼 비활성화 (중복 제출 방지)
+            const submitBtn = document.getElementById('approvalSubmitBtn');
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '⏳ 제출 중...'; }
+
             showLoading();
 
             api('POST', '/api/approvals', formData)
@@ -8055,9 +8728,22 @@
                         showAlert(result.message || '결재요청이 생성되었습니다.');
                         currentApprovalDataForSMS = formData;
                         document.getElementById('sendSmsBtn').classList.remove('hidden');
-                    } else { showAlert(result.message, 'error'); }
+                        // 폼 초기화 후 버튼 복원
+                        document.getElementById('requestAmount').value = '';
+                        document.getElementById('requestContent').value = '';
+                        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📤 결재요청 제출'; }
+                    } else {
+                        showAlert(result.message, 'error');
+                        // 실패 시 버튼 복원
+                        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📤 결재요청 제출'; }
+                    }
                 })
-                .catch(err => { hideLoading(); showAlert('결재요청 생성 중 오류가 발생했습니다.', 'error'); console.error(err); });
+                .catch(err => {
+                    hideLoading();
+                    showAlert('결재요청 생성 중 오류가 발생했습니다.', 'error');
+                    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📤 결재요청 제출'; }
+                    console.error(err);
+                });
         }
 
 // ... (나머지 전자결재 함수들 계속)
@@ -8366,7 +9052,7 @@
       var _addModalType = 'income';
 
       function loadSettingsTab() {
-          loadAuthorityList();showLoading();
+          loadAuthorityList(); loadDuesSettings(); loadDuesTabName(); showLoading();
           api('GET', '/api/master')
               .then(function(result) {
                   hideLoading();
@@ -8721,7 +9407,6 @@
                               <td><br><br><br></td>
                           </tr>
                       </table>
-                      
                       <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
                           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; background-color: #FF0000; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
                       </div>
@@ -8732,8 +9417,40 @@
           mobilePrint(voucherHTML);
       }
 
-      function printExpenseVoucher(transactionData) {
-          
+      async function printExpenseVoucher(transactionData) {
+          // description에서 결재번호 추출 [사전결재: AR...]
+          let eApprovalBlock = '';
+          const approvalMatch = (transactionData.description || '').match(/\[사전결재:\s*(AR[0-9]+)\]/);
+          if (approvalMatch) {
+              try {
+                  const approvalId = approvalMatch[1];
+                  const result = await api('GET', `/api/approvals?keyword=${approvalId}`);
+                  const approval = (result.data || []).find(a => a.id === approvalId);
+                  if (approval && (approval.status === '승인완료' || approval.status === '승인' || approval.status === '진행중')) {
+                      const authorities = approval.authorities || [];
+                      const dts = [approval.dt1, approval.dt2, approval.dt3];
+                      const comments = [approval.comment1, approval.comment2, approval.comment3];
+                      const rows = authorities.map((auth, i) => {
+                          const dt = dts[i];
+                          if (!dt) return '';
+                          // 백엔드에서 KST 'YYYY-MM-DD HH:MM' 형식으로 변환되어 옴
+                          const dtStr = dt ? String(dt).substring(0, 16) : '';
+                          return `<tr><td style="padding:6px 10px;border:1px solid #ddd;">✅ ${auth.position||''} ${auth.name||''}</td><td style="padding:6px 10px;border:1px solid #ddd;">${dtStr}</td><td style="padding:6px 10px;border:1px solid #ddd;color:#555;">${comments[i]||'-'}</td></tr>`;
+                      }).filter(Boolean).join('');
+                      eApprovalBlock = `
+                          <div style="margin-top:20px;border:2px solid #c0392b;border-radius:6px;padding:14px;background:#fff8f8;position:relative;">
+                              <div style="position:absolute;top:-12px;left:16px;background:#c0392b;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">🔏 전자결재 완료</div>
+                              <div style="font-weight:bold;color:#c0392b;margin-bottom:8px;font-size:13px;">결재번호: ${approval.id}</div>
+                              <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                                  <thead><tr style="background:#f5f5f5;"><th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">결재자</th><th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">승인일시</th><th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">의견</th></tr></thead>
+                                  <tbody>${rows}</tbody>
+                              </table>
+                              <div style="margin-top:8px;font-size:11px;color:#888;">최종승인: ${approval.finalApprover||''}</div>
+                          </div>`;
+                  }
+              } catch(e) { console.warn('전자결재 정보 조회 실패:', e); }
+          }
+
           const voucherHTML = `
               <!DOCTYPE html>
               <html>
@@ -8834,7 +9551,7 @@
                               <td><br><br><br></td>
                           </tr>
                       </table>
-                      
+                      ${eApprovalBlock}
                       <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
                           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; background-color: #333; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
                       </div>
