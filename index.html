@@ -1849,7 +1849,54 @@
             from { opacity: 1; transform: translate(-50%, 0); }
             to { opacity: 0; transform: translate(-50%, -20px); }
         }
-    </style>
+
+        /* ===== 설정 서브탭 ===== */
+        .settings-subtab-wrap {
+            background: #4fc3f7;
+            padding: 20px 24px 0;
+            display: flex;
+            justify-content: center;
+        }
+        .settings-subtab-nav {
+            display: flex;
+            gap: 16px;
+            max-width: 660px;
+            width: 100%;
+        }
+        .settings-subtab {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 12px 12px 0 0;
+            background: rgba(255,255,255,0.25);
+            cursor: pointer;
+            color: rgba(255,255,255,0.9);
+            transition: all 0.2s;
+            white-space: nowrap;
+            min-height: 72px;
+        }
+        .settings-subtab .stab-icon {
+            font-size: 28px;
+            line-height: 1;
+        }
+        .settings-subtab .stab-label {
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .settings-subtab:hover {
+            background: rgba(255,255,255,0.4);
+        }
+        .settings-subtab.active-stab {
+            background: #fff;
+            color: #4fc3f7;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+        }
+        </style>
     <script>
     // =============================================
     // Node.js 백엔드 연결 헬퍼
@@ -2057,6 +2104,7 @@
           api('DELETE', `/api/approvals/authorities/${encodeURIComponent(phone)}`)
             .then(r => { hideLoading(); if (r.success) { showAlert(r.message); loadAuthorityList(); } else showAlert(r.message, 'error'); });
         }
+
 </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
         // =============================================
@@ -2268,6 +2316,7 @@
                                     <option value="">선택하세요</option>
                                     <option value="income">수입</option>
                                     <option value="expense">지출</option>
+                                    <option value="refund">환불</option>
                                 </select>
                             </div>
                         </div>
@@ -2296,12 +2345,15 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="transactionAmount">금액</label>
-                                <input type="number" id="transactionAmount" placeholder="금액을 입력하세요" required step="1" lang="ko">
+                                <input type="number" id="transactionAmount" placeholder="금액을 입력하세요" required step="1" lang="ko" min="0">
                                 <div class="refund-info" id="refundInfo">
                                     환입의 경우 마이너스(-) 금액을 입력하세요. (예: -50000)
                                 </div>
                                 <div class="teacherfee-info" id="teacherfeeInfo">
                                     지출일 경우에는 -(음수)를 입력하고 숫자를 입력하세요. (예: 수입 50000, 지출 -50000)
+                                </div>
+                                <div id="refundGuide" style="display:none;background:#eaf4fd;border:1px solid #bee3f8;border-radius:8px;padding:8px 12px;font-size:12px;color:#2980b9;margin-top:6px;">
+                                    💡 금액은 양수로 입력하세요. 자동으로 수입에서 차감(-) 처리됩니다.
                                 </div>
                             </div>
                             <div class="form-group">
@@ -2318,12 +2370,42 @@
 
                         <div class="form-row" id="donationRecipientGroup" style="display: none;">
                             <div class="form-group">
-                                <label for="donationRecipient">기부금영수증발급대상자</label>
-                                <input type="text" id="donationRecipient" placeholder="헌금자 이름을 입력하세요 (여러명은 쉼표로 구분)" lang="ko">
-                                <div class="donation-info">
-                                    기부금영수증 발급이 필요한 헌금자의 이름을 입력하세요. 여러명인 경우 쉼표(,)로 구분하세요.
+                                <label>🧾 기부금영수증 발급 대상자</label>
+                                <div style="background:#f0f7ff;border:1px solid #b3d8f5;border-radius:10px;padding:12px;">
+                                  <div style="font-size:11px;color:#1a6fa8;margin-bottom:10px;">
+                                    💡 금액을 직접 입력하거나, 비워두면 <b>나머지 금액을 1/n 자동계산</b>합니다.
+                                  </div>
+                                  <div style="display:flex;gap:6px;margin-bottom:6px;">
+                                    <span style="flex:2;font-size:11px;color:#888;font-weight:600;">이름</span>
+                                    <span style="flex:2;font-size:11px;color:#888;font-weight:600;">금액 (직접입력)</span>
+                                    <span style="flex:1.5;font-size:11px;color:#888;font-weight:600;text-align:center;">자동계산</span>
+                                    <span style="width:26px;"></span>
+                                  </div>
+                                  <div id="donorRows"></div>
+                                  <button type="button" onclick="addDonorRow()"
+                                    style="width:100%;margin-top:6px;padding:7px;border:1px dashed #b3d8f5;background:#f8fbff;border-radius:7px;color:#1a6fa8;font-size:13px;font-weight:600;cursor:pointer;">
+                                    + 헌금자 추가
+                                  </button>
+                                  <div id="donorSummaryBox" style="display:none;margin-top:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:12px;color:#7a5f00;"></div>
                                 </div>
+                                <input type="hidden" id="donationRecipient">
                             </div>
+                        </div>
+
+                        <!-- 영수증 첨부 (지출 거래 시 표시) -->
+                        <div id="receiptAttachGroup" style="display:none;margin-bottom:14px;">
+                          <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:6px;">📷 영수증 첨부 <span style="font-size:11px;color:#888;font-weight:400;">(선택사항 — 전표 출력 시 자동 포함됩니다)</span></label>
+                          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <label style="padding:8px 16px;background:#f0f7ff;border:1px solid #b3d8f5;border-radius:8px;color:#1a6fa8;font-size:13px;font-weight:600;cursor:pointer;">
+                              📷 사진 찍기 / 선택
+                              <input type="file" id="receiptAttachInput" accept="image/*" capture="environment" style="display:none;" onchange="handleReceiptAttach(event)">
+                            </label>
+                            <div id="receiptAttachPreview" style="display:none;align-items:center;gap:8px;">
+                              <img id="receiptAttachThumb" style="width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid #ddd;">
+                              <span id="receiptAttachName" style="font-size:12px;color:#555;"></span>
+                              <button type="button" onclick="removeReceiptAttach()" style="background:none;border:none;color:#e74c3c;font-size:18px;cursor:pointer;line-height:1;">✕</button>
+                            </div>
+                          </div>
                         </div>
 
                         <button type="button" id="saveTransactionBtn" class="btn" onclick="saveTransaction()">💾 거래 저장</button>
@@ -2343,7 +2425,7 @@
                         <div class="form-group" style="display: flex; align-items: end; gap: 10px;">
                             <button class="btn" onclick="performSearch()">🔍 검색</button>
                             <button class="btn" onclick="showMonthlySearchModal()" style="background: #28a745;">📅 월별조회</button>
-                            <button class="btn" onclick="exportLedgerExcel()" style="background: #1a73e8; color:white;">📥 엑셀 다운로드</button>
+                            <button class="btn" onclick="exportLedgerExcel()" style="background: #1a73e8; color:white;white-space:nowrap;">📥 엑셀 다운로드</button>
                         </div>
                     </div>
                 </div>
@@ -3438,14 +3520,44 @@
 
             <!-- 설정 탭 -->
             <div class="tab-content" id="settings">
-                <div style="max-width:900px;margin:0 auto;padding:0 10px;">
+                <!-- 설정 서브탭 네비게이션 -->
+                <div class="settings-subtab-wrap">
+                  <div class="settings-subtab-nav">
+                    <button id="stab-master" onclick="showSettingsTab('master')" class="settings-subtab active-stab">
+                      <span class="stab-icon">⚙️</span>
+                      <span class="stab-label">계정과목</span>
+                    </button>
+                    <button id="stab-reorder" onclick="showSettingsTab('reorder')" class="settings-subtab">
+                      <span class="stab-icon">↕️</span>
+                      <span class="stab-label">순서편집</span>
+                    </button>
+                    <button id="stab-dues" onclick="showSettingsTab('dues')" class="settings-subtab">
+                      <span class="stab-icon">💰</span>
+                      <span class="stab-label">부서회비</span>
+                    </button>
+                    <button id="stab-auth" onclick="showSettingsTab('auth')" class="settings-subtab">
+                      <span class="stab-icon">👤</span>
+                      <span class="stab-label">결재권한</span>
+                    </button>
+
+                  </div>
+                </div>
+                <div style="max-width:900px;margin:0 auto;padding:10px 10px 20px;background:#f0f4f8;min-height:400px;">
+                <!-- 서브탭: 계정과목 관리 -->
+                <div id="stab-content-master">
                 <div class="card">
                     <h2>⚙️ 계정과목 관리</h2>
                     <p style="color:#666;font-size:13px;margin-bottom:15px;">수입/지출 항목을 추가·삭제할 수 있습니다.</p>
 
                     <!-- 백업 관리 -->
                     <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:16px;margin-bottom:20px;">
-                        <p style="font-size:13px;font-weight:bold;color:#856404;margin-bottom:10px;">🔒 백업 및 복원</p>
+                        <p style="font-size:13px;font-weight:bold;color:#856404;margin-bottom:8px;">🔒 백업 및 복원</p>
+                        <div style="background:#fffbf0;border:1px solid #ffe08a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#7a5f00;line-height:1.8;">
+                          <b>📌 백업이란?</b> 수입·지출 계정과목 목록을 안전하게 저장해두는 기능입니다.<br>
+                          <b>🕐 언제 사용하나요?</b> 항목을 추가·삭제·순서 변경하기 <u>전</u>에 미리 백업해두세요.<br>
+                          <b>↩️ 복원하려면?</b> 백업 목록에서 원하는 날짜의 <b>복원</b> 버튼을 누르면 해당 시점으로 되돌아갑니다.<br>
+                          <span style="color:#b07800;">※ 최신 10개까지 자동 보관되며, 거래 내역(회계원장)에는 영향을 주지 않습니다.</span>
+                        </div>
                         <div style="display:flex;gap:8px;margin-bottom:12px;">
                             <button class="btn" onclick="createBackup()"
                                 style="flex:1;background:#f39c12;color:#fff;padding:10px;font-size:13px;">
@@ -3459,85 +3571,145 @@
                         <div id="backupList" style="display:none;"></div>
                     </div>
 
-                    <!-- 표준 템플릿 불러오기 -->
-                    <div style="background:#f8f9fa;border-radius:10px;padding:16px;margin-bottom:20px;">
-                        <p style="font-size:13px;font-weight:bold;color:#333;margin-bottom:10px;">📋 표준 계정과목 템플릿 불러오기</p>
-                        <p style="font-size:12px;color:#e74c3c;margin-bottom:10px;">⚠️ 기존 계정과목이 모두 교체됩니다.</p>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button class="btn" onclick="loadTemplate('church')"
-                                style="flex:1;background:#3498db;color:#fff;padding:10px 16px;font-size:13px;">
-                                ⛪ 교회용 템플릿
-                            </button>
-                            <button class="btn" onclick="loadTemplate('general')"
-                                style="flex:1;background:#8e44ad;color:#fff;padding:10px 16px;font-size:13px;">
-                                🏢 일반기관용 템플릿
-                            </button>
-                        </div>
-                    </div>
 
                     <!-- 수입 항목 -->
-                    <div style="margin-bottom:24px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                            <h3 style="color:#27ae60;margin:0;">📥 수입 항목</h3>
-                            <button onclick="showAddModal('income')"
-                                style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">+ 항목 추가</button>
+                    <div style="margin-bottom:28px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <h3 style="color:#27ae60;margin:0;font-size:15px;">📥 수입 항목</h3>
+                            </div>
+                            <button onclick="showAddModal('income')" style="display:flex;align-items:center;gap:5px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 항목 추가</button>
                         </div>
-                        <!-- 활성 항목 -->
-                        <div style="background:#f8fff8;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:8px;">
-                            <p style="font-size:11px;color:#888;margin-bottom:8px;">● 활성 항목</p>
+                        <div style="background:#f8fff8;border:1px solid #c8e6c9;border-radius:10px;padding:14px;margin-bottom:10px;">
+                            <p style="font-size:11px;color:#888;margin-bottom:10px;font-weight:600;">● 활성 항목</p>
                             <div id="incomeItemsList"></div>
                         </div>
-                        <!-- 비활성 항목 -->
-                        <div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:12px;">
-                            <p style="font-size:11px;color:#888;margin-bottom:8px;">⚫ 비활성 항목 (드롭다운 미표시)</p>
+                        <div style="background:#f9f9f9;border:1px solid #eee;border-radius:10px;padding:14px;">
+                            <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-weight:600;">⚫ 비활성 항목 (드롭다운 미표시)</p>
                             <div id="inactiveIncomeItemsList"></div>
                         </div>
                     </div>
 
                     <!-- 지출 항목 -->
                     <div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                            <h3 style="color:#e74c3c;margin:0;">📤 지출 항목</h3>
-                            <button onclick="showAddModal('expense')"
-                                style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">+ 항목 추가</button>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                            <h3 style="color:#e74c3c;margin:0;font-size:15px;">📤 지출 항목</h3>
+                            <button onclick="showAddModal('expense')" style="display:flex;align-items:center;gap:5px;background:#fdecea;color:#c0392b;border:1px solid #f1948a;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 항목 추가</button>
                         </div>
-                        <!-- 부서별 접기/펼치기 -->
                         <div id="expenseDeptList"></div>
-                        <!-- 비활성 지출 항목 -->
-                        <div style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:12px;margin-top:8px;">
-                            <p style="font-size:11px;color:#888;margin-bottom:8px;">⚫ 비활성 항목 (드롭다운 미표시)</p>
+                        <div style="background:#f9f9f9;border:1px solid #eee;border-radius:10px;padding:14px;margin-top:10px;">
+                            <p style="font-size:11px;color:#aaa;margin-bottom:10px;font-weight:600;">⚫ 비활성 항목 (드롭다운 미표시)</p>
                             <div id="inactiveExpenseItemsList"></div>
                         </div>
                     </div>
 
-                    <!-- 항목 추가 모달 -->
-                    <div id="addItemModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:center;">
-                        <div style="background:#fff;border-radius:12px;padding:24px;width:90%;max-width:400px;">
-                            <h3 id="addModalTitle" style="margin-bottom:16px;">항목 추가</h3>
-                            <div id="addModalDeptRow" style="display:none;margin-bottom:10px;">
-                                <label style="font-size:13px;color:#666;">부서명</label>
-                                <input type="text" id="modalDeptInput" placeholder="부서명 입력 또는 선택"
-                                    style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;margin-top:4px;">
-                                <select id="modalDeptSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;margin-top:6px;">
-                                    <option value="">기존 부서 선택</option>
-                                </select>
+                    <!-- 항목 추가 모달 (새 UI) -->
+                    <div id="addItemModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
+                        <div id="addModalInner" style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:480px;max-height:80vh;overflow-y:auto;">
+
+                            <!-- 수입 UI -->
+                            <div id="addModalIncome" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                                    <h3 style="font-size:16px;font-weight:600;color:#27ae60;">📥 수입 항목 추가</h3>
+                                    <button onclick="closeAddModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                                </div>
+                                <p style="font-size:12px;color:#888;margin-bottom:12px;">항목을 선택하거나 직접 입력하세요. 복수 선택 가능합니다.</p>
+                                <div id="incSelBar" style="min-height:26px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;"><span style="font-size:12px;color:#aaa;">선택된 항목 없음</span></div>
+                                <input oninput="filterIncItems()" id="incSearchBox" placeholder="항목명 검색..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+                                <div id="incChipArea" style="max-height:220px;overflow-y:auto;"></div>
+                                <div style="border-top:1px solid #eee;margin:12px 0;"></div>
+                                <p style="font-size:12px;color:#888;margin-bottom:6px;">목록에 없으면 직접 입력</p>
+                                <div style="display:flex;gap:8px;margin-bottom:14px;">
+                                    <input type="text" id="incCustomInput" placeholder="항목명 직접 입력" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                                    <button onclick="incAddCustom()" style="padding:8px 14px;background:#e8f5e9;color:#27ae60;border:1px solid #a5d6a7;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">추가</button>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button onclick="confirmAddIncome()" style="flex:1;background:#27ae60;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;">추가하기</button>
+                                    <button onclick="closeAddModal()" style="padding:11px 16px;background:#f5f5f5;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">취소</button>
+                                </div>
                             </div>
-                            <div style="margin-bottom:16px;">
-                                <label style="font-size:13px;color:#666;">항목명</label>
-                                <input type="text" id="modalItemInput" placeholder="항목명 입력"
-                                    style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;margin-top:4px;">
+
+                            <!-- 지출 1단계: 소조직 선택 -->
+                            <div id="addModalExpStep1" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                    <h3 style="font-size:16px;font-weight:600;color:#e74c3c;">📤 지출 항목 추가</h3>
+                                    <button onclick="closeAddModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                                </div>
+                                <div style="display:flex;gap:6px;margin-bottom:14px;">
+                                    <div id="es1" style="flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:11px;background:#fde8e8;color:#c0392b;border:1px solid #f1948a;font-weight:600;">1단계 — 소조직 선택</div>
+                                    <div id="es2" style="flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:11px;background:#f5f5f5;color:#aaa;border:1px solid #eee;">2단계 — 항목 선택</div>
+                                </div>
+                                <div style="background:#eaf4fd;border:1px solid #bee3f8;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#2980b9;">
+                                    💡 <b>소조직</b>이란? 이 부서 내부 조직입니다.<br>예) 총무부→비품구입비, 교육부→공과교재비
+                                </div>
+                                <input oninput="filterExpGrps()" id="expGrpSearch" placeholder="소조직명 검색..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+                                <div id="expGrpGrid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;"></div>
+                                <div style="display:flex;gap:8px;margin-top:4px;">
+                                    <input type="text" id="newGrpInput" placeholder="새 소조직명 직접 입력" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                                    <button onclick="expAddNewGrp()" style="padding:8px 14px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:8px;font-size:13px;cursor:pointer;">+ 추가</button>
+                                </div>
                             </div>
-                            <div style="display:flex;gap:8px;">
-                                <button onclick="confirmAddItem()"
-                                    style="flex:1;background:#3498db;color:#fff;border:none;border-radius:6px;padding:12px;font-size:14px;cursor:pointer;">추가</button>
-                                <button onclick="closeAddModal()"
-                                    style="flex:1;background:#95a5a6;color:#fff;border:none;border-radius:6px;padding:12px;font-size:14px;cursor:pointer;">취소</button>
+
+                            <!-- 지출 2단계: 항목 선택 -->
+                            <div id="addModalExpStep2" style="display:none;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                    <h3 style="font-size:16px;font-weight:600;color:#e74c3c;">📤 지출 항목 추가</h3>
+                                    <button onclick="closeAddModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                                </div>
+                                <div style="display:flex;gap:6px;margin-bottom:14px;">
+                                    <div style="flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:11px;background:#e8f5e9;color:#27ae60;border:1px solid #a5d6a7;">✓ 소조직 선택 완료</div>
+                                    <div style="flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:11px;background:#fde8e8;color:#c0392b;border:1px solid #f1948a;font-weight:600;">2단계 — 항목 선택</div>
+                                </div>
+                                <button onclick="goExpStep1()" style="background:none;border:none;color:#3498db;font-size:12px;cursor:pointer;margin-bottom:10px;padding:0;display:flex;align-items:center;gap:3px;">◀ 소조직 다시 선택</button>
+                                <p id="expStep2Title" style="font-size:14px;font-weight:600;color:#333;margin-bottom:3px;"></p>
+                                <p style="font-size:12px;color:#888;margin-bottom:10px;">복수 선택 가능합니다.</p>
+                                <div id="expSelBar" style="min-height:26px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;"><span style="font-size:12px;color:#aaa;">선택된 항목 없음</span></div>
+                                <input oninput="filterExpItems()" id="expItemSearch" placeholder="항목명 검색..." style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;margin-bottom:10px;">
+                                <div id="expItemChips" style="max-height:180px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;"></div>
+                                <div style="border-top:1px solid #eee;margin:12px 0;"></div>
+                                <p style="font-size:12px;color:#888;margin-bottom:6px;">목록에 없으면 직접 입력</p>
+                                <div style="display:flex;gap:8px;margin-bottom:14px;">
+                                    <input type="text" id="expCustomInput" placeholder="항목명 직접 입력" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                                    <button onclick="expAddCustom()" style="padding:8px 14px;background:#fde8e8;color:#c0392b;border:1px solid #f1948a;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">추가</button>
+                                </div>
+                                <div style="display:flex;gap:8px;">
+                                    <button onclick="confirmAddExpense()" style="flex:1;background:#e74c3c;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;">추가하기</button>
+                                    <button onclick="closeAddModal()" style="padding:11px 16px;background:#f5f5f5;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">취소</button>
+                                </div>
                             </div>
+
                         </div>
                     </div>
+                </div><!-- /card: 계정과목 -->
+                </div><!-- /stab-content-master -->
+
+                <!-- 서브탭: 순서편집 -->
+                <div id="stab-content-reorder" style="display:none;">
+                <div class="card">
+                  <h2>↕️ 순서 편집</h2>
+                  <p style="color:#666;font-size:13px;margin-bottom:14px;">↑ ↓ 버튼으로 순서를 바꾸고 저장하면 회계보고서와 드롭다운에 즉시 반영됩니다.</p>
+                  <div style="margin-bottom:20px;">
+                    <h3 style="color:#27ae60;margin:0 0 8px;font-size:14px;">📥 수입 항목 순서</h3>
+                    <div id="reorderIncomeList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                  </div>
+                  <div style="margin-bottom:20px;">
+                    <h3 style="color:#e74c3c;margin:0 0 6px;font-size:14px;">📤 지출 항목 순서</h3>
+                    <p style="font-size:12px;color:#888;margin:0 0 5px;">① 부서 순서</p>
+                    <div id="reorderDeptList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"></div>
+                    <p style="font-size:12px;color:#888;margin:0 0 5px;">② 부서 내 세부항목 (부서 선택)</p>
+                    <div id="reorderDeptSelector" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;"></div>
+                    <div id="reorderItemList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                  </div>
+                  <button onclick="saveReorder()"
+                    style="width:100%;padding:12px;background:#2980b9;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;">
+                    💾 순서 저장
+                  </button>
                 </div>
-                                <!-- 부서회비 설정 관리 -->
-                <div class="card" style="margin-top:20px;">
+                </div><!-- /stab-content-reorder -->
+
+                <!-- 서브탭: 부서회비 설정 -->
+                <div id="stab-content-dues" style="display:none;">
+                <div class="card">
                   <h2>💰 부서회비 설정</h2>
                   <p style="color:#666;font-size:13px;margin-bottom:15px;">부서별 회비명, 납부주기, 금액을 설정합니다.</p>
                   <div style="background:#e8f4fd;border-radius:8px;padding:14px;margin-bottom:16px;">
@@ -3590,9 +3762,11 @@
                     </div>
                   </div>
                 </div>
+                </div><!-- /stab-content-dues -->
 
-                                <!-- 결재권한자 관리 -->
-                <div class="card" style="margin-top:20px;">
+                <!-- 서브탭: 결재권한자 관리 -->
+                <div id="stab-content-auth" style="display:none;">
+                <div class="card">
                   <h2>👤 결재권한자 관리</h2>
                   <p style="color:#666;font-size:13px;margin-bottom:15px;">전자결재 승인권한자를 순서대로 등록하세요. (1차→2차→3차 순으로 결재)</p>
                   <div id="authorityList" style="margin-bottom:15px;"></div>
@@ -3639,6 +3813,10 @@
                     </div>
                   </div>
                 </div>
+                </div><!-- /stab-content-auth -->
+
+
+</div><!-- /max-width wrapper -->
 </div><!-- /settings container -->
             </div>
 
@@ -3706,8 +3884,25 @@
 
                 <div class="form-row" id="editDonationRecipientGroup" style="display: none;">
                     <div class="form-group">
-                        <label for="editDonationRecipient">기부금영수증발급대상자</label>
-                        <input type="text" id="editDonationRecipient" placeholder="헌금자 이름을 입력하세요 (여러명은 쉼표로 구분)" lang="ko">
+                        <label>🧾 기부금영수증 발급 대상자</label>
+                        <div style="background:#f0f7ff;border:1px solid #b3d8f5;border-radius:10px;padding:12px;">
+                          <div style="font-size:11px;color:#1a6fa8;margin-bottom:10px;">
+                            💡 금액을 직접 입력하거나, 비워두면 <b>나머지 금액을 1/n 자동계산</b>합니다.
+                          </div>
+                          <div style="display:flex;gap:6px;margin-bottom:6px;">
+                            <span style="flex:2;font-size:11px;color:#888;font-weight:600;">이름</span>
+                            <span style="flex:2;font-size:11px;color:#888;font-weight:600;">금액 (직접입력)</span>
+                            <span style="flex:1.5;font-size:11px;color:#888;font-weight:600;text-align:center;">자동계산</span>
+                            <span style="width:26px;"></span>
+                          </div>
+                          <div id="editDonorRows"></div>
+                          <button type="button" onclick="addDonorRow('edit')"
+                            style="width:100%;margin-top:6px;padding:7px;border:1px dashed #b3d8f5;background:#f8fbff;border-radius:7px;color:#1a6fa8;font-size:13px;font-weight:600;cursor:pointer;">
+                            + 헌금자 추가
+                          </button>
+                          <div id="editDonorSummaryBox" style="display:none;margin-top:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:12px;color:#7a5f00;"></div>
+                        </div>
+                        <input type="hidden" id="editDonationRecipient">
                     </div>
                 </div>
 
@@ -5416,6 +5611,22 @@
                 .catch(() => {});
         }
 
+        // ===== 설정 서브탭 전환 =====
+        function showSettingsTab(tab) {
+            var tabs = ['master', 'reorder', 'dues', 'auth'];
+            if (tab === 'reorder') { loadReorderTab(); }
+            tabs.forEach(function(t) {
+                var btn = document.getElementById('stab-' + t);
+                var cont = document.getElementById('stab-content-' + t);
+                if (btn) btn.classList.remove('active-stab');
+                if (cont) cont.style.display = 'none';
+            });
+            var activeBtn = document.getElementById('stab-' + tab);
+            var activeContent = document.getElementById('stab-content-' + tab);
+            if (activeBtn) activeBtn.classList.add('active-stab');
+            if (activeContent) activeContent.style.display = 'block';
+        }
+
         function login() {
             const username = document.getElementById('usernameInput').value.trim();
             const password = document.getElementById('passwordInput').value;
@@ -5586,6 +5797,12 @@
             expenseGuide.style.display = 'none';
             refundInfo.style.display = 'none';
             teacherfeeInfo.style.display = 'none';
+            var _rag = document.getElementById('receiptAttachGroup');
+            if (_rag) { _rag.style.display = 'none'; removeReceiptAttach(); }
+
+            // 금액 min 초기화
+            var amtEl = document.getElementById('transactionAmount');
+            if (amtEl) { amtEl.min = ''; }
 
             if (type === 'income') {
                 incomeItemGroup.style.display = 'block';
@@ -5596,6 +5813,26 @@
                 deptGroup.style.display = 'block';
                 expenseItemGroup.style.display = 'block';
                 expenseGuide.style.display = 'block';
+                var rag = document.getElementById('receiptAttachGroup');
+                if (rag) rag.style.display = 'block';
+            } else if (type === 'refund') {
+                incomeItemGroup.style.display = 'block';
+                // 안내문구 표시
+                var refundGuideEl = document.getElementById('refundGuide');
+                if (refundGuideEl) refundGuideEl.style.display = 'block';
+                // 수입항목 드롭다운에서 '회비환불' 자동 선택
+                var incomeItemSel = document.getElementById('transactionIncomeItem');
+                if (incomeItemSel) {
+                    for (var i = 0; i < incomeItemSel.options.length; i++) {
+                        if (incomeItemSel.options[i].value === '회비환불') {
+                            incomeItemSel.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                // 금액 입력: 양수만 허용
+                var amtInput = document.getElementById('transactionAmount');
+                if (amtInput) { amtInput.min = '1'; amtInput.step = '1'; }
             } else if (type === 'teacherfee') {
                 expenseGuide.style.display = 'block';
                 teacherfeeInfo.style.display = 'block';
@@ -5682,6 +5919,204 @@
         // 이중 저장 방지 플래그 - 저장 진행 중 재진입을 원천 차단
         let _isSavingTransaction = false;
 
+
+      // =============================================
+      // 영수증 첨부 위젯 JS
+      // =============================================
+      var _receiptAttachData = null;
+
+      function handleReceiptAttach(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          _receiptAttachData = { base64: e.target.result, fileName: file.name };
+          var thumb = document.getElementById('receiptAttachThumb');
+          var name = document.getElementById('receiptAttachName');
+          var preview = document.getElementById('receiptAttachPreview');
+          if (thumb) thumb.src = e.target.result;
+          if (name) name.textContent = file.name;
+          if (preview) preview.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function removeReceiptAttach() {
+        _receiptAttachData = null;
+        var input = document.getElementById('receiptAttachInput');
+        var preview = document.getElementById('receiptAttachPreview');
+        if (input) input.value = '';
+        if (preview) preview.style.display = 'none';
+      }
+
+      async function uploadReceiptAfterSave(txnId, txnDate, description, amount) {
+        if (!_receiptAttachData) return;
+        try {
+          await api('POST', '/api/receipts', {
+            imageData: _receiptAttachData.base64,
+            fileName: _receiptAttachData.fileName,
+            txnDate: txnDate,
+            description: description,
+            amount: amount,
+            txnId: txnId,
+          });
+          removeReceiptAttach();
+        } catch(e) { console.warn('영수증 업로드 실패:', e); }
+      }
+
+
+      // =============================================
+      // 기부금영수증 헌금자 위젯 JS
+      // =============================================
+      var _reorderData = { income: [], depts: [], itemsByDept: {} };
+      var _reorderSelectedDept = null;
+
+      function addDonorRow(mode) {
+        mode = mode || 'register';
+        var containerId = mode === 'edit' ? 'editDonorRows' : 'donorRows';
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:5px;';
+        row.innerHTML =
+          '<input type="text" placeholder="이름" oninput="updateDonorCalc(\''+mode+'\')" ' +
+          'style="flex:2;padding:7px 9px;border:1px solid #ccc;border-radius:7px;font-size:13px;" lang="ko">' +
+          '<input type="number" placeholder="직접입력 (비우면 자동)" oninput="updateDonorCalc(\''+mode+'\')" ' +
+          'style="flex:2;padding:7px 9px;border:1px solid #ccc;border-radius:7px;font-size:13px;" min="0">' +
+          '<div class="donor-auto-badge" style="flex:1.5;background:#f5f5f5;border:1px solid #ddd;border-radius:7px;' +
+          'padding:7px 6px;font-size:12px;color:#aaa;text-align:center;">—</div>' +
+          '<button type="button" onclick="removeDonorRow(this,\''+mode+'\')" ' +
+          'style="width:26px;height:26px;border-radius:50%;border:1px solid #f1948a;background:#fdecea;' +
+          'color:#c0392b;font-size:13px;cursor:pointer;flex-shrink:0;line-height:1;">✕</button>';
+        container.appendChild(row);
+        // 동적 생성된 이름 입력창에 한글 IME 적용
+        var nameInput = row.querySelector('input[type="text"]');
+        if (nameInput && typeof setKoreanIME === 'function') {
+          setKoreanIME(nameInput);
+          nameInput.focus();
+        }
+        updateDonorCalc(mode);
+      }
+
+      function removeDonorRow(btn, mode) {
+        btn.parentNode.parentNode.removeChild(btn.parentNode);
+        updateDonorCalc(mode || 'register');
+      }
+
+      function updateDonorCalc(mode) {
+        mode = mode || 'register';
+        var totalAmountId = mode === 'edit' ? 'editAmount' : 'transactionAmount';
+        var containerId = mode === 'edit' ? 'editDonorRows' : 'donorRows';
+        var summaryId = mode === 'edit' ? 'editDonorSummaryBox' : 'donorSummaryBox';
+        var totalAmount = parseFloat(document.getElementById(totalAmountId) &&
+          document.getElementById(totalAmountId).value) || 0;
+        var container = document.getElementById(containerId);
+        var summaryBox = document.getElementById(summaryId);
+        if (!container) return;
+        var rows = container.querySelectorAll('div');
+        var fixedTotal = 0, autoCount = 0, donors = [];
+        rows.forEach(function(row) {
+          var inputs = row.querySelectorAll('input');
+          if (inputs.length < 2) return;
+          var name = inputs[0].value.trim();
+          var fixedAmt = parseFloat(inputs[1].value) || 0;
+          if (fixedAmt > 0) fixedTotal += fixedAmt;
+          else autoCount++;
+          donors.push({ name: name, fixed: fixedAmt > 0 ? fixedAmt : null });
+        });
+        var remaining = totalAmount - fixedTotal;
+        var autoAmt = (autoCount > 0 && remaining > 0) ? Math.floor(remaining / autoCount) : 0;
+        rows.forEach(function(row) {
+          var inputs = row.querySelectorAll('input');
+          var badge = row.querySelector('.donor-auto-badge');
+          if (!inputs[1] || !badge) return;
+          var fixedAmt = parseFloat(inputs[1].value) || 0;
+          if (fixedAmt > 0) {
+            badge.style.background='#f5f5f5'; badge.style.color='#aaa'; badge.style.borderColor='#ddd'; badge.textContent='—';
+          } else {
+            badge.style.background='#e8f5e9'; badge.style.color='#2e7d32'; badge.style.borderColor='#a5d6a7';
+            badge.textContent = autoAmt > 0 ? formatAmount(autoAmt)+'원' : '—';
+          }
+        });
+        if (!summaryBox) return;
+        if (donors.length === 0 || donors.every(function(d){ return !d.name; })) { summaryBox.style.display='none'; return; }
+        summaryBox.style.display = 'block';
+        var calcTotal = fixedTotal + autoAmt * autoCount;
+        var ok = totalAmount > 0 && calcTotal === totalAmount;
+        var html = '';
+        donors.forEach(function(d) {
+          if (!d.name) return;
+          var amt = d.fixed !== null ? d.fixed : autoAmt;
+          var tag = d.fixed !== null
+            ? '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#e3f2fd;color:#1565c0;margin-left:4px;">직접</span>'
+            : '<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:#e8f5e9;color:#2e7d32;margin-left:4px;">자동</span>';
+          html += '<div style="display:flex;justify-content:space-between;padding:2px 0;">'+
+            '<span>'+d.name+tag+'</span><span>'+formatAmount(amt)+'원</span></div>';
+        });
+        html += '<div style="display:flex;justify-content:space-between;border-top:1px solid #ffe082;margin-top:5px;padding-top:5px;font-weight:700;">'+
+          '<span>합계</span><span>'+formatAmount(calcTotal)+'원 '+(ok?'✅':'<span style=\'color:#e74c3c;\'>⚠️ 총액 불일치</span>')+'</span></div>';
+        summaryBox.innerHTML = html;
+      }
+
+      function buildDonorString(mode) {
+        mode = mode || 'register';
+        var totalAmountId = mode === 'edit' ? 'editAmount' : 'transactionAmount';
+        var containerId = mode === 'edit' ? 'editDonorRows' : 'donorRows';
+        var totalAmount = parseFloat(document.getElementById(totalAmountId) &&
+          document.getElementById(totalAmountId).value) || 0;
+        var container = document.getElementById(containerId);
+        if (!container) return '';
+        var rows = container.querySelectorAll('div');
+        var fixedTotal = 0, autoCount = 0, donors = [];
+        rows.forEach(function(row) {
+          var inputs = row.querySelectorAll('input');
+          if (inputs.length < 2) return;
+          var name = inputs[0].value.trim();
+          if (!name) return;
+          var fixedAmt = parseFloat(inputs[1].value) || 0;
+          donors.push({ name: name, fixed: fixedAmt > 0 ? fixedAmt : null });
+          if (fixedAmt > 0) fixedTotal += fixedAmt;
+          else autoCount++;
+        });
+        if (donors.length === 0) return '';
+        var remaining = totalAmount - fixedTotal;
+        var autoAmt = (autoCount > 0 && remaining > 0) ? Math.floor(remaining / autoCount) : 0;
+        return donors.map(function(d) {
+          return d.name + ':' + (d.fixed !== null ? d.fixed : autoAmt);
+        }).join(',');
+      }
+
+      function resetDonorWidget(mode) {
+        mode = mode || 'register';
+        var container = document.getElementById(mode === 'edit' ? 'editDonorRows' : 'donorRows');
+        var summaryBox = document.getElementById(mode === 'edit' ? 'editDonorSummaryBox' : 'donorSummaryBox');
+        if (container) container.innerHTML = '';
+        if (summaryBox) summaryBox.style.display = 'none';
+      }
+
+      function loadDonorWidget(mode, donorStr, totalAmount) {
+        resetDonorWidget(mode);
+        if (!donorStr) return;
+        var containerId = mode === 'edit' ? 'editDonorRows' : 'donorRows';
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var parts = donorStr.split(',');
+        parts.forEach(function(part) {
+          part = part.trim();
+          if (!part) return;
+          var colonIdx = part.lastIndexOf(':');
+          var name = colonIdx > 0 ? part.substring(0, colonIdx).trim() : part;
+          var amt = colonIdx > 0 ? parseFloat(part.substring(colonIdx+1)) || 0 : 0;
+          addDonorRow(mode);
+          var rows = container.querySelectorAll('div');
+          var lastRow = rows[rows.length-1];
+          var inputs = lastRow.querySelectorAll('input');
+          if (inputs[0]) inputs[0].value = name;
+          if (inputs[1] && amt > 0) inputs[1].value = amt;
+        });
+        updateDonorCalc(mode);
+      }
+
         function saveTransaction() {
             // 이중 저장 방지: 이미 저장 중이면 즉시 종료
             if (_isSavingTransaction) {
@@ -5709,7 +6144,7 @@
                 expenseItem: document.getElementById('transactionExpenseItem').value, // 🔥 수정: 빈 값도 그대로 전송
                 amount: parseFloat(document.getElementById('transactionAmount').value),
                 description: description,
-                donationRecipient: document.getElementById('donationRecipient').value,
+                donationRecipient: buildDonorString('register'),
                 approvalId: approvalId
             };
             
@@ -5761,6 +6196,17 @@
                 return;
             }
 
+            if (type === 'refund') {
+                if (!formData.incomeItem) {
+                    showAlert('환불할 수입 항목을 선택하세요.', 'error');
+                    return;
+                }
+                if (formData.amount <= 0) {
+                    showAlert('환불 금액은 양수로 입력하세요. (자동으로 수입에서 차감됩니다.)', 'error');
+                    return;
+                }
+            }
+
             if (type === 'teacherfee' && formData.amount === 0) {
                 showAlert('교사회비 금액을 입력하세요.', 'error');
                 return;
@@ -5786,14 +6232,17 @@
             showLoading();
 
             // 백엔드 필드명으로 변환
+            const isRefund = formData.type === 'refund';
             const apiData = {
                 date: formData.date,
-                type: formData.type,
+                type: isRefund ? 'income' : formData.type,  // 환불은 income 타입으로 저장
                 department: formData.department || '',
                 incomeItem: formData.incomeItem || '',
                 expenseItem: formData.expenseItem || '',
-                description: formData.description || '',
-                income: formData.type === 'income' ? Math.abs(parseFloat(formData.amount) || 0) : 0,
+                description: (isRefund ? '[환불] ' : '') + (formData.description || ''),
+                income: (formData.type === 'income') ? Math.abs(parseFloat(formData.amount) || 0)
+                      : isRefund ? -(Math.abs(parseFloat(formData.amount) || 0))  // 환불: 수입에 음수
+                      : 0,
                 expense: (formData.type === 'expense' || formData.type === 'teacherfee') ? Math.abs(parseFloat(formData.amount) || 0) : 0,
                 donor: formData.donationRecipient || '',
                 sheetType: formData.type === 'teacherfee' ? 'teacherFee' : '',
@@ -5805,7 +6254,12 @@
                     _resetSaveBtn();
                     if (result && result.success) {
                         showAlert(result.message || '거래가 저장되었습니다.');
+                        // 영수증 첨부가 있으면 저장된 거래 ID와 연결해서 업로드
+                        if (_receiptAttachData && result.txnId) {
+                          uploadReceiptAfterSave(result.txnId, formData.date, formData.description, Math.abs(formData.amount));
+                        }
                         document.getElementById('transactionForm').reset();
+                        resetDonorWidget('register');
                         document.getElementById('transactionDate').value = new Date().toISOString().split('T')[0];
                         updateCategoryOptions();
                         if (approvalId) {
@@ -5931,11 +6385,12 @@
                 return;
             }
 
-            // 최신 거래가 위에 오도록 날짜 역순 정렬
+            // 최신 거래가 위에 오도록 날짜 역순 + 같은 날짜는 입력순서 역순(나중 입력이 위)
             results = [...results].sort((a, b) => {
                 const da = new Date(a.date || a.Date || 0);
                 const db = new Date(b.date || b.Date || 0);
-                return db - da;
+                if (db.getTime() !== da.getTime()) return db - da;
+                return (b.id || 0) - (a.id || 0);
             });
 
             let totalIncome = 0;
@@ -5953,8 +6408,8 @@
                     <td>${escapeHtml(row.incomeItem)}</td>
                     <td>${escapeHtml(row.expenseItem)}</td>
                     <td>${escapeHtml(row.description)}</td>
-                    <td class="number">
-                      ${row.incomeItem === '회비환불' && row.income < 0
+                    <td class="number ${row.income < 0 ? 'negative-amount' : ''}">
+                      ${row.income < 0
                         ? '(' + formatAmount(Math.abs(row.income)) + ')'
                         : row.income ? formatAmount(row.income) : ''}
                     </td>
@@ -5971,7 +6426,7 @@
                                 data-department="${escapeHtml(row.department)}" 
                                 data-income-item="${escapeHtml(row.incomeItem)}" 
                                 data-expense-item="${escapeHtml(row.expenseItem)}" 
-                                data-amount="${row.income || row.expense || 0}" 
+                                data-amount="${row.income !== 0 ? row.income : row.expense || 0}" 
                                 data-description="${escapeHtml(row.description)}" 
                                 data-donation-recipient="${escapeHtml(row.donor || '')}">수정</button>
                             <button class="btn-sm btn-delete" onclick="deleteTransactionFromButton(this)" 
@@ -6027,6 +6482,7 @@
             document.getElementById('editAmount').value = amount;
             document.getElementById('editDescription').value = description;
             document.getElementById('editDonationRecipient').value = donationRecipient;
+            loadDonorWidget('edit', donationRecipient, amount);
 
             // 거래 구분에 따른 필드 표시
             updateEditCategoryOptions();
@@ -6138,7 +6594,7 @@
                 expenseItem: document.getElementById('editExpenseItem').value, // 🔥 수정: 빈 값도 그대로 전송
                 amount: parseFloat(document.getElementById('editAmount').value),
                 description: document.getElementById('editDescription').value,
-                donationRecipient: document.getElementById('editDonationRecipient').value
+                donationRecipient: buildDonorString('edit')
             };
 
             if (!formData.date || !formData.type || isNaN(formData.amount)) {
@@ -6147,10 +6603,8 @@
             }
 
             // 유효성 검사
-            // 수입 항목 중 '회비환불'은 음수 입력 허용
-            if (type === 'income' && (!formData.incomeItem || 
-                (formData.incomeItem !== '회비환불' && formData.amount <= 0) ||
-                (formData.incomeItem === '회비환불' && formData.amount >= 0))) {
+            // 수입: 항목 필수, 금액 0 불가 (양수/음수 모두 허용 - 환불 처리 포함)
+            if (type === 'income' && (!formData.incomeItem || formData.amount === 0)) {
                 showAlert('수입 항목과 금액을 올바르게 입력하세요.', 'error');
                 return;
             }
@@ -6177,7 +6631,20 @@
             loadingElement.style.zIndex = '10000'; // 최상위 z-index 설정
             loadingElement.style.display = 'block';
 
-            api('PUT', `/api/transactions/${currentEditRow}`, formData)
+            // 백엔드 필드명으로 변환 (income/expense 분리)
+            const editApiData = {
+                date: formData.date,
+                type: formData.type,
+                department: formData.department || '',
+                incomeItem: formData.incomeItem || '',
+                expenseItem: formData.expenseItem || '',
+                description: formData.description || '',
+                income: formData.type === 'income' ? (parseFloat(formData.amount) || 0) : 0,
+                expense: (formData.type === 'expense' || formData.type === 'teacherfee') ? Math.abs(parseFloat(formData.amount) || 0) : 0,
+                donor: formData.donationRecipient || '',
+                sheetType: formData.type === 'teacherfee' ? 'teacherFee' : '',
+            };
+            api('PUT', `/api/transactions/${currentEditRow}`, editApiData)
                 .then(result => {
                     hideLoading();
                     if (result.success) {
@@ -6447,7 +6914,8 @@
                     th { background: #f0f0f0; text-align: center; }
                     .number { text-align: right; }
                     @media print { button { display: none; } }
-                </style>
+        
+        </style>
                 </head><body>
                 <h2>교사회비 집계 - ${rangeLabel}</h2>
                 ${table.outerHTML}
@@ -8920,45 +9388,6 @@
       }
 
 
-
-      // =====================================================
-      // =====================================================
-      // === 표준 계정과목 템플릿
-      // =====================================================
-      var TEMPLATES = {
-          church: {
-              name: '교회용',
-              income: [
-                  '주일헌금', '십일조', '감사헌금', '선교헌금',
-                  '건축헌금', '교육헌금', '절기헌금', '특별헌금',
-                  '보조금', '이자수입', '기타수입'
-              ],
-              expense: [
-                  { dept: '사역비', items: ['교육비', '행사비', '선교비', '찬양팀', '전도비', '수련회비'] },
-                  { dept: '인건비', items: ['사례비', '강사비', '기타인건비'] },
-                  { dept: '운영비', items: ['소모품', '인쇄비', '교통비', '식비', '회의비', '도서비'] },
-                  { dept: '관리비', items: ['임차료', '공과금', '수수료', '보험료', '수선비'] },
-                  { dept: '경조사비', items: ['경조금', '꽃바구니', '기타경조'] },
-              ]
-          },
-          general: {
-              name: '일반기관용',
-              income: [
-                  '회비', '회비환불', '보조금', 'PG정산수입',
-                  '카카오페이정산', '기부금', '찬조금', '은행이자',
-                  '기타수입'
-              ],
-              expense: [
-                  { dept: '급여및사례비', items: ['강사비', '직원급여', '청소비', '기타사례비'] },
-                  { dept: '광고비', items: ['현수막', '아파트광고', '전광판광고', '온라인광고'] },
-                  { dept: '인쇄비', items: ['리플렛', '브로셔', '전단'] },
-                  { dept: '운영비', items: ['소모품', '사무용품', '비품', '회의비', '식비'] },
-                  { dept: '관리비', items: ['임차료', '공과금', '수수료', '보험료', '세무기장료'] },
-                  { dept: '홈페이지', items: ['도메인', '호스팅', 'PG수수료', '기타'] },
-              ]
-          }
-      };
-
       // =============================================
       // 백업 관련 함수
       // =============================================
@@ -9051,6 +9480,164 @@
       var _settingsData = {}; // 설정 탭 데이터 캐시
       var _addModalType = 'income';
 
+      // =============================================
+      // 계정과목 순서 편집 탭
+      // _reorderData: { income: [...], depts: [...], itemsByDept: {dept: [...]} }
+      // =============================================
+      var _reorderData = { income: [], depts: [], itemsByDept: {} };
+      var _reorderSelectedDept = null;
+
+      function loadReorderTab() {
+        showLoading();
+        api('GET', '/api/master')
+          .then(function(result) {
+            hideLoading();
+            if (!result.success) { showAlert('데이터 로드 실패', 'error'); return; }
+            var d = result.data;
+            _reorderData.income = (d.incomeItems || []).slice();
+            _reorderData.depts = Object.keys(d.expenseItemsByDept || {});
+            _reorderData.itemsByDept = {};
+            _reorderData.depts.forEach(function(dept) {
+              _reorderData.itemsByDept[dept] = (d.expenseItemsByDept[dept] || []).slice();
+            });
+            _reorderSelectedDept = _reorderData.depts[0] || null;
+            renderReorderIncome();
+            renderReorderDepts();
+            renderReorderDeptSelector();
+            renderReorderItems();
+          })
+          .catch(function(err) { hideLoading(); showAlert('오류: ' + err.message, 'error'); });
+      }
+
+      function reorderRowHTML(label, idx, total, upFn, downFn) {
+        return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px 12px;">' +
+          '<span style="min-width:22px;height:22px;background:#f5f5f5;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:#999;">' + (idx+1) + '</span>' +
+          '<span style="flex:1;font-size:13px;color:#333;">' + label + '</span>' +
+          '<button onclick="' + upFn + '" ' + (idx===0?'disabled':'') + ' style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;background:' + (idx===0?'#f5f5f5':'#fff') + ';color:' + (idx===0?'#ccc':'#555') + ';cursor:' + (idx===0?'default':'pointer') + ';font-size:13px;line-height:1;">▲</button>' +
+          '<button onclick="' + downFn + '" ' + (idx===total-1?'disabled':'') + ' style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;background:' + (idx===total-1?'#f5f5f5':'#fff') + ';color:' + (idx===total-1?'#ccc':'#555') + ';cursor:' + (idx===total-1?'default':'pointer') + ';font-size:13px;line-height:1;">▼</button>' +
+          '</div>';
+      }
+
+      function renderReorderIncome() {
+        var el = document.getElementById('reorderIncomeList');
+        if (!el) return;
+        var arr = _reorderData.income;
+        if (arr.length === 0) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">수입 항목 없음</p>'; return; }
+        el.innerHTML = arr.map(function(item, i) {
+          return reorderRowHTML(
+            item, i, arr.length,
+            'moveIncome(' + i + ',-1)',
+            'moveIncome(' + i + ',1)'
+          );
+        }).join('');
+      }
+
+      function moveIncome(idx, dir) {
+        var arr = _reorderData.income;
+        var to = idx + dir;
+        if (to < 0 || to >= arr.length) return;
+        var tmp = arr[idx]; arr[idx] = arr[to]; arr[to] = tmp;
+        renderReorderIncome();
+      }
+
+      function renderReorderDepts() {
+        var el = document.getElementById('reorderDeptList');
+        if (!el) return;
+        var arr = _reorderData.depts;
+        if (arr.length === 0) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">지출 부서 없음</p>'; return; }
+        el.innerHTML = arr.map(function(dept, i) {
+          return reorderRowHTML(
+            dept, i, arr.length,
+            'moveDept(' + i + ',-1)',
+            'moveDept(' + i + ',1)'
+          );
+        }).join('');
+      }
+
+      function moveDept(idx, dir) {
+        var arr = _reorderData.depts;
+        var to = idx + dir;
+        if (to < 0 || to >= arr.length) return;
+        var tmp = arr[idx]; arr[idx] = arr[to]; arr[to] = tmp;
+        renderReorderDepts();
+        renderReorderDeptSelector();
+      }
+
+      function renderReorderDeptSelector() {
+        var el = document.getElementById('reorderDeptSelector');
+        if (!el) return;
+        el.innerHTML = _reorderData.depts.map(function(dept) {
+          var isActive = dept === _reorderSelectedDept;
+          return '<button onclick="selectReorderDept(' + "'" + dept.replace(/'/g,"\'") + "'" + ')" ' +
+            'style="padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;' +
+            'background:' + (isActive?'#2980b9':'#f5f5f5') + ';' +
+            'color:' + (isActive?'#fff':'#555') + ';' +
+            'border:1px solid ' + (isActive?'#2980b9':'#ddd') + ';">' +
+            dept + '</button>';
+        }).join('');
+        renderReorderItems();
+      }
+
+      function selectReorderDept(dept) {
+        _reorderSelectedDept = dept;
+        renderReorderDeptSelector();
+      }
+
+      function renderReorderItems() {
+        var el = document.getElementById('reorderItemList');
+        if (!el) return;
+        if (!_reorderSelectedDept) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">부서를 선택하세요</p>'; return; }
+        var arr = _reorderData.itemsByDept[_reorderSelectedDept] || [];
+        if (arr.length === 0) { el.innerHTML = '<p style="color:#aaa;font-size:13px;">세부항목 없음</p>'; return; }
+        el.innerHTML = arr.map(function(item, i) {
+          return reorderRowHTML(
+            item, i, arr.length,
+            'moveItem(' + i + ',-1)',
+            'moveItem(' + i + ',1)'
+          );
+        }).join('');
+      }
+
+      function moveItem(idx, dir) {
+        var arr = _reorderData.itemsByDept[_reorderSelectedDept];
+        if (!arr) return;
+        var to = idx + dir;
+        if (to < 0 || to >= arr.length) return;
+        var tmp = arr[idx]; arr[idx] = arr[to]; arr[to] = tmp;
+        renderReorderItems();
+      }
+
+      function saveReorder() {
+        var items = [];
+        var order = 1;
+
+        // 수입 항목
+        _reorderData.income.forEach(function(item) {
+          items.push({ category: '수입', dept: item, item: '', newOrder: order++ });
+        });
+
+        // 지출: 부서 순서 → 부서 내 세부항목 순서
+        _reorderData.depts.forEach(function(dept) {
+          var subItems = _reorderData.itemsByDept[dept] || [];
+          subItems.forEach(function(item) {
+            items.push({ category: '지출', dept: dept, item: item, newOrder: order++ });
+          });
+        });
+
+        showLoading();
+        api('POST', '/api/master/reorder', { items: items })
+          .then(function(r) {
+            hideLoading();
+            if (r.success) {
+              showAlert('✅ 순서가 저장되었습니다. 회계보고서에 즉시 반영됩니다.');
+              initializeConstants();
+            } else {
+              showAlert(r.message || '저장 실패', 'error');
+            }
+          })
+          .catch(function(e) { hideLoading(); showAlert('오류: ' + e.message, 'error'); });
+      }
+
       function loadSettingsTab() {
           loadAuthorityList(); loadDuesSettings(); loadDuesTabName(); showLoading();
           api('GET', '/api/master')
@@ -9065,37 +9652,38 @@
 
                   // 지출 항목 렌더링 (부서별 접기/펼치기)
                   renderExpenseDepts(d.expenseItemsByDept || {}, d.inactiveExpenseItemsByDept || {});
+
               })
               .catch(function(err) { hideLoading(); showAlert('오류: ' + err.message, 'error'); });
       }
 
       function renderIncomeItems(activeItems, inactiveItems) {
-          // 활성 항목
           var ac = document.getElementById('incomeItemsList');
           if (ac) {
               if (activeItems.length === 0) {
                   ac.innerHTML = '<p style="color:#aaa;font-size:13px;">항목이 없습니다.</p>';
               } else {
-                  ac.innerHTML = activeItems.map(function(item) {
-                      return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;color:#27ae60;border-radius:20px;padding:5px 12px;margin:3px;font-size:13px;">' +
-                          item +
-                          '<button onclick="deleteMasterItem(\'income\',\'' + item + '\')" ' +
-                          'style="background:none;border:none;color:#e74c3c;cursor:pointer;font-size:15px;padding:0 0 0 4px;line-height:1;" title="삭제">✕</button></span>';
-                  }).join('');
+                  ac.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
+                      activeItems.map(function(item) {
+                          return '<span style="display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:500;">' +
+                              item +
+                              '<button onclick="masterItemBtn(this)" data-type="income" data-item="' + item.replace(/"/g,'&quot;') + '" ' +
+                              'style="background:none;border:none;color:#999;cursor:pointer;font-size:14px;padding:0;line-height:1;" title="삭제">✕</button></span>';
+                      }).join('') + '</div>';
               }
           }
-          // 비활성 항목
           var ic = document.getElementById('inactiveIncomeItemsList');
           if (ic) {
               if (inactiveItems.length === 0) {
                   ic.innerHTML = '<p style="color:#bbb;font-size:13px;">비활성 항목 없음</p>';
               } else {
-                  ic.innerHTML = inactiveItems.map(function(item) {
-                      return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f0f0f0;color:#999;border-radius:20px;padding:5px 12px;margin:3px;font-size:13px;text-decoration:line-through;">' +
-                          item +
-                          '<button onclick="reactivateMasterItem(\'income\',\'' + item + '\')" ' +
-                          'style="text-decoration:none;background:#27ae60;color:#fff;border:none;border-radius:10px;padding:1px 8px;font-size:11px;cursor:pointer;" title="복원">복원</button></span>';
-                  }).join('');
+                  ic.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
+                      inactiveItems.map(function(item) {
+                          return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f5f5;color:#aaa;border:1px solid #ddd;border-radius:20px;padding:6px 14px;font-size:13px;text-decoration:line-through;">' +
+                              item +
+                              '<button onclick="masterItemRestore(this)" data-type="income" data-item="' + item.replace(/"/g,'&quot;') + '" ' +
+                              'style="text-decoration:none;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:10px;padding:2px 9px;font-size:11px;font-weight:600;cursor:pointer;">복원</button></span>';
+                      }).join('') + '</div>';
               }
           }
       }
@@ -9109,28 +9697,36 @@
           if (depts.length === 0) {
               container.innerHTML = '<p style="color:#aaa;font-size:13px;">항목이 없습니다.</p>';
           } else {
+              // 그리드 래퍼
+              var grid = document.createElement('div');
+              grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;';
               depts.forEach(function(dept) {
                   var items = expenseByDept[dept] || [];
-                  var div = document.createElement('div');
-                  div.style.cssText = 'border:1px solid #fdd;border-radius:8px;margin-bottom:8px;overflow:hidden;';
-                  div.innerHTML =
-                      '<div onclick="toggleDept(this)" style="background:#fff5f5;padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">' +
-                          '<span style="font-weight:bold;color:#e74c3c;font-size:14px;">▶ ' + dept + '</span>' +
-                          '<span style="font-size:12px;color:#999;">' + items.length + '개</span>' +
+                  var card = document.createElement('div');
+                  card.style.cssText = 'border:1px solid #eee;border-radius:12px;overflow:hidden;';
+                  card.innerHTML =
+                      '<div style="background:#fafafa;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eee;">' +
+                          '<span onclick="toggleDept(this.parentNode)" style="font-weight:600;color:#e74c3c;font-size:13px;display:flex;align-items:center;gap:5px;cursor:pointer;flex:1;"><span class="dept-arrow">▶</span>' + dept + '</span>' +
+                          '<div style="display:flex;align-items:center;gap:6px;">' +
+                            '<span style="font-size:11px;color:#aaa;background:#f5f5f5;border:1px solid #eee;border-radius:20px;padding:2px 8px;">' + items.length + '개</span>' +
+                            '<button onclick="deleteDept(\'' + dept + '\')" style="background:none;border:none;color:#ccc;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;" title="소조직 삭제">🗑</button>' +
+                          '</div>' +
                       '</div>' +
-                      '<div class="dept-items" style="display:none;padding:10px 14px;background:#fff;">' +
+                      '<div class="dept-items" style="display:none;padding:10px 12px;background:#fff;flex-wrap:wrap;gap:6px;">' +
                           items.map(function(item) {
-                              return '<span style="display:inline-flex;align-items:center;gap:4px;background:#fdecea;color:#e74c3c;border-radius:20px;padding:5px 12px;margin:3px;font-size:13px;">' +
+                              return '<span style="display:inline-flex;align-items:center;gap:5px;background:#fdecea;color:#c0392b;border:1px solid #f1948a;border-radius:20px;padding:5px 11px;font-size:12px;font-weight:500;">' +
                                   item +
-                                  '<button onclick="deleteMasterItem(\'expense\',\'' + item + '\',\'' + dept + '\')" ' +
-                                  'style="background:none;border:none;color:#e74c3c;cursor:pointer;font-size:15px;padding:0 0 0 4px;line-height:1;" title="삭제">✕</button></span>';
+                                  '<button onclick="masterItemBtn(this)" data-type="expense" data-item="' + item.replace(/"/g,'&quot;') + '" data-dept="' + dept.replace(/"/g,'&quot;') + '" ' +
+                                  'style="background:none;border:none;color:#bbb;cursor:pointer;font-size:13px;padding:0;line-height:1;" title="삭제">✕</button></span>';
                           }).join('') +
                       '</div>';
-                  container.appendChild(div);
+                  grid.appendChild(card);
+                  var itemsDiv = card.querySelector('.dept-items');
+                  if (itemsDiv) itemsDiv.style.display = 'none';
               });
+              container.appendChild(grid);
           }
 
-          // 비활성 지출 항목
           var ic = document.getElementById('inactiveExpenseItemsList');
           if (ic) {
               var allInactive = [];
@@ -9142,91 +9738,325 @@
               if (allInactive.length === 0) {
                   ic.innerHTML = '<p style="color:#bbb;font-size:13px;">비활성 항목 없음</p>';
               } else {
-                  ic.innerHTML = allInactive.map(function(o) {
-                      return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f0f0f0;color:#999;border-radius:20px;padding:5px 12px;margin:3px;font-size:13px;text-decoration:line-through;">' +
-                          o.dept + ' / ' + o.item +
-                          '<button onclick="reactivateMasterItem(\'expense\',\'' + o.item + '\',\'' + o.dept + '\')" ' +
-                          'style="text-decoration:none;background:#27ae60;color:#fff;border:none;border-radius:10px;padding:1px 8px;font-size:11px;cursor:pointer;" title="복원">복원</button></span>';
-                  }).join('');
+                  ic.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
+                      allInactive.map(function(o) {
+                          return '<span style="display:inline-flex;align-items:center;gap:6px;background:#f5f5f5;color:#aaa;border:1px solid #ddd;border-radius:20px;padding:6px 14px;font-size:13px;text-decoration:line-through;">' +
+                              o.dept + ' / ' + o.item +
+                              '<button onclick="masterItemRestore(this)" data-type="expense" data-item="' + o.item.replace(/"/g,'&quot;') + '" data-dept="' + o.dept.replace(/"/g,'&quot;') + '" ' +
+                              'style="text-decoration:none;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:10px;padding:2px 9px;font-size:11px;font-weight:600;cursor:pointer;">복원</button></span>';
+                      }).join('') + '</div>';
               }
           }
       }
 
       function toggleDept(header) {
           var itemsDiv = header.nextElementSibling;
-          var arrow = header.querySelector('span');
+          var arrow = header.querySelector('.dept-arrow');
+          if (!itemsDiv) return;
           if (itemsDiv.style.display === 'none') {
-              itemsDiv.style.display = 'block';
-              arrow.textContent = arrow.textContent.replace('▶', '▼');
+              itemsDiv.style.display = 'flex';
+              if (arrow) arrow.textContent = '▼';
           } else {
               itemsDiv.style.display = 'none';
-              arrow.textContent = arrow.textContent.replace('▼', '▶');
+              if (arrow) arrow.textContent = '▶';
           }
       }
 
+      function deleteDept(dept) {
+          if (!confirm('[' + dept + '] 소조직을 삭제하시겠습니까?\n\n거래 이력이 있으면 비활성화, 없으면 완전 삭제됩니다.')) return;
+          showLoading();
+          api('DELETE', '/api/master/dept', { dept: dept })
+              .then(function(r) {
+                  hideLoading();
+                  if (r.success) {
+                      showAlert(r.deactivated ? '⚠️ ' + r.message : '✅ ' + r.message);
+                      loadSettingsTab(); initializeConstants();
+                  } else showAlert(r.message || '삭제 실패', 'error');
+              })
+              .catch(function(e) { hideLoading(); showAlert('오류: ' + e.message, 'error'); });
+      }
+
       // 항목 추가 모달
+      // ===== 수입/지출 항목 추가 모달 (새 UI) =====
+      var _incSelItems = {};
+      var _expSelItems = {};
+      var _expCurGrp = null;
+
+      var INC_DATA = {
+        '주일헌금': ['주일헌금'],
+        '절기헌금': ['부활주일헌금','추수감사헌금','성탄헌금','맥추감사헌금','송구영신헌금','신년헌금','고난주간헌금','종려주일헌금'],
+        '감사헌금': ['감사헌금','생일감사헌금','결혼기념감사헌금','취직감사헌금','졸업감사헌금','치유감사헌금','이사감사헌금'],
+        '십일조': ['십일조','생활비십일조','사업십일조'],
+        '선교·구제헌금': ['선교헌금','해외선교헌금','국내선교헌금','구제헌금','사회봉사헌금'],
+        '건축·특별헌금': ['건축헌금','성전건축헌금','수리특별헌금','비품구입헌금'],
+        '교회보조·지원': ['교회보조금','노회지원금','총회지원금','외부기관지원금'],
+        '기타수입': ['이자수입','기부금','찬조금','회비','PG정산수입','카카오페이정산','잡수입','임대수입']
+      };
+
+      var EXP_SUBGROUPS = [
+        {name:'총무부', items:['비품구입비','사무용품비','인쇄비','복사비','우편발송비','회의비','다과비','통신비','잡비','예비비']},
+        {name:'교육부', items:['공과교재구입비','성경교재비','교육자료제작비','참고도서구입비','시청각자료비','교사교육비','세미나참가비']},
+        {name:'심방부', items:['심방교통비','심방선물비','위로금','심방다과비','병문안비','경조지원비','봉사활동비']},
+        {name:'예배부', items:['예배용품구입비','성찬용품비','헌화비','주보제작비','음향소모품비','영상소모품비','조명소모품비','악보구입비']},
+        {name:'친교부', items:['친교행사비','야외예배비','수련회비','체육대회비','식사비','간식비','레크리에이션비','환영행사비']},
+        {name:'선교부', items:['국내선교비','해외선교비','단기선교비','선교사후원비','전도용품비','노방전도비']},
+        {name:'봉사부', items:['봉사용품비','봉사교통비','봉사활동비','구제비','긴급지원비','식료품지원비']},
+        {name:'찬양부', items:['악기구입비','악기수리비','악보구입비','음향장비비','찬양팀활동비','유니폼구입비','반주자사례비']},
+        {name:'새가족부', items:['새가족선물비','등록안내책자비','새가족행사비','전도용품비','다과비']},
+        {name:'구역부', items:['구역모임비','구역장수고비','구역교재비','구역행사비','구역다과비']},
+        {name:'경조부', items:['경조금','조의금','축의금','병문안선물비','화환비','경조교통비']},
+        {name:'미디어부', items:['영상장비구입비','음향장비구입비','카메라구입비','소프트웨어구입비','스트리밍장비비','케이블소모품비']}
+      ];
+      var _expAllGrps = EXP_SUBGROUPS.map(function(g){ return {name:g.name, items:g.items.slice()}; });
+
       function showAddModal(type) {
           _addModalType = type;
+          _incSelItems = {};
+          _expSelItems = {};
+          _expCurGrp = null;
           var modal = document.getElementById('addItemModal');
-          var title = document.getElementById('addModalTitle');
-          var deptRow = document.getElementById('addModalDeptRow');
-          var deptSelect = document.getElementById('modalDeptSelect');
-          document.getElementById('modalItemInput').value = '';
-          document.getElementById('modalDeptInput').value = '';
-
+          document.getElementById('addModalIncome').style.display = 'none';
+          document.getElementById('addModalExpStep1').style.display = 'none';
+          document.getElementById('addModalExpStep2').style.display = 'none';
           if (type === 'income') {
-              title.textContent = '📥 수입 항목 추가';
-              deptRow.style.display = 'none';
+              document.getElementById('addModalIncome').style.display = 'block';
+              document.getElementById('incSearchBox').value = '';
+              document.getElementById('incCustomInput').value = '';
+              renderIncChips('');
+              renderIncSelBar();
           } else {
-              title.textContent = '📤 지출 항목 추가';
-              deptRow.style.display = 'block';
-              // 기존 부서 목록 채우기
-              deptSelect.innerHTML = '<option value="">기존 부서 선택</option>';
-              Object.keys(_settingsData.expenseItemsByDept || {}).forEach(function(dept) {
-                  var opt = document.createElement('option');
-                  opt.value = dept; opt.textContent = dept;
-                  deptSelect.appendChild(opt);
-              });
-              // 부서 선택 시 입력창에 자동 입력
-              deptSelect.onchange = function() {
-                  if (deptSelect.value) document.getElementById('modalDeptInput').value = deptSelect.value;
-              };
+              // 실제 시트의 소조직 목록으로 _expAllGrps 동기화
+              var realDepts = Object.keys(_settingsData.expenseItemsByDept || {});
+              if (realDepts.length > 0) {
+                  // 시트에 있는 소조직을 _expAllGrps에 반영 (없는 것만 추가)
+                  realDepts.forEach(function(deptName) {
+                      if (!_expAllGrps.find(function(g){ return g.name === deptName; })) {
+                          _expAllGrps.push({name: deptName, items: (_settingsData.expenseItemsByDept[deptName] || []).slice()});
+                      } else {
+                          // 이미 있으면 items 갱신
+                          var grp = _expAllGrps.find(function(g){ return g.name === deptName; });
+                          grp.items = (_settingsData.expenseItemsByDept[deptName] || []).slice();
+                      }
+                  });
+              }
+              document.getElementById('addModalExpStep1').style.display = 'block';
+              document.getElementById('expGrpSearch').value = '';
+              document.getElementById('newGrpInput').value = '';
+              renderExpGrpGrid('');
           }
           modal.style.display = 'flex';
-          setTimeout(function() { document.getElementById('modalItemInput').focus(); }, 100);
       }
 
       function closeAddModal() {
           document.getElementById('addItemModal').style.display = 'none';
       }
 
-      function confirmAddItem() {
-          var item = document.getElementById('modalItemInput').value.trim();
-          if (!item) { showAlert('항목명을 입력하세요.', 'error'); return; }
-
-          if (_addModalType === 'income') {
-              showLoading();
+      // ---- 수입 ----
+      function renderIncChips(filter) {
+          var registeredItems = (_settingsData.incomeItems || []).concat(_settingsData.inactiveIncomeItems || []);
+          var html = '';
+          Object.keys(INC_DATA).forEach(function(cat) {
+              var items = INC_DATA[cat].filter(function(i){ return !filter || i.includes(filter); });
+              if (!items.length) return;
+              html += '<p style="font-size:11px;color:#aaa;font-weight:600;margin:8px 0 5px;letter-spacing:.3px;">' + cat + '</p>';
+              html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
+              items.forEach(function(item) {
+                  var sel = _incSelItems[item];
+                  var already = registeredItems.indexOf(item) >= 0;
+                  var bg, cl, bd, fw, cursor, onclick;
+                  if (already) {
+                      bg = '#f0f0f0'; cl = '#bbb'; bd = '1px solid #ddd'; fw = '400';
+                      cursor = 'default'; onclick = '';
+                  } else if (sel) {
+                      bg = '#e8f5e9'; cl = '#27ae60'; bd = '1px solid #a5d6a7'; fw = '600';
+                      cursor = 'pointer'; onclick = 'onclick="togIncItem(this)"';
+                  } else {
+                      bg = '#f5f5f5'; cl = '#555'; bd = '1px solid #ddd'; fw = '400';
+                      cursor = 'pointer'; onclick = 'onclick="togIncItem(this)"';
+                  }
+                  html += '<span ' + onclick + ' data-name="' + item.replace(/"/g,'&quot;') + '" title="' + (already ? '이미 등록된 항목' : '') + '" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;font-size:12px;cursor:' + cursor + ';background:' + bg + ';color:' + cl + ';border:' + bd + ';font-weight:' + fw + ';">' + item + (already ? ' ✓' : '') + '</span>';
+              });
+              html += '</div>';
+          });
+          if (!html) html = '<p style="color:#bbb;font-size:13px;padding:8px 0;">검색 결과 없음</p>';
+          document.getElementById('incChipArea').innerHTML = html;
+      }
+      function togIncItem(el) {
+          var item = typeof el === 'string' ? el : el.getAttribute('data-name');
+          if (!item) return;
+          if (_incSelItems[item]) delete _incSelItems[item]; else _incSelItems[item] = true;
+          renderIncChips(document.getElementById('incSearchBox').value);
+          renderIncSelBar();
+      }
+      function renderIncSelBar() {
+          var keys = Object.keys(_incSelItems);
+          var bar = document.getElementById('incSelBar');
+          if (!keys.length) { bar.innerHTML = '<span style="font-size:12px;color:#aaa;">선택된 항목 없음</span>'; return; }
+          bar.innerHTML = keys.map(function(k) {
+              return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:#e8f5e9;color:#27ae60;border:1px solid #a5d6a7;">' + k + ' <button onclick="togIncItem(\' + k + \')" style="background:none;border:none;cursor:pointer;font-size:11px;color:#27ae60;padding:0;">✕</button></span>';
+          }).join('');
+      }
+      function filterIncItems() { renderIncChips(document.getElementById('incSearchBox').value); }
+      function incAddCustom() {
+          var v = document.getElementById('incCustomInput').value.trim();
+          if (!v) return;
+          _incSelItems[v] = true;
+          renderIncChips(document.getElementById('incSearchBox').value);
+          renderIncSelBar();
+          document.getElementById('incCustomInput').value = '';
+      }
+      function confirmAddIncome() {
+          // 직접입력란에 값이 남아있으면 자동으로 추가
+          var customVal = document.getElementById('incCustomInput');
+          if (customVal && customVal.value.trim()) incAddCustom();
+          var keys = Object.keys(_incSelItems);
+          if (!keys.length) { showAlert('항목을 선택하거나 직접 입력하세요.', 'error'); return; }
+          var total = keys.length;
+          var pending = keys.slice();
+          showLoading();
+          function next() {
+              if (!pending.length) {
+                  hideLoading();
+                  closeAddModal();
+                  showAlert('✅ 수입 항목 ' + total + '개가 추가되었습니다.');
+                  loadSettingsTab();
+                  initializeConstants();
+                  return;
+              }
+              var item = pending.shift();
               api('POST', '/api/master/income-items', { item: item })
-                  .then(function(r) {
-                      hideLoading();
-                      closeAddModal();
-                      if (r.success) { showAlert('✅ 수입 항목이 추가되었습니다.'); loadSettingsTab(); initializeConstants(); }
-                      else showAlert(r.message || '추가 실패', 'error');
-                  })
-                  .catch(function(e) { hideLoading(); showAlert('오류: ' + e.message, 'error'); });
-          } else {
-              var dept = document.getElementById('modalDeptInput').value.trim();
-              if (!dept) { showAlert('부서명을 입력하거나 선택하세요.', 'error'); return; }
-              showLoading();
-              api('POST', '/api/master/expense-items', { dept: dept, item: item })
-                  .then(function(r) {
-                      hideLoading();
-                      closeAddModal();
-                      if (r.success) { showAlert('✅ 지출 항목이 추가되었습니다.'); loadSettingsTab(); initializeConstants(); }
-                      else showAlert(r.message || '추가 실패', 'error');
-                  })
-                  .catch(function(e) { hideLoading(); showAlert('오류: ' + e.message, 'error'); });
+                  .then(next)
+                  .catch(function(e){ hideLoading(); showAlert('오류: ' + e.message, 'error'); });
           }
+          next();
+      }
+
+      // ---- 지출 1단계: 소조직 ----
+      function renderExpGrpGrid(filter) {
+          var icons = {총무부:'💼',교육부:'📚',심방부:'🏠',예배부:'⛪',친교부:'🎉',선교부:'🌍',봉사부:'🤝',찬양부:'🎵',새가족부:'👋',구역부:'📍',경조부:'💐',미디어부:'🎬'};
+          var list = _expAllGrps.filter(function(g){ return !filter || g.name.includes(filter); });
+          var html = '';
+          list.forEach(function(g) {
+              var ico = icons[g.name] || '📁';
+              html += '<div onclick="expGrpCardClick(this)" data-name="' + g.name.replace(/"/g,'&quot;') + '" style="padding:14px 8px;border:1px solid #eee;border-radius:10px;background:#fafafa;cursor:pointer;text-align:center;transition:all .12s;" >'
+                  + '<div style="font-size:22px;margin-bottom:4px;">' + ico + '</div>'
+                  + '<div style="font-size:12px;font-weight:600;color:#333;">' + g.name + '</div>'
+                  + '<div style="font-size:11px;color:#aaa;margin-top:2px;">' + g.items.length + '개 항목</div>'
+                  + '</div>';
+          });
+          if (!html) html = '<p style="color:#bbb;font-size:13px;grid-column:1/-1;padding:8px 0;">검색 결과 없음</p>';
+          document.getElementById('expGrpGrid').innerHTML = html;
+      }
+      function filterExpGrps() { renderExpGrpGrid(document.getElementById('expGrpSearch').value); }
+      function expAddNewGrp() {
+          var v = document.getElementById('newGrpInput').value.trim();
+          if (!v) return;
+          if (!_expAllGrps.find(function(g){ return g.name === v; })) _expAllGrps.push({name:v, items:[]});
+          document.getElementById('newGrpInput').value = '';
+          goExpStep2(v);
+      }
+
+      // ---- 지출 2단계: 항목 ----
+      function goExpStep2(grpName) {
+          _expCurGrp = _expAllGrps.find(function(g){ return g.name === grpName; });
+          _expSelItems = {};
+          document.getElementById('addModalExpStep1').style.display = 'none';
+          document.getElementById('addModalExpStep2').style.display = 'block';
+          document.getElementById('expStep2Title').textContent = _expCurGrp.name + ' — 항목 선택';
+          document.getElementById('expItemSearch').value = '';
+          document.getElementById('expCustomInput').value = '';
+          renderExpItemChips('');
+          renderExpSelBar();
+      }
+      function expGrpCardClick(el) {
+          var name = el.getAttribute('data-name');
+          if (name) goExpStep2(name);
+      }
+      function goExpStep1() {
+          document.getElementById('addModalExpStep2').style.display = 'none';
+          document.getElementById('addModalExpStep1').style.display = 'block';
+          renderExpGrpGrid(document.getElementById('expGrpSearch').value);
+      }
+      function renderExpItemChips(filter) {
+          var items = (_expCurGrp && _expCurGrp.items || []).filter(function(i){ return !filter || i.includes(filter); });
+          var el = document.getElementById('expItemChips');
+          if (!items.length) { el.innerHTML = '<p style="color:#bbb;font-size:13px;padding:8px 0;">검색 결과 없음. 아래에서 직접 입력하세요.</p>'; return; }
+          el.innerHTML = items.map(function(item) {
+              var sel = _expSelItems[item];
+              var bg = sel ? '#fde8e8' : '#f5f5f5';
+              var cl = sel ? '#c0392b' : '#555';
+              var bd = sel ? '1px solid #f1948a' : '1px solid #ddd';
+              var fw = sel ? '600' : '400';
+              return '<span onclick="togExpItem(\' + item + \')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;background:' + bg + ';color:' + cl + ';border:' + bd + ';font-weight:' + fw + ';">' + item + '</span>';
+          }).join('');
+      }
+      function togExpItem(item) {
+          if (_expSelItems[item]) delete _expSelItems[item]; else _expSelItems[item] = true;
+          renderExpItemChips(document.getElementById('expItemSearch').value);
+          renderExpSelBar();
+      }
+      function renderExpSelBar() {
+          var keys = Object.keys(_expSelItems);
+          var bar = document.getElementById('expSelBar');
+          if (!keys.length) { bar.innerHTML = '<span style="font-size:12px;color:#aaa;">선택된 항목 없음</span>'; return; }
+          bar.innerHTML = keys.map(function(k) {
+              return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;background:#fde8e8;color:#c0392b;border:1px solid #f1948a;">' + k + ' <button onclick="togExpItem(\' + k + \')" style="background:none;border:none;cursor:pointer;font-size:11px;color:#c0392b;padding:0;">✕</button></span>';
+          }).join('');
+      }
+      function filterExpItems() { renderExpItemChips(document.getElementById('expItemSearch').value); }
+      function expAddCustom() {
+          var v = document.getElementById('expCustomInput').value.trim();
+          if (!v) return;
+          _expSelItems[v] = true;
+          if (_expCurGrp && !_expCurGrp.items.includes(v)) _expCurGrp.items.unshift(v);
+          renderExpItemChips(document.getElementById('expItemSearch').value);
+          renderExpSelBar();
+          document.getElementById('expCustomInput').value = '';
+      }
+      function confirmAddExpense() {
+          // 직접입력란에 값이 남아있으면 자동으로 추가
+          var customVal = document.getElementById('expCustomInput');
+          if (customVal && customVal.value.trim()) expAddCustom();
+          var keys = Object.keys(_expSelItems);
+          if (!keys.length) { showAlert('항목을 선택하거나 직접 입력하세요.', 'error'); return; }
+          if (!_expCurGrp) { showAlert('소조직을 선택하세요.', 'error'); return; }
+          // dept와 keys를 클로저에 미리 캡처 (비동기 중 _expCurGrp 변경 방지)
+          var dept = _expCurGrp.name;
+          var total = keys.length;
+          var pending = keys.slice();
+          showLoading();
+          function next() {
+              if (!pending.length) {
+                  hideLoading();
+                  closeAddModal();
+                  showAlert('✅ 지출 항목 ' + total + '개가 추가되었습니다.');
+                  loadSettingsTab();
+                  initializeConstants();
+                  return;
+              }
+              var item = pending.shift();
+              api('POST', '/api/master/expense-items', { dept: dept, item: item })
+                  .then(next)
+                  .catch(function(e){ hideLoading(); showAlert('오류: ' + e.message, 'error'); });
+          }
+          next();
+      }
+
+      // 하위호환: confirmAddItem (혹시 다른 곳에서 호출 시)
+      function confirmAddItem() { if (_addModalType === 'income') confirmAddIncome(); else confirmAddExpense(); }
+
+      // data-* 방식 핸들러 (따옴표 이스케이프 문제 우회)
+      function masterItemBtn(el) {
+          var type = el.getAttribute('data-type');
+          var item = el.getAttribute('data-item');
+          var dept = el.getAttribute('data-dept') || '';
+          deleteMasterItem(type, item, dept);
+      }
+      function masterItemRestore(el) {
+          var type = el.getAttribute('data-type');
+          var item = el.getAttribute('data-item');
+          var dept = el.getAttribute('data-dept') || '';
+          reactivateMasterItem(type, item, dept);
       }
 
       function deleteMasterItem(type, item, dept) {
@@ -9239,6 +10069,7 @@
                   hideLoading();
                   if (r.success) {
                       showAlert(r.deactivated ? '⚠️ 사용 이력이 있어 비활성화 처리되었습니다.' : '✅ 삭제되었습니다.');
+                      showSettingsTab('master');
                       loadSettingsTab(); initializeConstants();
                   } else showAlert(r.message || '삭제 실패', 'error');
               })
@@ -9252,7 +10083,7 @@
           api('POST', '/api/master/reactivate', { type: type, item: item, dept: dept || '' })
               .then(function(r) {
                   hideLoading();
-                  if (r.success) { showAlert('✅ 항목이 복원되었습니다.'); loadSettingsTab(); initializeConstants(); }
+                  if (r.success) { showAlert('✅ 항목이 복원되었습니다.'); showSettingsTab('master'); loadSettingsTab(); initializeConstants(); }
                   else showAlert(r.message || '복원 실패', 'error');
               })
               .catch(function(e) { hideLoading(); showAlert('오류: ' + e.message, 'error'); });
@@ -9352,7 +10183,7 @@
                               font-size: 14px;
                           }
                           @media print {
-                              @page { size: A4; margin: 10mm; }
+                              @page { size: A4; margin: 8mm; }
                               body { padding: 0; background-color: #fff; }
                               table { box-shadow: none; }
                               .no-print { display: none; }
@@ -9418,6 +10249,35 @@
       }
 
       async function printExpenseVoucher(transactionData) {
+          // 연결된 영수증 이미지 조회
+          // txnId: 새 방식(TXN+timestamp), 없으면 날짜+금액으로 폴백
+          let receiptImagesBlock = '';
+          const _txnId = transactionData.txnId || transactionData.id || '';
+          const _txnDate = transactionData.date || '';
+          const _txnAmt = transactionData.expense || transactionData.amount || '';
+          if (_txnId || _txnDate) {
+            try {
+              const _params = `date=${encodeURIComponent(_txnDate)}&amount=${encodeURIComponent(_txnAmt)}`;
+              const _safeId = _txnId || 'none';
+              const rcResult = await api('GET', `/api/receipts/by-txn/${encodeURIComponent(_safeId)}?${_params}`);
+              const imgs = rcResult.data || [];
+              if (imgs.length > 0) {
+                const imgTags = imgs.map((img, i) =>
+                  `<div style="display:inline-block;vertical-align:top;margin:4px;${imgs.length === 1 ? 'width:100%' : 'width:48%'};">
+                    <div style="font-size:11px;color:#666;margin-bottom:4px;">
+                      📷 영수증 ${i+1}/${imgs.length}${img.description ? ' — ' + img.description : ''}
+                    </div>
+                    <img src="${img.imageUrl}" style="width:100%;max-height:300px;object-fit:contain;border:1px solid #ddd;border-radius:4px;">
+                  </div>`
+                ).join('');
+                receiptImagesBlock = `
+                  <div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;page-break-inside:avoid;">
+                    <div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증</div>
+                    <div style="font-size:0;">${imgTags}</div>
+                  </div>`;
+              }
+            } catch(e) { console.warn('영수증 조회 실패:', e); }
+          }
           // description에서 결재번호 추출 [사전결재: AR...]
           let eApprovalBlock = '';
           const approvalMatch = (transactionData.description || '').match(/\[사전결재:\s*(AR[0-9]+)\]/);
@@ -9496,7 +10356,7 @@
                               font-size: 16px;
                           }
                           @media print {
-                              @page { size: A4; margin: 10mm; }
+                              @page { size: A4; margin: 8mm; }
                               body { padding: 0; }
                               table { box-shadow: none; }
                               .no-print { display: none; }
@@ -9552,6 +10412,7 @@
                           </tr>
                       </table>
                       ${eApprovalBlock}
+                      ${receiptImagesBlock}
                       <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
                           <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; background-color: #333; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
                       </div>
@@ -9559,7 +10420,16 @@
               </html>
           `;
           
-          mobilePrint(voucherHTML);
+          // 영수증이 있으면 window.open으로 직접 출력 (innerHTML 보안 우회)
+          if (receiptImagesBlock) {
+            const win = window.open('', '_blank');
+            if (win) {
+              win.document.write(voucherHTML);
+              win.document.close();
+            }
+          } else {
+            mobilePrint(voucherHTML);
+          }
       }
       function setKoreanIME(input) {
             input.addEventListener('focus', function() {
@@ -10827,3 +11697,7 @@
 
 
 
+ 
+ 
+ 
+ 
