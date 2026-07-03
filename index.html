@@ -9868,7 +9868,7 @@
                 <title>교사회비 집계 - ${rangeLabel}</title>
                 <style>
                     body { font-family: 'Malgun Gothic', sans-serif; padding: 24px 16px; margin: 0; }
-                    .doc { max-width: 900px; margin: 0 auto; }
+                    .doc { max-width: 210mm; margin: 0 auto; }
                     h2 { text-align: center; margin-bottom: 20px; }
                     table { width: 100%; border-collapse: collapse; }
                     th, td { border: 1px solid #ddd; padding: 8px 12px; }
@@ -9879,7 +9879,7 @@
         </style>
                 </head><body><div class="doc">
                 <h2>교사회비 집계 - ${rangeLabel}</h2>
-                ${table.outerHTML}
+                ${table.outerHTML.replace('class="table"', '')}
                 <div style="text-align:right; margin-top:10px; font-size:12px; color:#666;">
                     출력일: ${new Date().toLocaleDateString('ko-KR')}
                 </div>
@@ -14961,7 +14961,7 @@
                 '@media print{button{display:none;}}' +
                 '</style></head><body><div class="doc">' +
                 '<h2>' + title + '</h2>' +
-                table.outerHTML +
+                table.outerHTML.replace('class="table"', '') +
                 '<div style="text-align:right;margin-top:8px;font-size:11px;color:#666;">출력일: ' + new Date().toLocaleDateString('ko-KR') + '</div>' +
                 '</div></body></html>';
             mobilePrint(html);
@@ -15285,7 +15285,7 @@
                 '@media print{button{display:none;}}' +
                 '</style></head><body><div class="doc">' +
                 '<h2>' + title + '</h2>' +
-                table.outerHTML +
+                table.outerHTML.replace('class="table"', '') +
                 '<div style="text-align:right;margin-top:8px;font-size:11px;color:#666;">출력일: ' + new Date().toLocaleDateString('ko-KR') + '</div>' +
                 '</div></body></html>';
             mobilePrint(html);
