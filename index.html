@@ -8180,7 +8180,7 @@
         async function batchAuthenticate() {
             var phone = document.getElementById('batchAuthPhone').value.trim();
             var password = document.getElementById('batchAuthPassword').value.trim();
-            if (!phone || !password) { showToast('전화번호와 패스워드를 입력하세요.', 'error'); return; }
+            if (!phone || !password) { showNotification('전화번호와 패스워드를 입력하세요.', 'error'); return; }
             try {
                 showLoading();
                 var res = await apiCall('/api/approvals/authenticate', 'POST', { phone, password });
@@ -8193,10 +8193,10 @@
                     await loadBatchSummary();
                     await loadBatchPending();
                 } else {
-                    showToast(res.message || '인증 실패', 'error');
+                    showNotification(res.message || '인증 실패', 'error');
                 }
             } catch(e) {
-                showToast('인증 중 오류가 발생했습니다.', 'error');
+                showNotification('인증 중 오류가 발생했습니다.', 'error');
             } finally {
                 hideLoading();
             }
@@ -8243,7 +8243,7 @@
                 batchPendingData = res.data;
                 renderBatchPendingList(batchPendingData);
             } catch(e) {
-                showToast('미결재 목록 로드 실패', 'error');
+                showNotification('미결재 목록 로드 실패', 'error');
             } finally {
                 hideLoading();
             }
@@ -8294,9 +8294,9 @@
         }
 
         async function batchApproveSelected() {
-            if (!batchApprover) { showToast('먼저 결재권한자 인증을 해주세요.', 'error'); return; }
+            if (!batchApprover) { showNotification('먼저 결재권한자 인증을 해주세요.', 'error'); return; }
             var checked = Array.from(document.querySelectorAll('.batch-check:checked'));
-            if (checked.length === 0) { showToast('승인할 항목을 선택하세요.', 'error'); return; }
+            if (checked.length === 0) { showNotification('승인할 항목을 선택하세요.', 'error'); return; }
             var rowIndexes = checked.map(function(cb) { return Number(cb.getAttribute('data-row')); });
             if (!confirm(rowIndexes.length + '건을 일괄 승인하시겠습니까?')) return;
             try {
@@ -8306,21 +8306,21 @@
                     rowIndexes: rowIndexes
                 });
                 if (res.success) {
-                    showToast(res.message, 'success');
+                    showNotification(res.message, 'success');
                     await loadBatchSummary();
                     await loadBatchPending();
                 } else {
-                    showToast(res.message || '승인 실패', 'error');
+                    showNotification(res.message || '승인 실패', 'error');
                 }
             } catch(e) {
-                showToast('승인 처리 중 오류', 'error');
+                showNotification('승인 처리 중 오류', 'error');
             } finally {
                 hideLoading();
             }
         }
 
         function openBatchRejectModal(rowIndex) {
-            if (!batchApprover) { showToast('먼저 결재권한자 인증을 해주세요.', 'error'); return; }
+            if (!batchApprover) { showNotification('먼저 결재권한자 인증을 해주세요.', 'error'); return; }
             document.getElementById('batchRejectRowIndex').value = rowIndex;
             document.getElementById('batchRejectComment').value = '';
             var modal = document.getElementById('batchRejectModal');
@@ -8342,14 +8342,14 @@
                 });
                 closeBatchRejectModal();
                 if (res.success) {
-                    showToast('반려 처리되었습니다.', 'success');
+                    showNotification('반려 처리되었습니다.', 'success');
                     await loadBatchSummary();
                     await loadBatchPending();
                 } else {
-                    showToast(res.message || '반려 실패', 'error');
+                    showNotification(res.message || '반려 실패', 'error');
                 }
             } catch(e) {
-                showToast('반려 처리 중 오류', 'error');
+                showNotification('반려 처리 중 오류', 'error');
             } finally {
                 hideLoading();
             }
@@ -8397,7 +8397,7 @@
                     '</div>';
                 }).join('');
             } catch(e) {
-                showToast('완료 내역 로드 실패', 'error');
+                showNotification('완료 내역 로드 실패', 'error');
             } finally {
                 hideLoading();
             }
