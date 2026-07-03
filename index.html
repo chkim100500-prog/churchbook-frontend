@@ -2642,7 +2642,7 @@
                 <button class="tab-btn" onclick="showTab('search')">조회관리</button>
                 <button class="tab-btn" id="teacherfeeTabBtn" onclick="showTab('teacherfee')">부서회비</button>
                 <button class="tab-btn" onclick="showTab('budget')">예산관리</button>
-                <button class="tab-btn" onclick="showTab('approval')">전자결재</button>
+                <button class="tab-btn" onclick="showTab('approval')">사전결재</button>
                 <button class="tab-btn" id="batchApprovalTabBtn" onclick="showTab('batchApproval')">✅결재함</button>
                 <button class="tab-btn" onclick="showTab('report')">보고서</button>
                 <button class="tab-btn" onclick="showTab('receipt')" style="display:none;">영수증</button>
@@ -9119,6 +9119,8 @@
                     _badges += `<div style="font-size:10px;color:#2e7d32;margin-top:2px;white-space:nowrap;" title="${escapeHtml(row.approvalStatus || '')}">🟢 결재완료</div>`;
                 } else if (row.approvalBadge === '반려') {
                     _badges += `<div style="font-size:10px;color:#c62828;margin-top:2px;white-space:nowrap;" title="${escapeHtml(row.approvalStatus || '')}">🔴 반려</div>`;
+                } else if (row.approvalBadge && row.approvalBadge.endsWith('차완료')) {
+                    _badges += `<div style="font-size:10px;color:#1565c0;margin-top:2px;white-space:nowrap;" title="${escapeHtml(row.approvalStatus || '')}">🔵 ${row.approvalBadge}</div>`;
                 }
                 const _printBadge = _badges;
                 tr.innerHTML = `
@@ -14223,6 +14225,13 @@
                         <div style="margin-top:20px;border:2px solid #c62828;border-radius:6px;padding:14px;background:#fff5f5;position:relative;">
                             <div style="position:absolute;top:-12px;left:16px;background:#c62828;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">🔴 반려</div>
                             <div style="font-size:12px;color:#c62828;">${(t.approvalStatus || '').replace(/</g,'&lt;')}</div>
+                        </div>`;
+                }
+                if (badge.endsWith('차완료')) {
+                    return `
+                        <div style="margin-top:20px;border:2px solid #1565c0;border-radius:6px;padding:14px;background:#f3f8ff;position:relative;">
+                            <div style="position:absolute;top:-12px;left:16px;background:#1565c0;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">🔵 ${badge}</div>
+                            <div style="font-size:12px;color:#1565c0;">${(t.approvalStatus || '').replace(/</g,'&lt;')} · 최종 결재권한자 승인 시 완료됩니다.</div>
                         </div>`;
                 }
                 return '';
