@@ -4790,10 +4790,9 @@
                       <div class="form-group">
                         <label>결재순서</label>
                         <select id="authorityOrder" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
-                          <option value="1">1차</option>
-                          <option value="2">2차</option>
-                          <option value="3">3차</option>
+                          <!-- JS에서 populateAuthorityOrderOptions()로 동적 생성 (인원 제한 없음) -->
                         </select>
+                        <p style="font-size:12px;color:#999;margin-top:4px;">등록된 결재권한자 수에 맞춰 자동으로 차수가 늘어납니다. 가장 마지막 차수(최종 결재권한자)가 승인해야 결재가 완료됩니다.</p>
                       </div>
                       <div class="form-group">
                         <label>직책명</label>
@@ -11437,21 +11436,29 @@
                     managerComment: row.managerComment
                 });
                 
-                // 결재의견을 세로로 정렬
+                // 결재의견을 세로로 정렬 (서명 이력 배열 기반 - 인원 제한 없음)
+                const _opinionColors = [
+                    { bg: '#f8f9fa', border: '#6c757d' },
+                    { bg: '#e3f2fd', border: '#1565c0' },
+                    { bg: '#fff3e0', border: '#e65100' },
+                    { bg: '#f3e5f5', border: '#6a1b9a' },
+                    { bg: '#e8f5e9', border: '#2e7d32' },
+                ];
+                const _sigs = (row.signatures && row.signatures.length > 0)
+                    ? row.signatures
+                    : (row.authorities || []).map((a, i) => ({
+                        order: a.order, position: a.position,
+                        comment: [row.comment1, row.comment2, row.comment3][i] || ''
+                      }));
                 const combinedOpinions = `
                     <div style="font-size: 10px; line-height: 1.3; max-width: 200px;">
-                        <div style="margin-bottom: 6px; padding: 6px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #6c757d;">
-                            <strong style="color: #495057; font-size: 10px;">${((row.authorities&&row.authorities[0])||{position:"1차"}).position}:</strong><br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment1 || '의견 없음')}</span>
-                        </div>
-                        <div style="margin-bottom: 6px; padding: 6px; background: #e3f2fd; border-radius: 4px; border-left: 3px solid #1565c0;">
-                            ${((row.authorities&&row.authorities[1])||{position:"2차"}).position}:</strong<br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment2 || '의견 없음')}</span>
-                        </div>
-                        <div style="padding: 6px; background: #fff3e0; border-radius: 4px; border-left: 3px solid #e65100;">
-                            ${((row.authorities&&row.authorities[2])||{position:"3차"}).position}:</strong<br>
-                            <span style="color: #333; word-wrap: break-word;">${escapeHtml(row.comment3 || '의견 없음')}</span>
-                        </div>
+                        ${_sigs.map((s, i) => {
+                            const c = _opinionColors[i % _opinionColors.length];
+                            return `<div style="margin-bottom: 6px; padding: 6px; background: ${c.bg}; border-radius: 4px; border-left: 3px solid ${c.border};">
+                                <strong style="color: #495057; font-size: 10px;">${escapeHtml(s.position || (s.order + '차'))}:</strong><br>
+                                <span style="color: #333; word-wrap: break-word;">${escapeHtml(s.comment || '의견 없음')}</span>
+                            </div>`;
+                        }).join('')}
                     </div>
                 `;
                 
@@ -11674,18 +11681,18 @@
             document.getElementById('detailAmount').textContent = `₩ ${formatAmount(approval.amount)}`;
             document.getElementById('detailContent').textContent = approval.content || '-';
 
-            // 결재 흐름 렌더링
+            // 결재 흐름 렌더링 (서명 이력 배열 기반 - 인원 제한 없음)
             const flowEl = document.getElementById('detailApprovalFlow');
             const authorities = approval.authorities || [];
-            const comments = [approval.comment1, approval.comment2, approval.comment3];
-            const decisions = [approval.decision1, approval.decision2, approval.decision3];
+            const signatures = approval.signatures || [];
 
             if (authorities.length === 0) {
                 flowEl.innerHTML = '<p style="color:#999;font-size:13px;">결재권한자 정보 없음</p>';
             } else {
-                flowEl.innerHTML = authorities.map((auth, i) => {
-                    const decision = decisions[i];
-                    const comment = comments[i] || '';
+                flowEl.innerHTML = authorities.map((auth) => {
+                    const sig = signatures.find(s => s.order === auth.order);
+                    const decision = sig ? sig.decision : null;
+                    const comment = sig ? (sig.comment || '') : '';
                     const stepColor = decision === 'approve' ? '#4caf50' : decision === 'reject' ? '#e74c3c' : '#bbb';
                     const stepIcon = decision === 'approve' ? '✅' : decision === 'reject' ? '❌' : '⏳';
                     const stepLabel = decision === 'approve' ? '승인' : decision === 'reject' ? '반려' : '대기중';
@@ -11693,8 +11700,8 @@
                         <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;">
                             <div style="width:36px;height:36px;border-radius:50%;background:${stepColor}22;border:2px solid ${stepColor};display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${stepIcon}</div>
                             <div style="flex:1;min-width:0;">
-                                <div style="font-size:13px;font-weight:bold;color:#333;">${auth.position || (i+1)+'차'} · ${auth.name || ''}</div>
-                                <div style="font-size:12px;color:${stepColor};margin:2px 0;">${stepLabel}</div>
+                                <div style="font-size:13px;font-weight:bold;color:#333;">${auth.position || (auth.order)+'차'} · ${auth.name || ''}</div>
+                                <div style="font-size:12px;color:${stepColor};margin:2px 0;">${stepLabel}${sig && sig.dt ? ' · ' + sig.dt : ''}</div>
                                 ${comment ? `<div style="font-size:12px;color:#555;background:#f5f5f5;border-radius:6px;padding:6px 8px;margin-top:4px;">${escapeHtml(comment)}</div>` : ''}
                             </div>
                         </div>
@@ -14099,14 +14106,11 @@
                       const result = await api('GET', '/api/approvals?keyword=' + approvalId);
                       const approval = (result.data || []).find(a => a.id === approvalId);
                       if (approval && (approval.status === '승인완료' || approval.status === '승인' || approval.status === '진행중')) {
-                          const authorities = approval.authorities || [];
-                          const dts = [approval.dt1, approval.dt2, approval.dt3];
-                          const comments = [approval.comment1, approval.comment2, approval.comment3];
-                          const rows = authorities.map((auth, i) => {
-                              const dt = dts[i];
-                              if (!dt) return '';
-                              const dtStr = dt ? String(dt).substring(0, 16) : '';
-                              return '<tr><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">✅ ' + (auth.position||'') + ' ' + (auth.name||'') + '</td><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">' + dtStr + '</td><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#555;">' + (comments[i]||'-') + '</td></tr>';
+                          const signatures = (approval.signatures || []).slice().sort((a,b) => a.order - b.order);
+                          const rows = signatures.map((sig) => {
+                              if (!sig.dt) return '';
+                              const icon = sig.decision === 'reject' ? '❌' : '✅';
+                              return '<tr><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">' + icon + ' ' + (sig.position||'') + ' ' + (sig.name||'') + '</td><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">' + sig.dt + '</td><td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#555;">' + (sig.comment||'-') + '</td></tr>';
                           }).filter(Boolean).join('');
                           approvalBlock = '<div style="margin-top:12px;border:2px solid #c0392b;border-radius:6px;padding:10px;background:#fff8f8;position:relative;">' +
                               '<div style="position:absolute;top:-10px;left:12px;background:#c0392b;color:white;font-size:10px;font-weight:bold;padding:2px 10px;border-radius:10px;">🔏 전자결재 완료</div>' +
@@ -14265,15 +14269,11 @@
                   const result = await api('GET', `/api/approvals?keyword=${approvalId}`);
                   const approval = (result.data || []).find(a => a.id === approvalId);
                   if (approval && (approval.status === '승인완료' || approval.status === '승인' || approval.status === '진행중')) {
-                      const authorities = approval.authorities || [];
-                      const dts = [approval.dt1, approval.dt2, approval.dt3];
-                      const comments = [approval.comment1, approval.comment2, approval.comment3];
-                      const rows = authorities.map((auth, i) => {
-                          const dt = dts[i];
-                          if (!dt) return '';
-                          // 백엔드에서 KST 'YYYY-MM-DD HH:MM' 형식으로 변환되어 옴
-                          const dtStr = dt ? String(dt).substring(0, 16) : '';
-                          return `<tr><td style="padding:6px 10px;border:1px solid #ddd;">✅ ${auth.position||''} ${auth.name||''}</td><td style="padding:6px 10px;border:1px solid #ddd;">${dtStr}</td><td style="padding:6px 10px;border:1px solid #ddd;color:#555;">${comments[i]||'-'}</td></tr>`;
+                      const signatures = (approval.signatures || []).slice().sort((a,b) => a.order - b.order);
+                      const rows = signatures.map((sig) => {
+                          if (!sig.dt) return '';
+                          const icon = sig.decision === 'reject' ? '❌' : '✅';
+                          return `<tr><td style="padding:6px 10px;border:1px solid #ddd;">${icon} ${sig.position||''} ${sig.name||''}</td><td style="padding:6px 10px;border:1px solid #ddd;">${sig.dt}</td><td style="padding:6px 10px;border:1px solid #ddd;color:#555;">${sig.comment||'-'}</td></tr>`;
                       }).filter(Boolean).join('');
                       eApprovalBlock = `
                           <div style="margin-top:20px;border:2px solid #c0392b;border-radius:6px;padding:14px;background:#fff8f8;position:relative;">
@@ -15987,25 +15987,56 @@
           });
         }
 
+        // 결재순서 드롭다운을 등록된 인원 수에 맞춰 동적으로 생성 (인원 제한 없음)
+        // selectedOrder가 없으면(신규 추가) 자동으로 "다음 순번"을 기본 선택값으로 잡음
+        function populateAuthorityOrderOptions(selectedOrder) {
+          const sel = document.getElementById('authorityOrder');
+          if (!sel) return;
+          api('GET', '/api/approvals/authorities').then(result => {
+            const list = result.data || [];
+            const maxOrder = list.length > 0 ? Math.max(...list.map(a => a.order)) : 0;
+            const nextOrder = maxOrder + 1;
+            const target = selectedOrder ? Number(selectedOrder) : nextOrder;
+            const upper = Math.max(nextOrder, target);
+            sel.innerHTML = '';
+            for (let i = 1; i <= upper; i++) {
+              const opt = document.createElement('option');
+              opt.value = String(i);
+              opt.textContent = i + '차' + (i === nextOrder ? ' (다음 순번)' : (i === maxOrder && maxOrder > 0 ? ' — 현재 최종 결재권한자' : ''));
+              sel.appendChild(opt);
+            }
+            sel.value = String(target);
+          }).catch(() => {
+            sel.innerHTML = '';
+            for (let i = 1; i <= 3; i++) {
+              const opt = document.createElement('option');
+              opt.value = String(i);
+              opt.textContent = i + '차';
+              sel.appendChild(opt);
+            }
+            sel.value = String(selectedOrder || 1);
+          });
+        }
+
         function showAddAuthorityModal() {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 추가';
           document.getElementById('authorityEditPhone').value = '';
-          document.getElementById('authorityOrder').value = '1';
           document.getElementById('authorityPosition').value = '';
           document.getElementById('authorityName').value = '';
           document.getElementById('authorityPhone').value = '';
           document.getElementById('authorityPassword').value = '';
+          populateAuthorityOrderOptions(null);
           document.getElementById('authorityModal').style.display = 'block';
         }
 
         function showEditAuthorityModal(order, position, name, phone) {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
           document.getElementById('authorityEditPhone').value = phone;
-          document.getElementById('authorityOrder').value = order;
           document.getElementById('authorityPosition').value = position;
           document.getElementById('authorityName').value = name;
           document.getElementById('authorityPhone').value = phone;
           document.getElementById('authorityPassword').value = '';
+          populateAuthorityOrderOptions(order);
           document.getElementById('authorityModal').style.display = 'block';
         }
 
