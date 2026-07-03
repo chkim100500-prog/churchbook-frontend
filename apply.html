@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<!-- saved from url=(0052)https://69716272.churchbook-frontend.pages.dev/apply -->
+<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChurchBook 가입 신청</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f7fa;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 480px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo h1 {
+      font-size: 24px;
+      color: #1a73e8;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .logo p {
+      color: #666;
+      font-size: 14px;
+      margin-top: 6px;
+    }
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin: 24px 0 12px;
+    }
+    .section-title:first-of-type { margin-top: 0; }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 6px;
+    }
+    label .req {
+      color: #ea4335;
+      margin-left: 2px;
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font-size: 15px;
+      color: #222;
+      outline: none;
+      transition: border-color 0.2s;
+      background: white;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: #1a73e8;
+    }
+    input.error, textarea.error {
+      border-color: #ea4335;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+    .price-box {
+      background: #f0f7ff;
+      border: 1.5px solid #c2d9ff;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 8px 0 20px;
+    }
+    .price-box p {
+      font-size: 13px;
+      color: #444;
+      line-height: 1.7;
+    }
+    .price-box strong { color: #1a73e8; }
+    .btn-submit {
+      width: 100%;
+      padding: 15px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 8px;
+    }
+    .btn-submit:hover { background: #1557b0; }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+
+    /* 완료 화면 */
+    .success-screen {
+      display: none;
+      text-align: center;
+      padding: 20px 0;
+    }
+    .success-screen .icon { font-size: 56px; margin-bottom: 16px; }
+    .success-screen h2 { font-size: 22px; color: #222; margin-bottom: 10px; }
+    .success-screen p { color: #555; font-size: 14px; line-height: 1.7; }
+    .success-screen .app-id {
+      display: inline-block;
+      background: #f0f7ff;
+      border: 1px solid #c2d9ff;
+      color: #1a73e8;
+      font-weight: 700;
+      padding: 8px 20px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 15px;
+    }
+
+    /* 에러 메시지 */
+    .err-msg {
+      background: #fff0f0;
+      border: 1px solid #ffcccc;
+      color: #c00;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- 신청 폼 -->
+    <div id="formArea">
+      <div class="logo">
+        <h1>📖 ChurchBook</h1>
+        <p>교회 회계 관리 서비스 가입 신청</p>
+      </div>
+
+      <div id="errMsg" class="err-msg"></div>
+
+      <div class="section-title">교회 정보</div>
+
+      <div class="form-group">
+        <label>교회(단체)명 <span class="req">*</span></label>
+        <input type="text" id="churchName" placeholder="예: 노량진교회, 노량진문화원">
+      </div>
+      <div class="form-group">
+        <label>부서명 <span style="color:#999;font-weight:400;">(선택)</span></label>
+        <input type="text" id="deptName" placeholder="예: 교육부, 청년부 (없으면 비워두세요)">
+        <p class="hint">부서가 없는 독립 단체는 비워두셔도 됩니다.</p>
+      </div>
+
+      <div class="section-title">담당자 정보</div>
+
+      <div class="form-group">
+        <label>담당자 성함 <span class="req">*</span></label>
+        <input type="text" id="contactName" placeholder="홍길동">
+      </div>
+      <div class="form-group">
+        <label>연락처</label>
+        <input type="tel" id="phone" placeholder="010-0000-0000">
+      </div>
+      <div class="form-group">
+        <label>이메일 <span class="req">*</span></label>
+        <input type="email" id="email" placeholder="example@church.org">
+        <p class="hint">계정 개설 후 로그인 정보를 이 주소로 발송합니다.</p>
+      </div>
+
+      <div class="section-title">요금 안내</div>
+      <div class="price-box">
+        <p>
+          현재 <strong>무료 베타</strong> 운영 중입니다.<br>
+          계좌이체 후 담당자가 직접 계정을 개설해 드립니다.<br><br>
+          입금처: <strong>카카오뱅크 3333-00-0000000 김찬호</strong><br>
+          금액: <strong>월 0원 (베타 무료)</strong>
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label>문의사항 <span style="color:#999;font-weight:400;">(선택)</span></label>
+        <textarea id="message" placeholder="궁금한 점이 있으시면 남겨주세요."></textarea>
+      </div>
+
+      <button class="btn-submit" id="submitBtn" onclick="submitForm()">가입 신청하기</button>
+    </div>
+
+    <!-- 완료 화면 -->
+    <div class="success-screen" id="successArea">
+      <div class="icon">🎉</div>
+      <h2>신청이 완료되었습니다!</h2>
+      <div class="app-id" id="appIdDisplay"></div>
+      <p>
+        입력하신 이메일로 접수 확인 메일을 발송했습니다.<br>
+        입금 확인 후 담당자가 계정을 개설하고<br>
+        로그인 정보를 이메일로 보내드립니다.
+      </p>
+      <p style="margin-top:20px;color:#999;font-size:13px;">
+        문의: churchbook@withlab.org
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const API = 'https://churchbook-backend-production.up.railway.app';
+
+    async function submitForm() {
+      const churchName  = document.getElementById('churchName').value.trim();
+      const deptName    = document.getElementById('deptName').value.trim();
+      const contactName = document.getElementById('contactName').value.trim();
+      const phone       = document.getElementById('phone').value.trim();
+      const email       = document.getElementById('email').value.trim();
+      const message     = document.getElementById('message').value.trim();
+
+      const errEl = document.getElementById('errMsg');
+      errEl.style.display = 'none';
+
+      if (!churchName || !contactName || !email) {
+        errEl.textContent = '교회(단체)명, 담당자명, 이메일은 필수 입력 항목입니다.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailReg.test(email)) {
+        errEl.textContent = '올바른 이메일 주소를 입력해 주세요.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = '신청 중...';
+
+      try {
+        const res = await fetch(`${API}/api/applications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ churchName, deptName, contactName, phone, email, message })
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.message || '오류가 발생했습니다.');
+        }
+
+        // 성공 화면
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('successArea').style.display = 'block';
+        document.getElementById('appIdDisplay').textContent = `신청번호 #${data.id}`;
+
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '가입 신청하기';
+      }
+    }
+  </script>
+
+
+</body></html>
