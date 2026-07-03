@@ -8183,7 +8183,7 @@
             if (!phone || !password) { showNotification('전화번호와 패스워드를 입력하세요.', 'error'); return; }
             try {
                 showLoading();
-                var res = await apiCall('/api/approvals/authenticate', 'POST', { phone, password });
+                var res = await api('POST', '/api/approvals/authenticate', { phone, password });
                 if (res.success) {
                     batchApprover = res.approver;
                     document.getElementById('batchApproverName').textContent = res.approver.name;
@@ -8224,7 +8224,7 @@
 
         async function loadBatchSummary() {
             try {
-                var res = await apiCall('/api/approvals/batch/summary', 'GET');
+                var res = await api('GET', '/api/approvals/batch/summary');
                 if (res.success) {
                     var d = res.data;
                     document.getElementById('batchSummaryCount').textContent = d.count + '건';
@@ -8238,7 +8238,7 @@
         async function loadBatchPending() {
             try {
                 showLoading();
-                var res = await apiCall('/api/approvals/batch/pending', 'GET');
+                var res = await api('GET', '/api/approvals/batch/pending');
                 if (!res.success) return;
                 batchPendingData = res.data;
                 renderBatchPendingList(batchPendingData);
@@ -8301,7 +8301,7 @@
             if (!confirm(rowIndexes.length + '건을 일괄 승인하시겠습니까?')) return;
             try {
                 showLoading();
-                var res = await apiCall('/api/approvals/batch/approve', 'POST', {
+                var res = await api('POST', '/api/approvals/batch/approve', {
                     authorizerPhone: batchApprover.phone,
                     rowIndexes: rowIndexes
                 });
@@ -8336,7 +8336,7 @@
             var comment = document.getElementById('batchRejectComment').value.trim();
             try {
                 showLoading();
-                var res = await apiCall('/api/approvals/batch/reject/' + rowIndex, 'PUT', {
+                var res = await api('PUT', '/api/approvals/batch/reject/' + rowIndex, {
                     authorizerPhone: batchApprover.phone,
                     comment: comment
                 });
@@ -8380,7 +8380,7 @@
         async function loadBatchHistory() {
             try {
                 showLoading();
-                var res = await apiCall('/api/approvals/batch/history?limit=50', 'GET');
+                var res = await api('GET', '/api/approvals/batch/history?limit=50');
                 var container = document.getElementById('batchHistoryList');
                 if (!res.success || !res.data.length) {
                     container.innerHTML = '<div style="padding:30px;text-align:center;color:#94a3b8;font-size:14px;">완료된 결재가 없습니다.</div>';
