@@ -2189,6 +2189,15 @@
         return res.json();
     }
 
+    // 백엔드가 내려준 한글 메시지는 그대로 보여주고(예: "결재권한자가 없습니다" 등),
+    // fetch 자체가 실패했거나(네트워크 끊김 등) 영어 기술 메시지만 남은 경우엔
+    // 사용자에게 일반적인 안내문으로 바꿔서 보여줍니다.
+    function friendlyErrorMessage(e) {
+        const msg = (e && e.message) || '';
+        if (/[가-힣]/.test(msg)) return msg;
+        return '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+    }
+
     // =====================================================
     // 인쇄 뷰어 전역 함수 (정적 HTML 버튼의 onclick에서 호출)
     // =====================================================
@@ -8220,7 +8229,7 @@
                     showNotification(res.message || '인증 실패', 'error');
                 }
             } catch(e) {
-                showNotification('인증 중 오류가 발생했습니다.', 'error');
+                showNotification(friendlyErrorMessage(e), 'error');
             } finally {
                 hideLoading();
             }
@@ -11361,7 +11370,7 @@
                 searchApprovals();
               } else { showAlert(result.message, 'error'); }
             })
-            .catch(err => { hideLoading(); showRetryableError('인증'); console.error(err); });
+            .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); console.error(err); });
         }
 
         // 대기중인 결재 로드
