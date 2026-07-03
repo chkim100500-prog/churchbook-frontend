@@ -4494,7 +4494,7 @@
                 <div class="card">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                         <h2 style="margin:0;">⚙️ 계정과목 관리</h2>
-                        <button onclick="openOnboardWizard()" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 6px rgba(102,126,234,0.35);">🎁 템플릿으로 빠르게 시작하기</button>
+                        <button id="onboardWizardOpenBtn" onclick="openOnboardWizard()" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 6px rgba(102,126,234,0.35);">🎁 템플릿으로 빠르게 시작하기</button>
                     </div>
                     <p style="color:#666;font-size:13px;margin-bottom:15px;margin-top:6px;">수입/지출 항목을 추가·삭제할 수 있습니다.</p>
 
@@ -12781,6 +12781,7 @@
                   // 지출 항목 렌더링 (부서별 접기/펼치기)
                   renderExpenseDepts(d.expenseItemsByDept || {}, d.inactiveExpenseItemsByDept || {});
 
+                  updateOnboardButtonState();
                   maybeAutoShowOnboardWizard();
               })
               .catch(function(err) { hideLoading(); showAlert('오류: ' + err.message, 'error'); });
@@ -13290,6 +13291,10 @@
       // 온보딩 템플릿 마법사
       // =============================================
       function openOnboardWizard() {
+          if (!isOnboardEligible()) {
+              showAlert('이미 계정과목이 등록된 계정입니다.\n템플릿 불러오기는 신규 계정 전용 기능이라 사용할 수 없습니다.\n\n항목 추가·삭제는 아래 "계정과목 관리"에서 직접 하실 수 있습니다.', 'error');
+              return;
+          }
           _onboardSelectedTpl = null;
           document.getElementById('onboardWizardModal').style.display = 'flex';
           document.getElementById('onboardStep1').style.display = 'block';
@@ -13453,15 +13458,46 @@
           }
       }
       // 계정과목이 완전히 비어있는 최초 상태면 자동으로 마법사 표시 (세션당 1회)
+      // 계정과목(수입/지출)이 하나도 등록되어 있지 않으면 '신규 계정'으로 간주
+      // (비활성화된 과거 항목도 있으면 신규로 보지 않음 - 운영 이력이 있다는 뜻이므로)
+      function isOnboardEligible() {
+          var d = _settingsData || {};
+          var hasIncome = (d.incomeItems && d.incomeItems.length) || (d.inactiveIncomeItems && d.inactiveIncomeItems.length);
+          var hasExpense = false;
+          ['expenseItemsByDept', 'inactiveExpenseItemsByDept'].forEach(function(key) {
+              var byDept = d[key] || {};
+              Object.keys(byDept).forEach(function(dept) {
+                  if (byDept[dept] && byDept[dept].length) hasExpense = true;
+              });
+          });
+          return !hasIncome && !hasExpense;
+      }
+
+      // 설정 탭의 '템플릿으로 빠르게 시작하기' 버튼 활성/비활성 표시 갱신
+      function updateOnboardButtonState() {
+          var btn = document.getElementById('onboardWizardOpenBtn');
+          if (!btn) return;
+          if (isOnboardEligible()) {
+              btn.disabled = false;
+              btn.style.opacity = '1';
+              btn.style.cursor = 'pointer';
+              btn.title = '';
+              btn.textContent = '🎁 템플릿으로 빠르게 시작하기';
+          } else {
+              btn.disabled = true;
+              btn.style.opacity = '0.45';
+              btn.style.cursor = 'not-allowed';
+              btn.title = '이미 계정과목이 등록된 계정입니다. 템플릿 불러오기는 신규 계정 전용 기능이라 사용할 수 없습니다.';
+              btn.textContent = '🎁 템플릿 불러오기 (신규 계정 전용)';
+          }
+      }
+
       function maybeAutoShowOnboardWizard() {
           try {
               if (localStorage.getItem('onboard_tpl_applied')) return;
               if (sessionStorage.getItem('onboard_wizard_shown')) return;
           } catch(e) {}
-          var d = _settingsData || {};
-          var noIncome = !(d.incomeItems && d.incomeItems.length);
-          var noExpense = !(d.expenseItemsByDept && Object.keys(d.expenseItemsByDept).length);
-          if (noIncome && noExpense) {
+          if (isOnboardEligible()) {
               try { sessionStorage.setItem('onboard_wizard_shown', '1'); } catch(e) {}
               openOnboardWizard();
           }
