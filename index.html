@@ -3865,20 +3865,29 @@
 
                 <!-- 요약 카드 -->
                 <div id="batchSummaryCards" style="display:none;margin-bottom:16px;">
-                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+                  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px;margin-bottom:10px;text-align:center;">
+                    <div style="font-size:12px;color:#1d4ed8;font-weight:600;margin-bottom:4px;" id="batchMyOrderLabel">내 미결재</div>
+                    <div style="font-size:32px;font-weight:800;color:#1d4ed8;" id="batchMyPendingCount">-</div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:6px;" id="batchOrderBreakdown">전체 결재대기: -건</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
                     <div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
-                      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">미결재 건수</div>
-                      <div style="font-size:24px;font-weight:700;color:#e67e22;" id="batchSummaryCount">-</div>
-                    </div>
-                    <div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
-                      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">미결재 총액</div>
+                      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">내 미결재 총액</div>
                       <div style="font-size:18px;font-weight:700;color:#dc2626;" id="batchSummaryAmount">-</div>
                     </div>
                     <div style="background:#fff;border-radius:10px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;">
-                      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">고액(50만↑)</div>
+                      <div style="font-size:11px;color:#6b7280;margin-bottom:4px;">내 고액(50만↑)</div>
                       <div style="font-size:24px;font-weight:700;color:#b91c1c;" id="batchSummaryHigh">-</div>
                     </div>
                   </div>
+                </div>
+
+                <!-- 필터: 내 결재 대기 / 전체 보기 -->
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                  <button id="batchFilterMine" onclick="setBatchViewMode('mine')"
+                    style="flex:1;padding:9px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">🙋 내 결재 대기</button>
+                  <button id="batchFilterAll" onclick="setBatchViewMode('all')"
+                    style="flex:1;padding:9px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;">📋 전체 보기</button>
                 </div>
 
                 <!-- 서브탭: 미결재 / 완료내역 -->
@@ -8163,8 +8172,9 @@
         // =============================================
 
         let batchApprover = null; // 현재 인증된 결재권한자
-        let batchPendingData = []; // 미결재 목록 캐시
+        let batchPendingData = []; // 미결재 목록 캐시 (전체, 모든 차수 포함)
         let batchCurrentSubTab = 'pending';
+        let batchViewMode = 'mine'; // 'mine' = 내 결재 대기만, 'all' = 전체 결재대기
 
         // 전화번호 자동 포맷
         document.addEventListener('DOMContentLoaded', function() {
@@ -8207,6 +8217,7 @@
         function batchLogout() {
             batchApprover = null;
             batchPendingData = [];
+            batchViewMode = 'mine';
             document.getElementById('batchAuthForm').style.display = 'block';
             document.getElementById('batchAuthLoggedIn').style.display = 'none';
             document.getElementById('batchSummaryCards').style.display = 'none';
@@ -8229,12 +8240,49 @@
                 var res = await api('GET', '/api/approvals/batch/summary');
                 if (res.success) {
                     var d = res.data;
-                    document.getElementById('batchSummaryCount').textContent = d.count + '건';
-                    document.getElementById('batchSummaryAmount').textContent = Number(d.totalAmount).toLocaleString('ko-KR') + '원';
-                    document.getElementById('batchSummaryHigh').textContent = d.highAmountCount + '건';
+                    var myOrder = batchApprover ? batchApprover.order : null;
+                    var byOrder = d.byOrder || [];
+                    var mine = byOrder.find(function(o) { return o.order === myOrder; });
+
+                    document.getElementById('batchMyOrderLabel').textContent =
+                        myOrder ? ('내 미결재 (' + myOrder + '차)') : '내 미결재';
+                    document.getElementById('batchMyPendingCount').textContent =
+                        (mine ? mine.count : d.count) + '건';
+
+                    var breakdown = byOrder.map(function(o) {
+                        return o.order + '차 ' + o.count + '건';
+                    }).join(' · ');
+                    document.getElementById('batchOrderBreakdown').textContent =
+                        '전체 결재대기: ' + d.count + '건' + (breakdown ? ' (' + breakdown + ', 건별 중복 포함)' : '');
+
+                    document.getElementById('batchSummaryAmount').textContent =
+                        Number(mine ? mine.totalAmount : d.totalAmount).toLocaleString('ko-KR') + '원';
+                    document.getElementById('batchSummaryHigh').textContent =
+                        (mine ? mine.highAmountCount : d.highAmountCount) + '건';
+
                     document.getElementById('batchSummaryCards').style.display = 'block';
                 }
             } catch(e) {}
+        }
+
+        // 현재 뷰 모드에 맞게 미결재 목록을 필터링
+        function getFilteredBatchPendingData() {
+            if (batchViewMode === 'all' || !batchApprover) return batchPendingData;
+            return batchPendingData.filter(function(t) {
+                return !(t.completedOrders || []).includes(batchApprover.order);
+            });
+        }
+
+        // '내 결재 대기' / '전체 보기' 전환
+        function setBatchViewMode(mode) {
+            batchViewMode = mode;
+            var mineBtn = document.getElementById('batchFilterMine');
+            var allBtn = document.getElementById('batchFilterAll');
+            mineBtn.style.background = mode === 'mine' ? '#2563eb' : '#f1f5f9';
+            mineBtn.style.color = mode === 'mine' ? '#fff' : '#64748b';
+            allBtn.style.background = mode === 'all' ? '#2563eb' : '#f1f5f9';
+            allBtn.style.color = mode === 'all' ? '#fff' : '#64748b';
+            renderBatchPendingList(getFilteredBatchPendingData());
         }
 
         async function loadBatchPending() {
@@ -8243,7 +8291,7 @@
                 var res = await api('GET', '/api/approvals/batch/pending');
                 if (!res.success) return;
                 batchPendingData = res.data;
-                renderBatchPendingList(batchPendingData);
+                renderBatchPendingList(getFilteredBatchPendingData());
             } catch(e) {
                 showNotification('미결재 목록 로드 실패', 'error');
             } finally {
@@ -8257,6 +8305,9 @@
             var listEl = document.getElementById('batchPendingList');
 
             if (!items || items.length === 0) {
+                emptyEl.textContent = batchViewMode === 'mine'
+                    ? '✅ 내가 결재할 항목이 없습니다'
+                    : '✅ 미결재 거래가 없습니다';
                 emptyEl.style.display = 'block';
                 listEl.style.display = 'none';
                 return;
