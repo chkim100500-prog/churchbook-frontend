@@ -228,12 +228,15 @@
         <div class="step" id="provisionStep"></div>
       </div>
       <div class="form-row">
-        <input type="text" id="newChurchName" placeholder="상위 교회명 (예: 강남교회)">
-        <input type="text" id="newName" placeholder="부서명 (예: 유아부)">
+        <input type="text" id="newChurchName" placeholder="상위 교회명 (예: 강남교회)" autocomplete="off">
+        <input type="text" id="newName" placeholder="부서명 (예: 유아부)" autocomplete="off">
       </div>
       <div class="form-row">
-        <input type="text" id="newUsername" placeholder="아이디 (예: gangnaminf)">
-        <input type="password" id="newPassword" placeholder="앱 로그인 비밀번호">
+        <input type="text" id="newUsername" placeholder="아이디 (예: gangnaminf)" autocomplete="off">
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="newPassword" placeholder="앱 로그인 비밀번호" autocomplete="off" style="flex:1;">
+          <button type="button" class="btn" style="white-space:nowrap;padding:0 12px;" onclick="regenerateCredentials()" title="아이디/비밀번호 새로 생성">🔄 다시 생성</button>
+        </div>
       </div>
       <div class="form-row">
         <input type="email" id="newEmail" placeholder="담당자 이메일 (아이디/비번 찾기용)">
@@ -378,7 +381,7 @@
   setInterval(updateTime, 1000);
   updateTime();
 
-  if (adminToken) { showMain(); loadChurches(); }
+  if (adminToken) { showMain(); loadChurches(); regenerateCredentials(); }
 
   async function adminLogin() {
     const password = document.getElementById('adminPassword').value;
@@ -392,7 +395,7 @@
       if (data.success) {
         adminToken = data.token;
         sessionStorage.setItem('admin_token', adminToken);
-        showMain(); loadChurches();
+        showMain(); loadChurches(); regenerateCredentials();
       } else {
         showAlert('loginAlert', data.message, 'error');
       }
@@ -633,6 +636,19 @@
     loadChurches();
   }
 
+  async function regenerateCredentials() {
+    try {
+      const res = await fetch(`${API}/api/admin/churches/generate-credentials`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('newUsername').value = data.username;
+        document.getElementById('newPassword').value = data.password;
+      }
+    } catch (e) { /* 자동채움 실패해도 수동 입력은 가능하므로 조용히 무시 */ }
+  }
+
   async function provisionChurch() {
     const churchName = document.getElementById('newChurchName').value.trim();
     const name = document.getElementById('newName').value.trim();
@@ -674,7 +690,8 @@
       const data = await res.json();
       if (data.success) {
         showAlert('addAlert', `✅ ${data.message}<br>📊 <a href="${data.spreadsheet_url}" target="_blank">Sheets 바로가기</a>`, 'success');
-        ['newChurchName','newName','newUsername','newPassword','newEmail'].forEach(id => document.getElementById(id).value = '');
+        ['newChurchName','newName','newEmail'].forEach(id => document.getElementById(id).value = '');
+        regenerateCredentials(); // 다음 등록을 위해 아이디/비밀번호 새로 생성
         loadChurches();
       } else {
         showAlert('addAlert', '❌ ' + data.message, 'error');
