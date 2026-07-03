@@ -12781,8 +12781,9 @@
                   // 지출 항목 렌더링 (부서별 접기/펼치기)
                   renderExpenseDepts(d.expenseItemsByDept || {}, d.inactiveExpenseItemsByDept || {});
 
-                  updateOnboardButtonState();
-                  maybeAutoShowOnboardWizard();
+                  refreshOnboardEligibility().then(function() {
+                      maybeAutoShowOnboardWizard();
+                  });
               })
               .catch(function(err) { hideLoading(); showAlert('오류: ' + err.message, 'error'); });
       }
@@ -13458,19 +13459,25 @@
           }
       }
       // 계정과목이 완전히 비어있는 최초 상태면 자동으로 마법사 표시 (세션당 1회)
-      // 계정과목(수입/지출)이 하나도 등록되어 있지 않으면 '신규 계정'으로 간주
-      // (비활성화된 과거 항목도 있으면 신규로 보지 않음 - 운영 이력이 있다는 뜻이므로)
+      // 실제 회계 거래가 하나라도 등록되어 있으면 '운영 중'으로 간주 (캐시)
+      // 주의: 계정과목(수입/지출 항목) 존재 여부로 판단하면 안 됨 - 템플릿을 적용하는
+      // 순간 계정과목이 생겨버려서 스스로 잠기는 모순이 생김. 반드시 '거래 내역' 기준으로 판단.
+      var _onboardHasRealTransactions = false;
+
+      async function refreshOnboardEligibility() {
+          try {
+              var res = await api('GET', '/api/transactions');
+              var rows = (res && res.data) || [];
+              _onboardHasRealTransactions = rows.length > 0;
+          } catch (e) {
+              // 조회 실패 시에는 안전하게 '운영 중'으로 간주 (신규 여부가 불확실하면 막는 쪽이 안전)
+              _onboardHasRealTransactions = true;
+          }
+          updateOnboardButtonState();
+      }
+
       function isOnboardEligible() {
-          var d = _settingsData || {};
-          var hasIncome = (d.incomeItems && d.incomeItems.length) || (d.inactiveIncomeItems && d.inactiveIncomeItems.length);
-          var hasExpense = false;
-          ['expenseItemsByDept', 'inactiveExpenseItemsByDept'].forEach(function(key) {
-              var byDept = d[key] || {};
-              Object.keys(byDept).forEach(function(dept) {
-                  if (byDept[dept] && byDept[dept].length) hasExpense = true;
-              });
-          });
-          return !hasIncome && !hasExpense;
+          return !_onboardHasRealTransactions;
       }
 
       // 설정 탭의 '템플릿으로 빠르게 시작하기' 버튼 활성/비활성 표시 갱신
@@ -13487,7 +13494,7 @@
               btn.disabled = true;
               btn.style.opacity = '0.45';
               btn.style.cursor = 'not-allowed';
-              btn.title = '이미 계정과목이 등록된 계정입니다. 템플릿 불러오기는 신규 계정 전용 기능이라 사용할 수 없습니다.';
+              btn.title = '이미 회계 거래 내역이 있는 계정입니다. 템플릿 불러오기는 신규 계정 전용 기능이라 사용할 수 없습니다.';
               btn.textContent = '🎁 템플릿 불러오기 (신규 계정 전용)';
           }
       }
