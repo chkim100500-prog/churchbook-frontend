@@ -2481,7 +2481,7 @@
                 </div>
             </div>
         </div>
-        <div id="cbPrintViewerBody" style="padding:16px;"></div>
+        <div id="cbPrintViewerBody" style="padding:16px;max-width:900px;margin:0 auto;box-sizing:border-box;"></div>
     </div>
     <style>
         @media print {
@@ -2489,7 +2489,7 @@
             #cbPrintViewerBar { display:none !important; }
             body > *:not(#cbPrintViewer) { display:none !important; }
             #cbPrintViewer { position:static !important; overflow:visible !important; height:auto !important; display:block !important; }
-            #cbPrintViewerBody { padding: 0 !important; }
+            #cbPrintViewerBody { padding: 0 !important; max-width: none !important; margin: 0 !important; }
             .no-print { display:none !important; }
             /* 빈 페이지 방지 */
             html, body { height:auto !important; min-height:0 !important; margin:0 !important; padding:0 !important; }
