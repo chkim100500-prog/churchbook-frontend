@@ -219,8 +219,34 @@
       </div>
     </div>
 
-    <!-- 새 교회 추가 -->
+    <!-- 가입 신청 목록 -->
     <div class="card">
+      <h2>📥 가입 신청 목록 <span style="font-size:13px;color:#999;font-weight:400;">— app.withlab.org/apply 로 들어온 신청</span></h2>
+      <div id="applicationsAlert"></div>
+      <div id="applicationsListWrap" style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:2px solid #eee;text-align:left;">
+              <th style="padding:8px 6px;">신청일</th>
+              <th style="padding:8px 6px;">교회(단체)명</th>
+              <th style="padding:8px 6px;">부서명</th>
+              <th style="padding:8px 6px;">담당자</th>
+              <th style="padding:8px 6px;">연락처</th>
+              <th style="padding:8px 6px;">이메일</th>
+              <th style="padding:8px 6px;">문의사항</th>
+              <th style="padding:8px 6px;">상태</th>
+              <th style="padding:8px 6px;">관리</th>
+            </tr>
+          </thead>
+          <tbody id="applicationsBody">
+            <tr><td colspan="9" style="padding:20px;text-align:center;color:#999;">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 새 교회 추가 -->
+    <div class="card" id="provisionSection">
       <h2>🚀 새 교회/부서 추가 <span style="font-size:13px;color:#34a853;font-weight:400;">— Sheets 자동 생성</span></h2>
       <div id="addAlert"></div>
       <div class="progress-box" id="provisionProgress">
@@ -239,7 +265,7 @@
         </div>
       </div>
       <div class="form-row">
-        <input type="email" id="newEmail" placeholder="담당자 이메일 (아이디/비번 찾기용)">
+        <input type="email" id="newEmail" placeholder="담당자 이메일 (아이디/비번 찾기용)" autocomplete="off">
         <select id="newPlan">
           <option value="free">무료 (free)</option>
           <option value="basic">기본 (basic)</option>
@@ -381,7 +407,7 @@
   setInterval(updateTime, 1000);
   updateTime();
 
-  if (adminToken) { showMain(); loadChurches(); regenerateCredentials(); }
+  if (adminToken) { showMain(); loadChurches(); loadApplications(); regenerateCredentials(); }
 
   async function adminLogin() {
     const password = document.getElementById('adminPassword').value;
@@ -395,7 +421,7 @@
       if (data.success) {
         adminToken = data.token;
         sessionStorage.setItem('admin_token', adminToken);
-        showMain(); loadChurches(); regenerateCredentials();
+        showMain(); loadChurches(); loadApplications(); regenerateCredentials();
       } else {
         showAlert('loginAlert', data.message, 'error');
       }
@@ -636,6 +662,82 @@
     loadChurches();
   }
 
+  let _applicationsCache = [];
+
+  async function loadApplications() {
+    try {
+      const res = await fetch(`${API}/api/admin/applications`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+      _applicationsCache = data.applications || [];
+      renderApplications();
+    } catch (e) {
+      document.getElementById('applicationsBody').innerHTML =
+        '<tr><td colspan="9" style="padding:20px;text-align:center;color:#e74c3c;">신청 목록을 불러오지 못했습니다.</td></tr>';
+    }
+  }
+
+  function renderApplications() {
+    const tbody = document.getElementById('applicationsBody');
+    if (_applicationsCache.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:#999;">가입 신청이 없습니다.</td></tr>';
+      return;
+    }
+    const statusLabel = { pending: ['대기', '#ff9800'], approved: ['개통완료', '#34a853'] };
+    tbody.innerHTML = _applicationsCache.map(a => {
+      const [label, color] = statusLabel[a.status] || [a.status || '-', '#999'];
+      const dateStr = a.created_at ? new Date(a.created_at).toLocaleDateString('ko-KR') : '-';
+      return `
+        <tr style="border-bottom:1px solid #f0f0f0;">
+          <td style="padding:8px 6px;white-space:nowrap;">${dateStr}</td>
+          <td style="padding:8px 6px;">${a.church_name || '-'}</td>
+          <td style="padding:8px 6px;">${a.dept_name || '-'}</td>
+          <td style="padding:8px 6px;">${a.contact_name || '-'}</td>
+          <td style="padding:8px 6px;white-space:nowrap;">${a.phone || '-'}</td>
+          <td style="padding:8px 6px;">${a.email || '-'}</td>
+          <td style="padding:8px 6px;max-width:180px;color:#666;">${a.message || ''}</td>
+          <td style="padding:8px 6px;white-space:nowrap;"><span style="background:${color}22;color:${color};padding:2px 8px;border-radius:10px;font-size:12px;">${label}</span></td>
+          <td style="padding:8px 6px;white-space:nowrap;">
+            <button class="btn btn-info btn-sm" onclick="fillFromApplication(${a.id})">📋 정보 채우기</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteApplication(${a.id})">삭제</button>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function fillFromApplication(id) {
+    const a = _applicationsCache.find(x => x.id === id);
+    if (!a) return;
+    document.getElementById('newChurchName').value = a.church_name || '';
+    // 부서명이 비어있으면 교회명으로 대체 (독립 단체 신청 대응 - 백엔드 승인 로직과 동일한 규칙)
+    document.getElementById('newName').value = (a.dept_name && a.dept_name.trim()) ? a.dept_name : (a.church_name || '');
+    document.getElementById('newEmail').value = a.email || '';
+    regenerateCredentials();
+    document.getElementById('provisionSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showAlert('addAlert', `📋 "${a.church_name || ''}" 신청 정보를 불러왔습니다. 아이디/비밀번호와 플랜을 확인한 뒤 등록해 주세요.`, 'success');
+  }
+
+  async function deleteApplication(id) {
+    if (!confirm('이 신청 내역을 삭제하시겠습니까? (신청서 자체가 삭제되며 되돌릴 수 없습니다)')) return;
+    try {
+      const res = await fetch(`${API}/api/admin/applications/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert('applicationsAlert', '✅ 삭제되었습니다.', 'success');
+        loadApplications();
+      } else {
+        showAlert('applicationsAlert', '❌ ' + data.message, 'error');
+      }
+    } catch (e) {
+      showAlert('applicationsAlert', '❌ 삭제 중 오류: ' + e.message, 'error');
+    }
+  }
+
   async function regenerateCredentials() {
     try {
       const res = await fetch(`${API}/api/admin/churches/generate-credentials`, {
@@ -693,6 +795,7 @@
         ['newChurchName','newName','newEmail'].forEach(id => document.getElementById(id).value = '');
         regenerateCredentials(); // 다음 등록을 위해 아이디/비밀번호 새로 생성
         loadChurches();
+        loadApplications();
       } else {
         showAlert('addAlert', '❌ ' + data.message, 'error');
       }
