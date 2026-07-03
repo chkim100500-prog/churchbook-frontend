@@ -14114,6 +14114,9 @@
                               '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f5f5f5;"><th style="padding:4px 8px;border:1px solid #ddd;text-align:left;font-size:11px;">결재자</th><th style="padding:4px 8px;border:1px solid #ddd;text-align:left;font-size:11px;">승인일시</th><th style="padding:4px 8px;border:1px solid #ddd;text-align:left;font-size:11px;">의견</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
                       }
                   } catch (e) { /* 결재정보 없음 */ }
+              } else {
+                  // 사전결재(AR번호) 아닌 일반 지출 = 사후결재 대상 → 결재대기/결재완료/반려 상태 표시
+                  approvalBlock = buildPostHocApprovalBlock(t);
               }
           }
 
@@ -14191,6 +14194,36 @@
               '</div>' + noteHtml + pageHtml + '</body></html>';
       }
 
+            // 사후결재(일반 지출) 상태를 전표에 표시하는 공통 블록
+            // t.approvalBadge: '결재대기' | '결재완료' | '반려' | null
+            // t.approvalStatus: 원본 문자열 (예: "결재완료 2026-07-03 10:00 (김철수 부장)")
+            function buildPostHocApprovalBlock(t) {
+                const badge = t.approvalBadge;
+                if (!badge) return '';
+                if (badge === '결재대기') {
+                    return `
+                        <div style="margin-top:20px;border:2px solid #d4a017;border-radius:6px;padding:14px;background:#fffbea;position:relative;">
+                            <div style="position:absolute;top:-12px;left:16px;background:#d4a017;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">⏳ 결재대기</div>
+                            <div style="font-size:12px;color:#8a6d00;">아직 결재권자의 승인 전입니다. (사후결재 대상 — 일괄결재에서 처리)</div>
+                        </div>`;
+                }
+                if (badge === '결재완료') {
+                    return `
+                        <div style="margin-top:20px;border:2px solid #2e7d32;border-radius:6px;padding:14px;background:#f3fbf3;position:relative;">
+                            <div style="position:absolute;top:-12px;left:16px;background:#2e7d32;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">✅ 결재완료</div>
+                            <div style="font-size:12px;color:#2e7d32;">${(t.approvalStatus || '').replace(/</g,'&lt;')}</div>
+                        </div>`;
+                }
+                if (badge === '반려') {
+                    return `
+                        <div style="margin-top:20px;border:2px solid #c62828;border-radius:6px;padding:14px;background:#fff5f5;position:relative;">
+                            <div style="position:absolute;top:-12px;left:16px;background:#c62828;color:white;font-size:11px;font-weight:bold;padding:2px 12px;border-radius:10px;">🔴 반려</div>
+                            <div style="font-size:12px;color:#c62828;">${(t.approvalStatus || '').replace(/</g,'&lt;')}</div>
+                        </div>`;
+                }
+                return '';
+            }
+
             async function printExpenseVoucher(transactionData) {
           const authorities = await getVoucherAuthorities();
           const signatureRows = buildVoucherSignatureTableRows(authorities);
@@ -14254,6 +14287,9 @@
                           </div>`;
                   }
               } catch(e) { console.warn('전자결재 정보 조회 실패:', e); }
+          } else {
+              // 사전결재(AR번호) 아닌 일반 지출 = 사후결재 대상 → 결재대기/결재완료/반려 상태 표시
+              eApprovalBlock = buildPostHocApprovalBlock(transactionData);
           }
 
           const voucherHTML = `
