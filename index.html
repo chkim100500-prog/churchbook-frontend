@@ -3889,19 +3889,13 @@
                   </div>
                 </div>
 
-                <!-- 필터: 내 결재 대기 / 전체 보기 -->
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
-                  <button id="batchFilterMine" onclick="setBatchViewMode('mine')"
-                    style="flex:1;padding:9px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">🙋 내 결재 대기</button>
-                  <button id="batchFilterAll" onclick="setBatchViewMode('all')"
-                    style="flex:1;padding:9px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;">📋 전체 보기</button>
-                </div>
-
-                <!-- 서브탭: 미결재 / 완료내역 -->
+                <!-- 보기 선택: 내 결재 대기 / 미결재 전체 / 완료내역 (항상 하나만 활성) -->
                 <div style="display:flex;gap:8px;margin-bottom:12px;">
-                  <button id="batchSubTabPending" onclick="showBatchSubTab('pending')"
-                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">⏳ 미결재</button>
-                  <button id="batchSubTabHistory" onclick="showBatchSubTab('history')"
+                  <button id="batchViewBtnMine" onclick="setBatchView('mine')"
+                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">🙋 내 결재 대기</button>
+                  <button id="batchViewBtnAll" onclick="setBatchView('all')"
+                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">⏳ 미결재 전체</button>
+                  <button id="batchViewBtnHistory" onclick="setBatchView('history')"
                     style="flex:1;padding:10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">✅ 완료내역</button>
                 </div>
 
@@ -8224,7 +8218,8 @@
                     document.getElementById('batchAuthForm').style.display = 'none';
                     document.getElementById('batchAuthLoggedIn').style.display = 'block';
                     await loadBatchSummary();
-                    await loadBatchPending();
+                    if (batchCurrentSubTab === 'history') await loadBatchHistory();
+                    else await loadBatchPending();
                 } else {
                     showNotification(res.message || '인증 실패', 'error');
                 }
@@ -8238,20 +8233,17 @@
         function batchLogout() {
             batchApprover = null;
             batchPendingData = [];
-            batchViewMode = 'mine';
             document.getElementById('batchAuthForm').style.display = 'block';
             document.getElementById('batchAuthLoggedIn').style.display = 'none';
             document.getElementById('batchSummaryCards').style.display = 'none';
             document.getElementById('batchAuthPhone').value = '';
             document.getElementById('batchAuthPassword').value = '';
-            document.getElementById('batchPendingItems').innerHTML = '';
-            document.getElementById('batchPendingEmpty').style.display = 'none';
-            document.getElementById('batchPendingList').style.display = 'none';
+            setBatchView('mine');
         }
 
         async function loadBatchApprovalTab() {
-            if (!batchApprover) return; // 미인증 상태면 아무것도 안 함
-            await loadBatchSummary();
+            // 목록 조회는 인증 없이도 가능 (승인/반려만 결재권한자 인증 필요)
+            if (batchApprover) await loadBatchSummary();
             if (batchCurrentSubTab === 'pending') await loadBatchPending();
             else await loadBatchHistory();
         }
@@ -8294,16 +8286,33 @@
             });
         }
 
-        // '내 결재 대기' / '전체 보기' 전환
-        function setBatchViewMode(mode) {
-            batchViewMode = mode;
-            var mineBtn = document.getElementById('batchFilterMine');
-            var allBtn = document.getElementById('batchFilterAll');
-            mineBtn.style.background = mode === 'mine' ? '#2563eb' : '#f1f5f9';
-            mineBtn.style.color = mode === 'mine' ? '#fff' : '#64748b';
-            allBtn.style.background = mode === 'all' ? '#2563eb' : '#f1f5f9';
-            allBtn.style.color = mode === 'all' ? '#fff' : '#64748b';
-            renderBatchPendingList(getFilteredBatchPendingData());
+        // '내 결재 대기' / '미결재 전체' / '완료내역' — 3버튼 단일 그룹 (항상 하나만 활성)
+        function setBatchView(view) {
+            batchViewMode = (view === 'all') ? 'all' : 'mine';
+            batchCurrentSubTab = (view === 'history') ? 'history' : 'pending';
+            _updateBatchViewButtons(view);
+
+            var pendingPanel = document.getElementById('batchPendingPanel');
+            var historyPanel = document.getElementById('batchHistoryPanel');
+            if (view === 'history') {
+                pendingPanel.style.display = 'none';
+                historyPanel.style.display = 'block';
+                loadBatchHistory();
+            } else {
+                historyPanel.style.display = 'none';
+                pendingPanel.style.display = 'block';
+                loadBatchPending();
+            }
+        }
+
+        function _updateBatchViewButtons(view) {
+            var btns = { mine: 'batchViewBtnMine', all: 'batchViewBtnAll', history: 'batchViewBtnHistory' };
+            Object.keys(btns).forEach(function(k) {
+                var b = document.getElementById(btns[k]);
+                if (!b) return;
+                b.style.background = (k === view) ? '#2563eb' : '#f1f5f9';
+                b.style.color = (k === view) ? '#fff' : '#64748b';
+            });
         }
 
         async function loadBatchPending() {
@@ -8314,7 +8323,7 @@
                 batchPendingData = res.data;
                 renderBatchPendingList(getFilteredBatchPendingData());
             } catch(e) {
-                showNotification('미결재 목록 로드 실패', 'error');
+                showRetryableError('미결재 목록', loadBatchPending);
             } finally {
                 hideLoading();
             }
@@ -8324,6 +8333,14 @@
             var container = document.getElementById('batchPendingItems');
             var emptyEl = document.getElementById('batchPendingEmpty');
             var listEl = document.getElementById('batchPendingList');
+
+            // 미인증 상태에서 '내 결재 대기'는 누구 것인지 알 수 없으므로 인증 안내
+            if (batchViewMode === 'mine' && !batchApprover) {
+                emptyEl.textContent = '🔐 결재권한자 인증 후 내 결재 대기를 확인할 수 있습니다. (미결재 전체 · 완료내역은 인증 없이 볼 수 있어요)';
+                emptyEl.style.display = 'block';
+                listEl.style.display = 'none';
+                return;
+            }
 
             if (!items || items.length === 0) {
                 emptyEl.textContent = batchViewMode === 'mine'
@@ -8429,33 +8446,13 @@
             }
         }
 
-        function showBatchSubTab(tab) {
-            batchCurrentSubTab = tab;
-            var pendingBtn = document.getElementById('batchSubTabPending');
-            var historyBtn = document.getElementById('batchSubTabHistory');
-            var pendingPanel = document.getElementById('batchPendingPanel');
-            var historyPanel = document.getElementById('batchHistoryPanel');
-
-            if (tab === 'pending') {
-                pendingBtn.style.background = '#2563eb'; pendingBtn.style.color = '#fff';
-                historyBtn.style.background = '#f1f5f9'; historyBtn.style.color = '#64748b';
-                pendingPanel.style.display = 'block';
-                historyPanel.style.display = 'none';
-                if (batchApprover) loadBatchPending();
-            } else {
-                historyBtn.style.background = '#2563eb'; historyBtn.style.color = '#fff';
-                pendingBtn.style.background = '#f1f5f9'; pendingBtn.style.color = '#64748b';
-                pendingPanel.style.display = 'none';
-                historyPanel.style.display = 'block';
-                if (batchApprover) loadBatchHistory();
-            }
-        }
+        // (구) showBatchSubTab — setBatchView('mine'|'all'|'history')로 통합되었습니다.
 
         async function loadBatchHistory() {
+            var container = document.getElementById('batchHistoryList');
+            container.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8;font-size:14px;">불러오는 중...</div>';
             try {
-                showLoading();
                 var res = await api('GET', '/api/approvals/batch/history?limit=50');
-                var container = document.getElementById('batchHistoryList');
                 if (!res.success || !res.data.length) {
                     container.innerHTML = '<div style="padding:30px;text-align:center;color:#94a3b8;font-size:14px;">완료된 결재가 없습니다.</div>';
                     return;
@@ -8471,9 +8468,7 @@
                     '</div>';
                 }).join('');
             } catch(e) {
-                showNotification('완료 내역 로드 실패', 'error');
-            } finally {
-                hideLoading();
+                container.innerHTML = '<div style="padding:30px;text-align:center;color:#94a3b8;font-size:14px;">일시적인 오류가 발생했습니다.<br><button onclick="loadBatchHistory()" style="margin-top:10px;background:#fff;color:#c0392b;border:1px solid #c0392b;border-radius:6px;padding:5px 14px;font-size:13px;cursor:pointer;">🔄 다시 시도</button></div>';
             }
         }
 
