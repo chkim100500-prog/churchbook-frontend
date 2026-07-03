@@ -4409,7 +4409,7 @@
                     </button>
                     <button id="stab-audit" onclick="showSettingsTab('audit')" class="settings-subtab">
                       <span class="stab-icon">📋</span>
-                      <span class="stab-label">수정이력</span>
+                      <span class="stab-label">로그기록</span>
                     </button>
 
                   </div>
@@ -4966,8 +4966,8 @@
                 <!-- 서브탭: 수정 이력 -->
                 <div id="stab-content-audit" style="display:none;">
                   <div class="card">
-                    <h2>📋 수정 이력</h2>
-                    <p style="color:#666;font-size:13px;margin-bottom:10px;">거래 등록·수정·삭제 이력을 조회합니다. (거래 등록은 되돌릴 필요가 없는 동작이라 이 화면에는 표시하지 않으며, 수정·삭제 이력만 보여드립니다.)</p>
+                    <h2>📋 로그기록</h2>
+                    <p style="color:#666;font-size:13px;margin-bottom:10px;">거래·계정과목·소조직 등 주요 변경 이력을 조회합니다. (신규 등록은 대부분 되돌릴 필요가 적어 기본적으로는 표시하지 않으며, 수정·삭제·비활성화·템플릿적용·복원처럼 되돌리고 싶어질 수 있는 동작 위주로 보여드립니다. 등록 이력이 필요하면 아래 "전체 동작" 필터에서 "등록"을 선택하세요.)</p>
                     <div style="background:#eef6ff;border:1px solid #cfe2ff;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#1a4a7a;line-height:1.6;margin-bottom:16px;">
                       📌 <strong>이력 보관 정책</strong><br>
                       · <strong>최근 5년</strong>: "언제·누가·무엇을 했는지" 요약 + 상세 데이터(복구 가능)까지 전부 보관됩니다.<br>
@@ -4978,11 +4978,21 @@
 
                     <!-- 필터 -->
                     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+                      <select id="audit-filter-target" onchange="loadAuditLogs()"
+                        style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체 대상</option>
+                        <option value="transaction">거래</option>
+                        <option value="master">계정과목/소조직</option>
+                      </select>
                       <select id="audit-filter-action" onchange="loadAuditLogs()"
                         style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                         <option value="">전체 동작</option>
+                        <option value="create">등록</option>
                         <option value="update">수정</option>
                         <option value="delete">삭제</option>
+                        <option value="deactivate">비활성화</option>
+                        <option value="template">템플릿적용</option>
+                        <option value="restore">복원</option>
                         <option value="import">일괄가져오기</option>
                       </select>
                       <input type="date" id="audit-filter-from" onchange="loadAuditLogs()"
@@ -7598,6 +7608,7 @@
         let _auditPage = 1;
 
         function resetAuditFilters() {
+            document.getElementById('audit-filter-target').value = '';
             document.getElementById('audit-filter-action').value = '';
             document.getElementById('audit-filter-from').value = '';
             document.getElementById('audit-filter-to').value = '';
@@ -7670,6 +7681,7 @@
 
         async function loadAuditLogs(page) {
             _auditPage = page || 1;
+            const target  = document.getElementById('audit-filter-target').value;
             const action  = document.getElementById('audit-filter-action').value;
             const dateFrom = document.getElementById('audit-filter-from').value;
             const dateTo   = document.getElementById('audit-filter-to').value;
@@ -7680,6 +7692,7 @@
 
             try {
                 const params = new URLSearchParams({ page: _auditPage, limit: 50 });
+                if (target)   params.append('target', target);
                 if (action)   params.append('action', action);
                 if (dateFrom) params.append('dateFrom', dateFrom);
                 if (dateTo)   params.append('dateTo', dateTo);
@@ -7696,7 +7709,7 @@
                     return;
                 }
 
-                const ACTION_COLOR = { create:'#34a853', update:'#1a73e8', delete:'#ea4335', import:'#ff9800' };
+                const ACTION_COLOR = { create:'#34a853', update:'#1a73e8', delete:'#ea4335', deactivate:'#f5a623', template:'#9c27b0', restore:'#00897b', import:'#ff9800' };
                 tbody.innerHTML = logs.map(log => {
                     const dt = new Date(log.created_at);
                     const dtStr = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
@@ -7711,7 +7724,7 @@
                         <td style="padding:9px 8px;font-size:13px;color:#333;">${log.summary || '-'}</td>
                         <td style="padding:9px 8px;text-align:center;">
                             ${hasDiff ? `<button onclick="showAuditDetail(${log.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#555;">비교</button>` : '-'}
-                            ${(log.action === 'delete' && log.before_data) ? `<button onclick="restoreDeletedTransaction(${log.id})" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#2e7d32;margin-left:4px;">↩️ 복구</button>` : ''}
+                            ${(log.action === 'delete' && log.before_data && log.target === 'transaction') ? `<button onclick="restoreDeletedTransaction(${log.id})" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#2e7d32;margin-left:4px;">↩️ 복구</button>` : ''}
                         </td>
                     </tr>`;
                 }).join('');
