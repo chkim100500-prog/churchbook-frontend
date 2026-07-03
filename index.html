@@ -9114,6 +9114,13 @@
                 if (_printedAt) {
                     _badges += `<div style="font-size:10px;color:#6a1b9a;margin-top:2px;white-space:nowrap;" title="출력일시: ${_printedAt}">🖨️ 출력됨</div>`;
                 }
+                if (row.approvalBadge === '결재대기') {
+                    _badges += `<div style="font-size:10px;color:#b8860b;margin-top:2px;white-space:nowrap;" title="아직 결재권자의 승인 전입니다">🟡 결재대기</div>`;
+                } else if (row.approvalBadge === '결재완료') {
+                    _badges += `<div style="font-size:10px;color:#2e7d32;margin-top:2px;white-space:nowrap;" title="${escapeHtml(row.approvalStatus || '')}">🟢 결재완료</div>`;
+                } else if (row.approvalBadge === '반려') {
+                    _badges += `<div style="font-size:10px;color:#c62828;margin-top:2px;white-space:nowrap;" title="${escapeHtml(row.approvalStatus || '')}">🔴 반려</div>`;
+                }
                 const _printBadge = _badges;
                 tr.innerHTML = `
                     <td>${row.date}${_printBadge}</td>
