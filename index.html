@@ -4658,7 +4658,7 @@
                                 <p id="onboardPreviewDesc" style="font-size:12.5px;color:#888;margin-bottom:14px;"></p>
                                 <div id="onboardPreviewBody" style="max-height:48vh;overflow-y:auto;background:#f9f9f9;border-radius:10px;padding:14px;"></div>
                                 <div style="display:flex;gap:8px;margin-top:16px;">
-                                    <button onclick="onboardApplyTemplate()" style="flex:1;background:#27ae60;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;">✅ 이 템플릿으로 시작하기</button>
+                                    <button id="onboardApplyBtn" onclick="onboardApplyTemplate()" style="flex:1;background:#27ae60;color:#fff;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;">✅ 이 템플릿으로 시작하기</button>
                                     <button onclick="onboardBackToStep1()" style="padding:12px 16px;background:#f5f5f5;color:#666;border:none;border-radius:8px;font-size:14px;cursor:pointer;">◀ 다시 선택</button>
                                 </div>
                             </div>
@@ -13240,6 +13240,9 @@
         { id:'blank', icon:'✏️', name:'직접 입력', desc:'템플릿 없이 처음부터 항목을 직접 추가합니다', income:[], expense:[] }
       ];
       var _onboardSelectedTpl = null;
+      var _onboardAppliedTpl = null;   // 이번 세션에서 이미 적용한 템플릿 (교체 감지용)
+      var _onboardAppliedJobs = [];    // 그 템플릿으로 실제 추가된 항목 목록 (교체 시 삭제용)
+      var _onboardApplying = false;    // 중복 클릭 방지 플래그
 
       function showAddModal(type) {
           _addModalType = type;
@@ -13322,6 +13325,11 @@
           document.getElementById('onboardPreviewTitle').textContent = t.icon + ' ' + t.name;
           document.getElementById('onboardPreviewDesc').textContent = t.desc;
           var html = '';
+          if (_onboardAppliedTpl && _onboardAppliedTpl.id !== t.id) {
+              html += '<div style="background:#fff3cd;border:1px solid #ffe08a;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#8a6d00;">' +
+                '⚠️ 이미 <b>\'' + _onboardAppliedTpl.name + '\'</b> 템플릿이 적용되어 있습니다. 이 템플릿으로 시작하면 기존에 추가된 항목이 삭제되고 교체됩니다.' +
+                '</div>';
+          }
           if (t.income.length) {
               html += '<p style="font-size:12px;font-weight:700;color:#27ae60;margin-bottom:6px;">📥 수입 항목 (' + t.income.length + ')</p>';
               html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">' +
@@ -13338,7 +13346,7 @@
               });
           }
           if (!t.income.length && !t.expense.length) {
-              html = '<p style="color:#999;font-size:13px;text-align:center;padding:20px 0;">템플릿 없이 빈 상태로 시작합니다.<br>설정 탭에서 항목을 직접 추가하세요.</p>';
+              html += '<p style="color:#999;font-size:13px;text-align:center;padding:20px 0;">템플릿 없이 빈 상태로 시작합니다.<br>설정 탭에서 항목을 직접 추가하세요.</p>';
           }
           document.getElementById('onboardPreviewBody').innerHTML = html;
       }
@@ -13347,49 +13355,102 @@
           document.getElementById('onboardStep2').style.display = 'none';
       }
       function onboardApplyTemplate() {
+          if (_onboardApplying) return; // 중복 클릭 방지
           var t = _onboardSelectedTpl;
           if (!t) return;
-          if (!t.income.length && !t.expense.length) {
-              // 직접 입력: 그냥 완료 처리
+
+          // 이미 다른 템플릿을 적용한 적이 있다면, 교체 여부를 먼저 확인
+          if (_onboardAppliedTpl && _onboardAppliedTpl.id !== t.id) {
+              var ok = confirm(
+                  '이미 \'' + _onboardAppliedTpl.name + '\' 템플릿의 계정과목이 추가되어 있습니다.\n\n' +
+                  '\'' + t.name + '\' 템플릿으로 교체하면 방금 추가된 항목이 삭제되고 새 템플릿으로 다시 채워집니다.\n\n' +
+                  '계속하시겠습니까?'
+              );
+              if (!ok) return;
+          }
+
+          var btn = document.getElementById('onboardApplyBtn');
+          _onboardApplying = true;
+          if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'default'; btn.textContent = '⏳ 적용 중...'; }
+          showLoading();
+
+          function finish() {
+              hideLoading();
+              _onboardApplying = false;
+              if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; btn.textContent = '✅ 이 템플릿으로 시작하기'; }
               document.getElementById('onboardStep2').style.display = 'none';
               document.getElementById('onboardStep3').style.display = 'block';
               try { localStorage.setItem('onboard_tpl_applied', '1'); } catch(e) {}
-              return;
+              loadSettingsTab(); initializeConstants(); populateOptions();
           }
-          showLoading();
-          var existingIncome = (_settingsData.incomeItems || []).concat(_settingsData.inactiveIncomeItems || []);
-          var jobs = [];
-          t.income.forEach(function(item) {
-              if (existingIncome.indexOf(item) === -1) {
-                  jobs.push({ type:'income', item: item });
-              }
-          });
-          var existingExpByDept = _settingsData.expenseItemsByDept || {};
-          t.expense.forEach(function(g) {
-              var existingItems = existingExpByDept[g.dept] || [];
-              g.items.forEach(function(item) {
-                  if (existingItems.indexOf(item) === -1) {
-                      jobs.push({ type:'expense', dept: g.dept, item: item });
-                  }
-              });
-          });
-          // 순차적으로 API 호출 (서버 부하 방지)
-          function runNext(i) {
-              if (i >= jobs.length) {
-                  hideLoading();
-                  document.getElementById('onboardStep2').style.display = 'none';
-                  document.getElementById('onboardStep3').style.display = 'block';
-                  try { localStorage.setItem('onboard_tpl_applied', '1'); } catch(e) {}
-                  loadSettingsTab(); initializeConstants(); populateOptions();
+
+          function applyNewTemplate() {
+              if (!t.income.length && !t.expense.length) {
+                  // 직접 입력(빈 템플릿): 추가할 항목 없이 바로 완료 처리
+                  _onboardAppliedTpl = t;
+                  _onboardAppliedJobs = [];
+                  finish();
                   return;
               }
-              var job = jobs[i];
-              var call = job.type === 'income'
-                  ? api('POST', '/api/master/income-items', { item: job.item, refund: '' })
-                  : api('POST', '/api/master/expense-items', { dept: job.dept, item: job.item });
-              call.then(function(){ runNext(i+1); }).catch(function(){ runNext(i+1); });
+              var existingIncome = (_settingsData.incomeItems || []).concat(_settingsData.inactiveIncomeItems || []);
+              var jobs = [];
+              t.income.forEach(function(item) {
+                  if (existingIncome.indexOf(item) === -1) {
+                      jobs.push({ type:'income', item: item });
+                  }
+              });
+              var existingExpByDept = _settingsData.expenseItemsByDept || {};
+              t.expense.forEach(function(g) {
+                  var existingItems = existingExpByDept[g.dept] || [];
+                  g.items.forEach(function(item) {
+                      if (existingItems.indexOf(item) === -1) {
+                          jobs.push({ type:'expense', dept: g.dept, item: item });
+                      }
+                  });
+              });
+              var addedJobs = [];
+              // 순차적으로 API 호출 (서버 부하 방지)
+              function runNext(i) {
+                  if (i >= jobs.length) {
+                      _onboardAppliedTpl = t;
+                      _onboardAppliedJobs = addedJobs;
+                      finish();
+                      return;
+                  }
+                  var job = jobs[i];
+                  var call = job.type === 'income'
+                      ? api('POST', '/api/master/income-items', { item: job.item, refund: '' })
+                      : api('POST', '/api/master/expense-items', { dept: job.dept, item: job.item });
+                  call.then(function(r){
+                      if (r && r.success !== false) addedJobs.push(job);
+                      runNext(i+1);
+                  }).catch(function(){ runNext(i+1); });
+              }
+              runNext(0);
           }
-          runNext(0);
+
+          // 이전에 적용한 템플릿이 있고, 이번에 새 템플릿으로 교체하는 경우 → 기존 항목부터 삭제
+          if (_onboardAppliedTpl && _onboardAppliedTpl.id !== t.id && _onboardAppliedJobs.length) {
+              var toDelete = _onboardAppliedJobs.slice();
+              function deleteNext(i) {
+                  if (i >= toDelete.length) {
+                      // 삭제 후 최신 계정과목 목록을 다시 받아와야 중복 판단이 정확해짐
+                      api('GET', '/api/master').then(function(result) {
+                          if (result && result.success) _settingsData = result.data;
+                          applyNewTemplate();
+                      }).catch(function() { applyNewTemplate(); });
+                      return;
+                  }
+                  var job = toDelete[i];
+                  var body = job.type === 'income' ? { type:'income', item: job.item } : { type:'expense', dept: job.dept, item: job.item };
+                  api('DELETE', '/api/master/items', body)
+                      .then(function(){ deleteNext(i+1); })
+                      .catch(function(){ deleteNext(i+1); });
+              }
+              deleteNext(0);
+          } else {
+              applyNewTemplate();
+          }
       }
       // 계정과목이 완전히 비어있는 최초 상태면 자동으로 마법사 표시 (세션당 1회)
       function maybeAutoShowOnboardWizard() {
