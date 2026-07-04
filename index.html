@@ -7632,9 +7632,14 @@
                 const incList = _importMissing.income.map(i => `수입 [${i}]`);
                 const expList = _importMissing.expense.map(e => `지출 [${e.dept} - ${e.item}]`);
                 const shown = [...incList, ...expList];
+                const mappingWarn = total > 50
+                    ? `<div style="background:#fff3e0;border:1px solid #ff9800;border-radius:6px;padding:8px 10px;margin-top:8px;color:#a35b00;font-size:12.5px;">` +
+                      `⚠️ 미등록 항목이 <b>${total}개</b>로 비정상적으로 많습니다. 2단계 컬럼 매핑에서 <b>지출항목/수입항목에 적요(내용) 열을 잘못 지정</b>하지 않았는지 먼저 확인해보세요. 이대로 등록하면 계정과목이 불필요한 항목으로 가득 찰 수 있습니다.</div>`
+                    : '';
                 box.innerHTML =
                     `⚠️ <strong>계정과목에 등록되어 있지 않은 항목 ${total}개</strong>가 발견되었습니다:<br>` +
-                    `<span style="color:#795548;">${shown.slice(0,10).join(', ')}${shown.length>10 ? ` 외 ${shown.length-10}개` : ''}</span><br>` +
+                    `<span style="color:#795548;">${shown.slice(0,10).join(', ')}${shown.length>10 ? ` 외 ${shown.length-10}개` : ''}</span>` +
+                    mappingWarn +
                     `<label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;">` +
                     `<input type="checkbox" id="imp-auto-register" checked style="width:16px;height:16px;">` +
                     `<span><strong>가져오기 전에 위 항목을 계정과목으로 자동 등록</strong> (권장)</span></label>` +
@@ -7669,19 +7674,31 @@
             const btn = document.getElementById('imp-confirm-btn');
             btn.disabled = true;
 
-            // 미등록 계정과목 자동 등록 (체크된 경우)
+            // 미등록 계정과목 자동 등록 (체크된 경우, 500개 단위로 자동 분할)
             const missTotal = _importMissing.income.length + _importMissing.expense.length;
             const autoRegChk = document.getElementById('imp-auto-register');
             if (missTotal > 0 && autoRegChk && autoRegChk.checked) {
-                btn.textContent = '⏳ 계정과목 등록 중...';
                 try {
-                    const regRes = await api('POST', '/api/master/bulk-add', {
-                        income: _importMissing.income,
-                        expense: _importMissing.expense,
-                    });
-                    if (!regRes.success) throw new Error(regRes.message || '계정과목 등록 실패');
+                    const allItems = [
+                        ..._importMissing.income.map(i => ({ kind: 'income', v: i })),
+                        ..._importMissing.expense.map(e => ({ kind: 'expense', v: e })),
+                    ];
+                    const CHUNK_M = 500;
+                    let registered = 0;
+                    for (let s = 0; s < allItems.length; s += CHUNK_M) {
+                        const chunk = allItems.slice(s, s + CHUNK_M);
+                        btn.textContent = allItems.length > CHUNK_M
+                            ? `⏳ 계정과목 등록 중... (${Math.min(s + CHUNK_M, allItems.length)}/${allItems.length})`
+                            : '⏳ 계정과목 등록 중...';
+                        const regRes = await api('POST', '/api/master/bulk-add', {
+                            income: chunk.filter(x => x.kind === 'income').map(x => x.v),
+                            expense: chunk.filter(x => x.kind === 'expense').map(x => x.v),
+                        });
+                        if (!regRes.success) throw new Error(regRes.message || '계정과목 등록 실패');
+                        registered += regRes.addedCount;
+                    }
                     document.getElementById('imp-missing-master').innerHTML =
-                        `<span style="color:#2d8f47;">✅ 계정과목 ${regRes.addedCount}개가 자동 등록되었습니다.</span>`;
+                        `<span style="color:#2d8f47;">✅ 계정과목 ${registered}개가 자동 등록되었습니다.</span>`;
                 } catch(e) {
                     document.getElementById('imp-import-alert').innerHTML =
                         `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;margin-bottom:8px;">❌ 계정과목 자동 등록에 실패해 가져오기를 중단했습니다: ${friendlyErrorMessage(e)}<br>다시 시도하거나, 체크를 해제하고 가져오기만 실행할 수 있습니다.</div>`;
@@ -7694,18 +7711,34 @@
             btn.textContent = '⏳ 가져오는 중...';
 
             try {
-                const result = await api('POST', '/api/transactions/import', { transactions: _importParsed });
-                if (result.success) {
+                // 거래는 2,000건 단위로 자동 분할 전송 (백엔드 1회 제한에 맞춤)
+                const CHUNK_T = 2000;
+                const chunks = [];
+                for (let s = 0; s < _importParsed.length; s += CHUNK_T) {
+                    chunks.push(_importParsed.slice(s, s + CHUNK_T));
+                }
+                let doneCount = 0;
+                let lastMessage = '';
+                for (let ci = 0; ci < chunks.length; ci++) {
+                    if (chunks.length > 1) btn.textContent = `⏳ 가져오는 중... (${ci + 1}/${chunks.length} 묶음)`;
+                    const result = await api('POST', '/api/transactions/import', { transactions: chunks[ci] });
+                    if (!result.success) {
+                        throw new Error((result.message || '가져오기 실패') +
+                            (doneCount > 0 ? ` (앞의 ${doneCount}건은 이미 등록되었습니다 — 남은 부분만 다시 시도하세요)` : ''));
+                    }
+                    doneCount += chunks[ci].length;
+                    lastMessage = result.message;
+                }
+                {
+                    const finalMsg = chunks.length > 1 ? `${doneCount}건을 성공적으로 가져왔습니다.` : lastMessage;
                     document.getElementById('imp-import-alert').innerHTML =
-                        `<div style="background:#e6f4ea;color:#2d8f47;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:8px;">🎉 ${result.message}</div>`;
+                        `<div style="background:#e6f4ea;color:#2d8f47;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:8px;">🎉 ${finalMsg}</div>`;
                     btn.textContent = '✅ 완료';
                     setTimeout(() => {
                         closeImportModal();
                         goToSearchTabAfterImport(); // 거래등록 탭에서 실행해도 결과를 바로 확인할 수 있도록 이동
                         performRealTimeSearch(); // 검색 결과 새로고침
                     }, 1500);
-                } else {
-                    throw new Error(result.message || '가져오기 실패');
                 }
             } catch(e) {
                 document.getElementById('imp-import-alert').innerHTML =
