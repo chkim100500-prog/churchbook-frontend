@@ -5215,6 +5215,7 @@
                     <div style="font-size:12px;color:#888;margin-bottom:6px;">🏷️ 이름표를 잡아서 아래 표의 열로 끌어다 놓으세요</div>
                     <div id="imp-required-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
                     <div id="imp-optional-chips" style="display:flex;margin-top:8px;gap:8px;flex-wrap:wrap;flex-direction:row;"></div>
+                    <div style="font-size:11px;color:#aaa;margin-top:6px;">💡 "수입항목"과 "지출항목"을 한 열(예: 계정과목)에 같이 적어두셨다면, 두 이름표를 같은 열에 같이 놓으셔도 됩니다.</div>
                 </div>
 
                 <!-- 드롭 대상 미리보기 표 -->
@@ -7575,6 +7576,10 @@
         // 사용자가 직접 지정(드래그/클릭)해서 '확정'된 항목 집합.
         // 여기 없는 항목은 자동 짐작 상태라 화면에 연하게 표시됩니다.
         let _confirmedFields = new Set();
+        // 같은 그룹끼리는 한 열을 함께 지정할 수 있습니다.
+        // (예: "수입항목"과 "지출항목"을 하나의 "계정과목" 열에 같이 적어둔 장부가 많아서,
+        //  이 둘은 같은 열을 공유해도 서로의 지정을 풀지 않습니다)
+        const _FIELD_SHARE_GROUP = { incomeitem: 'item', expenseitem: 'item' };
 
         function renderImportStep2() {
             const requiredBox = document.getElementById('imp-required-chips');
@@ -7644,9 +7649,12 @@
 
         // 어떤 열에 이미 다른 이름표가 배정돼 있다면 그 배정을 풀어줍니다.
         // (이걸 안 해주면 같은 열에 두 이름표가 동시에 물려서, 다시 드래그해도 안 바뀐 것처럼 보이는 문제가 있었습니다)
+        // 단, "수입항목"·"지출항목"처럼 같은 그룹으로 묶인 이름표끼리는 한 열을 함께 써도 서로 풀지 않습니다.
         function _releaseColumnFromOtherFields(colIndex, exceptFieldId) {
+            const shareGroup = _FIELD_SHARE_GROUP[exceptFieldId];
             IMPORT_FIELDS.forEach(f => {
                 if (f.id === exceptFieldId) return;
+                if (shareGroup && _FIELD_SHARE_GROUP[f.id] === shareGroup) return; // 같은 그룹은 공유 허용
                 const otherSel = document.getElementById(`imp-col-${f.id}`);
                 if (otherSel && otherSel.value === String(colIndex)) {
                     otherSel.value = '';
@@ -7696,27 +7704,33 @@
             const preview = rows.slice(0, 6);
             const colLetters = Array.from({ length: maxCols }, (_, i) => String.fromCharCode(65 + i));
 
+            // 열 번호(문자열) → 그 열에 지정된 이름표 배열 (수입항목/지출항목처럼 한 열에 여러 개가 지정될 수 있음)
             const colFieldMap = {};
             IMPORT_FIELDS.forEach(f => {
                 const sel = document.getElementById(`imp-col-${f.id}`);
                 const v = sel ? sel.value : '';
-                if (v !== '') colFieldMap[v] = f;
+                if (v !== '') {
+                    if (!colFieldMap[v]) colFieldMap[v] = [];
+                    colFieldMap[v].push(f);
+                }
             });
 
             let html = '<thead><tr>';
             html += '<th style="padding:6px 8px;border:1px solid #eee;font-size:10px;color:#bbb;background:#fafafa;">행</th>';
             colLetters.forEach((l, i) => {
-                const f = colFieldMap[String(i)];
-                const confirmed = f && _confirmedFields.has(f.id);
+                const fs = colFieldMap[String(i)] || [];
+                const first = fs[0];
+                const confirmed = fs.some(f => _confirmedFields.has(f.id));
                 // 지정된 열은 색과 이모지로만 표시 (글자 없음). 짐작 상태는 점선+연한 색, 확정은 실선+진한 색
-                const bg = f ? (confirmed ? f.color + '22' : f.color + '0d') : '#f7f7f7';
-                const border = f ? (confirmed ? f.color : f.color + '55') : '#ddd';
+                const bg = first ? (confirmed ? first.color + '22' : first.color + '0d') : '#f7f7f7';
+                const border = first ? (confirmed ? first.color : first.color + '55') : '#ddd';
+                const labelText = fs.map(f => f.label).join(' + ');
                 html += `<th ondragover="dragOverColumn(event)" ondrop="dropFieldOnColumn(event, ${i})" onclick="assignColumnToField(${i})"
-                    title="${f ? f.label + (confirmed ? '' : ' (자동 짐작)') : '이름표를 여기에 놓으세요'}"
+                    title="${first ? labelText + (confirmed ? '' : ' (자동 짐작)') : '이름표를 여기에 놓으세요'}"
                     style="cursor:pointer;padding:6px 8px;border:2px ${confirmed ? 'solid' : 'dashed'} ${border};background:${bg};font-size:11px;text-align:center;min-width:74px;">
                     <div style="color:#999;font-size:10px;">${l}열</div>
-                    ${f
-                        ? `<div style="margin-top:2px;font-size:14px;opacity:${confirmed ? '1' : '0.55'};">${f.emoji}</div>`
+                    ${first
+                        ? `<div style="margin-top:2px;font-size:14px;opacity:${confirmed ? '1' : '0.55'};">${fs.map(f => f.emoji).join('')}</div>`
                         : '<div style="color:#ccc;margin-top:2px;">여기에 놓기</div>'}
                 </th>`;
             });
@@ -7726,9 +7740,9 @@
                 html += `<td style="padding:5px 8px;border:1px solid #f0f0f0;font-size:10px;color:#bbb;">${ri + 1}</td>`;
                 colLetters.forEach((_, ci) => {
                     const raw = row[ci];
-                    const mappedField = colFieldMap[String(ci)];
+                    const mappedFields = colFieldMap[String(ci)] || [];
                     // 날짜 필드로 지정된 열은 시리얼 번호 대신 사람이 읽기 쉬운 날짜(YYYY-MM-DD)로 표시
-                    const dateStr = (mappedField && mappedField.id === 'date') ? excelSerialToDateStr(raw) : null;
+                    const dateStr = mappedFields.some(f => f.id === 'date') ? excelSerialToDateStr(raw) : null;
                     const v = dateStr || (raw !== undefined ? String(raw) : '');
                     html += `<td ondragover="dragOverColumn(event)" ondrop="dropFieldOnColumn(event, ${ci})" onclick="assignColumnToField(${ci})" style="cursor:pointer;padding:5px 8px;border:1px solid #f0f0f0;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(v)}">${escapeHtml(v.slice(0, 18))}</td>`;
                 });
