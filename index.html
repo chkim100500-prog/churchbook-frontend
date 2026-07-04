@@ -3894,7 +3894,7 @@
                   <button id="batchViewBtnMine" onclick="setBatchView('mine')"
                     style="flex:1;padding:10px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:13px;font-weight:600;cursor:pointer;">🙋 내 결재 대기</button>
                   <button id="batchViewBtnAll" onclick="setBatchView('all')"
-                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">⏳ 미결재 전체</button>
+                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">⏳ 미결재 전체<span id="batchAllCountBadge"></span></button>
                   <button id="batchViewBtnHistory" onclick="setBatchView('history')"
                     style="flex:1;padding:10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;">✅ 완료내역</button>
                 </div>
@@ -7961,9 +7961,10 @@
             const p1 = shiftMonth(year, parseInt(month), -1);
             const p2 = shiftMonth(year, parseInt(month), -2);
 
-            const [balData, pendingData, budgetData, txData, txPrev1, txPrev2] = await Promise.allSettled([
+            const [balData, pendingData, batchSummary, budgetData, txData, txPrev1, txPrev2] = await Promise.allSettled([
                 api('GET', `/api/balance?month=${ym}`),
                 api('GET', '/api/approvals/pending'),
+                api('GET', '/api/approvals/batch/summary'),
                 api('GET', `/api/budget/full?year=${year}`),
                 api('GET', `/api/transactions?year=${year}&month=${parseInt(month)}&limit=5`),
                 api('GET', `/api/transactions?year=${p1.y}&month=${p1.m}`),
@@ -7981,10 +7982,12 @@
                 document.getElementById('dash-expense-ratio').textContent = ratio + '%';
             }
 
-            // 미승인 결재
-            if (pendingData.status === 'fulfilled') {
-                const pending = pendingData.value.data || [];
-                document.getElementById('dash-pending').textContent = pending.length;
+            // 미승인 결재 = 사전결재 대기 + 결재함(배치) 미결재 합산
+            {
+                const pending = pendingData.status === 'fulfilled' ? (pendingData.value.data || []) : [];
+                const batchCount = (batchSummary.status === 'fulfilled' && batchSummary.value.success)
+                    ? (batchSummary.value.data.count || 0) : 0;
+                document.getElementById('dash-pending').textContent = pending.length + batchCount;
                 const sec  = document.getElementById('dash-pending-section');
                 const list = document.getElementById('dash-pending-list');
                 if (pending.length > 0) {
@@ -8052,11 +8055,17 @@
                 });
             }
 
-            // 2) 결재 대기 건수
-            if (pendingData.status === 'fulfilled') {
-                const cnt = (pendingData.value.data || []).length;
-                if (cnt > 0) {
-                    items.push({ ok: false, icon: '📋', text: `승인 대기 결재 ${cnt}건`, onclick: "goTabFromDash('batchApproval')" });
+            // 2) 결재 대기 건수 (사전결재 + 결재함 미결재)
+            {
+                const preCnt = pendingData.status === 'fulfilled' ? (pendingData.value.data || []).length : 0;
+                const batchCnt = (batchSummary.status === 'fulfilled' && batchSummary.value.success)
+                    ? (batchSummary.value.data.count || 0) : 0;
+                const total = preCnt + batchCnt;
+                if (total > 0) {
+                    const parts = [];
+                    if (batchCnt > 0) parts.push(`결재함 ${batchCnt}건`);
+                    if (preCnt > 0) parts.push(`사전결재 ${preCnt}건`);
+                    items.push({ ok: false, icon: '📋', text: `승인 대기 결재 ${total}건 (${parts.join(', ')})`, onclick: "goTabFromDash('batchApproval')" });
                 } else {
                     items.push({ ok: true, icon: '✅', text: '승인 대기 결재 없음' });
                 }
@@ -8245,7 +8254,14 @@
             // 목록 조회는 인증 없이도 가능 (승인/반려만 결재권한자 인증 필요)
             if (batchApprover) await loadBatchSummary();
             if (batchCurrentSubTab === 'pending') await loadBatchPending();
-            else await loadBatchHistory();
+            else {
+                await loadBatchHistory();
+                // 완료내역 화면이어도 '미결재 전체' 버튼의 건수 배지는 갱신
+                try {
+                    var res = await api('GET', '/api/approvals/batch/pending');
+                    if (res.success) { batchPendingData = res.data; _updateBatchAllCountBadge(); }
+                } catch(e) {}
+            }
         }
 
         async function loadBatchSummary() {
@@ -8321,12 +8337,21 @@
                 var res = await api('GET', '/api/approvals/batch/pending');
                 if (!res.success) return;
                 batchPendingData = res.data;
+                _updateBatchAllCountBadge();
                 renderBatchPendingList(getFilteredBatchPendingData());
             } catch(e) {
                 showRetryableError('미결재 목록', loadBatchPending);
             } finally {
                 hideLoading();
             }
+        }
+
+        // '미결재 전체' 버튼에 건수 배지 표시 (인증 전에도 보임)
+        function _updateBatchAllCountBadge() {
+            var badge = document.getElementById('batchAllCountBadge');
+            if (!badge) return;
+            var n = (batchPendingData || []).length;
+            badge.textContent = n > 0 ? ' (' + n + '건)' : '';
         }
 
         function renderBatchPendingList(items) {
