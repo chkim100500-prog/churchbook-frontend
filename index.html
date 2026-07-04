@@ -5206,13 +5206,12 @@
             <!-- 2단계: 항목 확인 (클릭식) -->
             <div id="imp-step-2" style="display:none;">
                 <div id="imp-step2-intro" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px 14px;font-size:13px;color:#1a6b4a;margin-bottom:14px;line-height:1.6;">
-                    🎉 <strong>자동으로 항목을 찾아봤어요!</strong> 아래 표에 색깔로 표시된 부분을 한번 확인해주세요. 틀린 게 있으면, 아래에서 <strong>항목 이름을 먼저 누르고</strong> 표에서 <strong>해당하는 칸(열)을 눌러</strong> 다시 지정하면 됩니다.
+                    🎉 <strong>자동으로 항목을 찾아봤어요!</strong> 아래 표에 색깔로 표시된 부분을 한번 확인해주세요. 틀린 게 있으면, 표에서 <strong>열(세로줄)을 원하는 항목 위로 끌어다 놓으세요.</strong>
                 </div>
                 <div id="imp-step2-instruction" style="display:none;background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;font-size:13px;color:#a35b00;margin-bottom:14px;font-weight:600;"></div>
 
                 <!-- 필수 항목 -->
                 <div style="margin-bottom:10px;">
-                    <div style="font-size:12px;color:#888;margin-bottom:6px;">✅ 꼭 필요해요</div>
                     <div id="imp-required-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
                 </div>
 
@@ -5224,7 +5223,7 @@
                 </div>
 
                 <!-- 클릭식 미리보기 표 -->
-                <div style="font-size:12px;color:#666;margin-bottom:6px;">👇 이 표에서 열(세로줄)을 클릭해 항목을 지정하세요</div>
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">👇 이 표에서 열(세로줄)을 위 항목으로 <strong>드래그해서 놓아주세요</strong> (또는 열을 눌러서 지정할 수도 있어요)</div>
                 <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px;margin-bottom:14px;">
                     <table id="imp-click-table" style="width:100%;font-size:12px;border-collapse:collapse;"></table>
                 </div>
@@ -7568,16 +7567,35 @@
             const colLetter = assigned ? String.fromCharCode(65 + parseInt(val, 10)) : null;
             const div = document.createElement('div');
             div.id = `imp-chip-${f.id}`;
-            div.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12.5px;cursor:pointer;border:2px solid ${assigned ? f.color : '#ddd'};background:${assigned ? f.color + '18' : '#fafafa'};color:${assigned ? f.color : '#888'};font-weight:600;transition:box-shadow 0.15s;`;
-            div.innerHTML = `${f.emoji} ${f.label} <span style="opacity:0.8;font-weight:500;">${assigned ? '· ' + colLetter + '열' : (f.required ? '· 지정 필요' : '· 없음')}</span>` +
+            div.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12.5px;cursor:pointer;border:2px solid ${assigned ? f.color : '#ddd'};background:${assigned ? f.color + '18' : '#fafafa'};color:${assigned ? f.color : '#888'};font-weight:600;transition:box-shadow 0.15s, background 0.15s;`;
+            div.innerHTML = `${f.emoji} ${f.label} <span style="opacity:0.8;font-weight:500;">${assigned ? '· ' + colLetter + '열' : (f.required ? '· 여기로 드래그' : '· 없음')}</span>` +
                 (assigned ? ` <span style="margin-left:2px;opacity:0.6;" title="지정 취소">✕</span>` : '');
             div.onclick = (ev) => {
-                // 배지의 ✕ 부분을 눌렀으면 지정 취소, 아니면 항목 선택 모드로 진입
+                // 배지의 ✕ 부분을 눌렀으면 지정 취소, 아니면 항목 선택 모드로 진입 (터치기기용 대체 방법)
                 if (assigned && ev.offsetX > div.clientWidth - 22) {
                     clearFieldAssignment(f.id);
                 } else {
                     selectMappingField(f.id);
                 }
+            };
+            // 드래그앤드롭: 표의 열 헤더를 이 배지 위로 끌어다 놓으면 지정됩니다 (데스크톱용)
+            div.ondragover = (ev) => {
+                ev.preventDefault();
+                div.style.boxShadow = `0 0 0 3px ${f.color}88`;
+                div.style.background = f.color + '30';
+            };
+            div.ondragleave = () => {
+                div.style.boxShadow = 'none';
+                div.style.background = assigned ? f.color + '18' : '#fafafa';
+            };
+            div.ondrop = (ev) => {
+                ev.preventDefault();
+                const colIndex = ev.dataTransfer.getData('text/plain');
+                if (colIndex === '') return;
+                if (sel) sel.value = colIndex;
+                _activeMappingField = null;
+                document.getElementById('imp-step2-instruction').style.display = 'none';
+                renderImportStep2();
             };
             return div;
         }
@@ -7599,6 +7617,11 @@
             if (sel) sel.value = '';
             if (_activeMappingField === fieldId) _activeMappingField = null;
             renderImportStep2();
+        }
+
+        function handleColumnDragStart(ev, colIndex) {
+            ev.dataTransfer.setData('text/plain', String(colIndex));
+            ev.dataTransfer.effectAllowed = 'copy';
         }
 
         function assignColumnToField(colIndex) {
@@ -7633,9 +7656,10 @@
                 const f = colFieldMap[String(i)];
                 const bg = f ? f.color + '18' : '#f7f7f7';
                 const border = f ? f.color : '#ddd';
-                html += `<th onclick="assignColumnToField(${i})" style="cursor:pointer;padding:6px 8px;border:2px solid ${border};background:${bg};font-size:11px;text-align:center;min-width:74px;">
+                html += `<th draggable="true" ondragstart="handleColumnDragStart(event, ${i})" onclick="assignColumnToField(${i})"
+                    style="cursor:grab;padding:6px 8px;border:2px solid ${border};background:${bg};font-size:11px;text-align:center;min-width:74px;">
                     <div style="color:#999;font-size:10px;">${l}열</div>
-                    ${f ? `<div style="color:${f.color};font-weight:700;margin-top:2px;white-space:nowrap;">${f.emoji} ${f.label}</div>` : '<div style="color:#bbb;margin-top:2px;">클릭해서 지정</div>'}
+                    ${f ? `<div style="color:${f.color};font-weight:700;margin-top:2px;white-space:nowrap;">${f.emoji} ${f.label}</div>` : '<div style="color:#bbb;margin-top:2px;">드래그 또는 클릭</div>'}
                 </th>`;
             });
             html += '</tr></thead><tbody>';
@@ -7644,7 +7668,7 @@
                 html += `<td style="padding:5px 8px;border:1px solid #f0f0f0;font-size:10px;color:#bbb;">${ri + 1}</td>`;
                 colLetters.forEach((_, ci) => {
                     const v = row[ci] !== undefined ? String(row[ci]) : '';
-                    html += `<td onclick="assignColumnToField(${ci})" style="cursor:pointer;padding:5px 8px;border:1px solid #f0f0f0;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(v)}">${escapeHtml(v.slice(0, 18))}</td>`;
+                    html += `<td draggable="true" ondragstart="handleColumnDragStart(event, ${ci})" onclick="assignColumnToField(${ci})" style="cursor:grab;padding:5px 8px;border:1px solid #f0f0f0;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(v)}">${escapeHtml(v.slice(0, 18))}</td>`;
                 });
                 html += '</tr>';
             });
