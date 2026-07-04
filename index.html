@@ -7651,19 +7651,73 @@
             }
         }
 
-        async function executeImport() {
-            // showTab()은 클릭 이벤트(event.target)에 의존하므로, 코드에서 직접 호출해도
-            // 안전하게 조회관리 탭으로 전환할 수 있도록 별도 헬퍼를 사용합니다.
-            function goToSearchTabAfterImport() {
-                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                if (typeof cbCloseViewer === 'function') cbCloseViewer();
-                var searchBtn = document.querySelector('.tab-btn[onclick*="\'search\'"]');
-                if (searchBtn) searchBtn.classList.add('active');
-                var searchTab = document.getElementById('search');
-                if (searchTab) searchTab.classList.add('active');
-            }
+        // showTab()은 클릭 이벤트(event.target)에 의존하므로, 코드에서 직접 호출해도
+        // 안전하게 조회관리 탭으로 전환할 수 있도록 별도 헬퍼를 사용합니다.
+        function goToSearchTabAfterImport() {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            if (typeof cbCloseViewer === 'function') cbCloseViewer();
+            var searchBtn = document.querySelector('.tab-btn[onclick*="\'search\'"]');
+            if (searchBtn) searchBtn.classList.add('active');
+            var searchTab = document.getElementById('search');
+            if (searchTab) searchTab.classList.add('active');
+        }
 
+        function finishImportAndGoToSearch() {
+            closeImportModal();
+            goToSearchTabAfterImport();
+            performRealTimeSearch();
+        }
+
+        // 가져오기 완료 직후 "방금 가져온 내용 취소" — 여러 묶음(2,000건 단위 분할)이면 전부 취소
+        async function undoJustImported(batchIds) {
+            if (!batchIds || !batchIds.length) return;
+            if (!confirm(`방금 가져온 ${batchIds.length > 1 ? '전체 묶음' : ''} 거래를 모두 취소(삭제)하시겠습니까?\n이 작업은 삭제 후에는 되돌릴 수 없습니다.`)) return;
+            const alertBox = document.getElementById('imp-import-alert');
+            let totalDeleted = 0;
+            try {
+                for (const bid of batchIds) {
+                    const res = await api('DELETE', `/api/transactions/import-batch/${bid}`);
+                    if (res.success) totalDeleted += res.count;
+                }
+                alertBox.innerHTML = `<div style="background:#fff3e0;color:#a35b00;padding:12px;border-radius:8px;font-size:13px;">↩️ ${totalDeleted}건이 삭제되어 가져오기가 취소되었습니다.</div>`;
+                setTimeout(() => { closeImportModal(); }, 1500);
+            } catch(e) {
+                alertBox.innerHTML += `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ 취소 중 오류: ${friendlyErrorMessage(e)}<br>설정 &gt; 로그기록에서 "가져오기 취소"를 다시 시도할 수 있습니다.</div>`;
+            }
+        }
+
+        // 로그기록 화면에서 과거의 "엑셀 일괄 가져오기" 건을 통째로 취소할 때 사용
+        async function undoImportBatchFromLog(batchId) {
+            if (!batchId) return;
+            try {
+                const preview = await api('GET', `/api/transactions/import-batch/${batchId}`);
+                if (!preview.success || preview.count === 0) {
+                    showAlert('해당 가져오기 내역을 찾을 수 없습니다. 이미 취소되었거나 개별적으로 수정·삭제된 것 같습니다.', 'error');
+                    loadAuditLogs(_auditPage);
+                    return;
+                }
+                const sample = preview.preview.slice(0, 5).map(t =>
+                    `${t.date} ${t.item} ${(t.income||t.expense).toLocaleString()}원`).join('\n');
+                const more = preview.count > 5 ? `\n... 외 ${preview.count - 5}건` : '';
+                if (!confirm(`이 가져오기로 등록된 거래 ${preview.count}건을 모두 삭제합니다.\n\n${sample}${more}\n\n※ 가져오기 이후 이 거래들을 개별적으로 수정하지 않으셨다면 안전하게 취소됩니다.\n이 작업은 삭제 후에는 되돌릴 수 없습니다. 계속하시겠습니까?`)) return;
+
+                showLoading();
+                const result = await api('DELETE', `/api/transactions/import-batch/${batchId}`);
+                hideLoading();
+                if (result.success) {
+                    showAlert(`✅ ${result.message}`);
+                    loadAuditLogs(_auditPage);
+                } else {
+                    showAlert(result.message || '취소 실패', 'error');
+                }
+            } catch(e) {
+                hideLoading();
+                showAlert('가져오기 취소 중 오류가 발생했습니다: ' + friendlyErrorMessage(e), 'error');
+            }
+        }
+
+        async function executeImport() {
             if (!_importParsed.length) {
                 document.getElementById('imp-import-alert').innerHTML =
                     '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;margin-bottom:8px;">❌ 가져올 데이터가 없습니다.</div>';
@@ -7719,6 +7773,7 @@
                 }
                 let doneCount = 0;
                 let lastMessage = '';
+                const batchIds = [];
                 for (let ci = 0; ci < chunks.length; ci++) {
                     if (chunks.length > 1) btn.textContent = `⏳ 가져오는 중... (${ci + 1}/${chunks.length} 묶음)`;
                     const result = await api('POST', '/api/transactions/import', { transactions: chunks[ci] });
@@ -7728,17 +7783,17 @@
                     }
                     doneCount += chunks[ci].length;
                     lastMessage = result.message;
+                    if (result.batchId) batchIds.push(result.batchId);
                 }
                 {
                     const finalMsg = chunks.length > 1 ? `${doneCount}건을 성공적으로 가져왔습니다.` : lastMessage;
                     document.getElementById('imp-import-alert').innerHTML =
-                        `<div style="background:#e6f4ea;color:#2d8f47;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:8px;">🎉 ${finalMsg}</div>`;
-                    btn.textContent = '✅ 완료';
-                    setTimeout(() => {
-                        closeImportModal();
-                        goToSearchTabAfterImport(); // 거래등록 탭에서 실행해도 결과를 바로 확인할 수 있도록 이동
-                        performRealTimeSearch(); // 검색 결과 새로고침
-                    }, 1500);
+                        `<div style="background:#e6f4ea;color:#2d8f47;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:10px;">🎉 ${finalMsg}</div>` +
+                        `<div style="display:flex;gap:8px;">` +
+                        `<button onclick="finishImportAndGoToSearch()" style="flex:1;background:#1a73e8;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;">✅ 확인 (조회 화면으로 이동)</button>` +
+                        `<button onclick="undoJustImported(${JSON.stringify(batchIds).replace(/"/g,'&quot;')})" style="background:#fff;color:#c0392b;border:1px solid #e0a0a0;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">↩️ 방금 가져온 내용 취소</button>` +
+                        `</div>`;
+                    btn.style.display = 'none';
                 }
             } catch(e) {
                 document.getElementById('imp-import-alert').innerHTML =
@@ -7888,6 +7943,7 @@
                         <td style="padding:9px 8px;text-align:center;">
                             ${hasDiff ? `<button onclick="showAuditDetail(${log.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#555;">비교</button>` : '-'}
                             ${(log.action === 'delete' && log.before_data && log.target === 'transaction') ? `<button onclick="restoreDeletedTransaction(${log.id})" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#2e7d32;margin-left:4px;">↩️ 복구</button>` : ''}
+                            ${(log.action === 'import' && log.target === 'transaction' && log.after_data && log.after_data.batchId) ? `<button onclick="undoImportBatchFromLog('${log.after_data.batchId}')" style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#a35b00;margin-left:4px;">↩️ 가져오기 취소</button>` : ''}
                         </td>
                     </tr>`;
                 }).join('');
