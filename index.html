@@ -4221,7 +4221,7 @@
                             <!-- 전표 미리보기 (승인완료 건만 표시) -->
                             <div id="detailVoucherSection" style="display:none;margin-bottom:16px;">
                                 <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:16px;">
-                                    <h3 style="font-size:14px;color:#856404;margin:0 0 12px;">🧾 지출청구서 전표</h3>
+                                    <h3 id="detailVoucherSectionTitle" style="font-size:14px;color:#856404;margin:0 0 12px;">🧾 지출전표 전표</h3>
                                     <div id="detailVoucherPreview" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:16px;font-size:13px;"></div>
                                     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
                                         <button class="btn" style="background:#f39c12;font-size:13px;" onclick="printVoucherFromDetail()">🖨️ 인쇄</button>
@@ -4500,6 +4500,41 @@
                   <button onclick="saveBankInfo()"
                     style="width:100%;padding:10px;font-size:14px;font-weight:600;background:#1976d2;color:#fff;border:none;border-radius:8px;cursor:pointer">
                     💾 통장 정보 저장
+                  </button>
+                </div>
+
+                <div class="card">
+                  <h2>🧾 문서 명칭 설정</h2>
+                  <p style="color:#666;font-size:13px;margin-bottom:16px">단체마다 부르는 이름이 달라요. 지출결의서·지출품의서·지출청구서 등 원하는 이름을 골라 인쇄물과 화면에 그대로 반영합니다.</p>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px" class="bank-info-grid">
+                    <div>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">지출 문서 이름</label>
+                      <select id="set-expense-doc-name" onchange="onDocNamePresetChange('expense')" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px">
+                        <option value="지출전표">지출전표</option>
+                        <option value="지출결의서">지출결의서</option>
+                        <option value="지출품의서">지출품의서</option>
+                        <option value="지출청구서">지출청구서</option>
+                        <option value="__custom__">직접 입력...</option>
+                      </select>
+                      <input type="text" id="set-expense-doc-name-custom" placeholder="예: OO교회 지출확인서" maxlength="20"
+                        style="display:none;margin-top:6px;width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box">
+                    </div>
+                    <div>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">수입 문서 이름</label>
+                      <select id="set-income-doc-name" onchange="onDocNamePresetChange('income')" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px">
+                        <option value="수입전표">수입전표</option>
+                        <option value="입금표">입금표</option>
+                        <option value="수입결의서">수입결의서</option>
+                        <option value="영수증">영수증</option>
+                        <option value="__custom__">직접 입력...</option>
+                      </select>
+                      <input type="text" id="set-income-doc-name-custom" placeholder="예: OO교회 입금확인증" maxlength="20"
+                        style="display:none;margin-top:6px;width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;box-sizing:border-box">
+                    </div>
+                  </div>
+                  <button onclick="saveVoucherDocNames()"
+                    style="width:100%;padding:10px;font-size:14px;font-weight:600;background:#6a1b9a;color:#fff;border:none;border-radius:8px;cursor:pointer">
+                    💾 문서 명칭 저장
                   </button>
                 </div>
                 </div>
@@ -5430,12 +5465,12 @@
     <div class="modal" id="voucherModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📄 지출청구서 발행</h2>
+                <h2 id="voucherModalTitle">📄 지출전표 발행</h2>
                 <button class="modal-close" onclick="closeVoucherModal()">&times;</button>
             </div>
             <div id="voucherContent">
                 <div class="btn-group" style="margin-top:10px;">
-                    <button class="btn" onclick="generateVoucher()" style="background:#333;color:#fff;">🖨️ 지출청구서 출력</button>
+                    <button class="btn" id="voucherModalPrintBtn" onclick="generateVoucher()" style="background:#333;color:#fff;">🖨️ 지출전표 출력</button>
                     <button class="btn" onclick="closeVoucherModal()" style="background:#6c757d;">❌ 취소</button>
                 </div>
             </div>
@@ -5482,12 +5517,12 @@
     <div class="modal" id="incomeVoucherModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📄 수입전표 발행</h2>
+                <h2 id="incomeVoucherModalTitle">📄 수입전표 발행</h2>
                 <button class="modal-close" onclick="closeIncomeVoucherModal()">&times;</button>
             </div>
             <div id="incomeVoucherContent">
                 <div class="btn-group" style="margin-top:10px;">
-                    <button class="btn" onclick="generateIncomeVoucher()" style="background:#d73527;color:#fff;">🖨️ 수입전표 출력</button>
+                    <button class="btn" id="incomeVoucherModalPrintBtn" onclick="generateIncomeVoucher()" style="background:#d73527;color:#fff;">🖨️ 수입전표 출력</button>
                     <button class="btn" onclick="closeIncomeVoucherModal()" style="background:#6c757d;">❌ 취소</button>
                 </div>
             </div>
@@ -9777,6 +9812,10 @@
                 const transactionData = JSON.parse(button.getAttribute('data-transaction').replace(/&#39;/g, "'"));
                 currentVoucherData = transactionData;
                 document.getElementById('voucherModal').style.display = 'block';
+                getDocNames().then(({ expenseDocName }) => {
+                    document.getElementById('voucherModalTitle').textContent = `📄 ${expenseDocName} 발행`;
+                    document.getElementById('voucherModalPrintBtn').textContent = `🖨️ ${expenseDocName} 출력`;
+                });
             } catch (error) {
                 console.error('전표 데이터 파싱 오류:', error);
                 showRetryableError('전표 데이터를 읽는');
@@ -9911,6 +9950,10 @@
                 const transactionData = JSON.parse(button.getAttribute('data-transaction').replace(/&#39;/g, "'"));
                 currentIncomeVoucherData = transactionData;
                 document.getElementById('incomeVoucherModal').style.display = 'block';
+                getDocNames().then(({ incomeDocName }) => {
+                    document.getElementById('incomeVoucherModalTitle').textContent = `📄 ${incomeDocName} 발행`;
+                    document.getElementById('incomeVoucherModalPrintBtn').textContent = `🖨️ ${incomeDocName} 출력`;
+                });
             } catch (error) {
                 console.error('수입전표 데이터 파싱 오류:', error);
                 showRetryableError('수입전표 데이터를 읽는');
@@ -12325,6 +12368,9 @@
             if (approval.status === '승인완료' || approval.status === '승인') {
                 voucherSection.style.display = 'block';
                 renderVoucherPreview(approval);
+                getDocNames().then(({ expenseDocName }) => {
+                    document.getElementById('detailVoucherSectionTitle').textContent = `🧾 ${expenseDocName}`;
+                });
                 // 거래등록 완료 여부
                 const txnDone = approval.transactionRecorded === true || approval.transactionRecorded === 'true';
                 document.getElementById('detailRegisterTxnBtn').style.display = txnDone ? 'none' : 'inline-block';
@@ -12345,12 +12391,14 @@
             document.getElementById('approvalDetailInfo').style.display = 'block';
         }
 
-        function renderVoucherPreview(approval) {
+        async function renderVoucherPreview(approval) {
             const amount = Number(approval.amount) || 0;
             const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+            const { expenseDocName } = await getDocNames();
+            const titleSpaced = expenseDocName.split('').join(' ');
             document.getElementById('detailVoucherPreview').innerHTML = `
                 <div style="text-align:center;margin-bottom:16px;">
-                    <div style="font-size:16px;font-weight:bold;letter-spacing:2px;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px;">지 출 청 구 서</div>
+                    <div style="font-size:16px;font-weight:bold;letter-spacing:2px;border-bottom:2px solid #333;padding-bottom:8px;margin-bottom:12px;">${titleSpaced}</div>
                 </div>
                 <table style="width:100%;border-collapse:collapse;font-size:12px;">
                     <colgroup><col style="width:30%"><col style="width:70%"></colgroup>
@@ -12376,13 +12424,15 @@
             currentDetailApproval = null;
         }
 
-        function printVoucherFromDetail() {
+        async function printVoucherFromDetail() {
             if (!currentDetailApproval) return;
             const a = currentDetailApproval;
             const amount = Number(a.amount) || 0;
             const today = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+            const { expenseDocName } = await getDocNames();
+            const titleSpaced = expenseDocName.split('').join(' ');
             const win = window.open('', '_blank');
-            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>지출청구서 - ${a.id}</title>
+            win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${expenseDocName} - ${a.id}</title>
             <style>body{font-family:'맑은 고딕',sans-serif;padding:30px;max-width:600px;margin:0 auto;}
             h1{text-align:center;font-size:20px;letter-spacing:4px;border-bottom:2px solid #333;padding-bottom:12px;}
             table{width:100%;border-collapse:collapse;margin:20px 0;}
@@ -12391,7 +12441,7 @@
             .amount{font-size:18px;font-weight:bold;color:#e74c3c;}
             .sign{display:flex;justify-content:flex-end;gap:40px;margin-top:30px;font-size:13px;}
             @media print{@page{size:A4;margin:20mm}}</style></head><body>
-            <h1>지 출 청 구 서</h1>
+            <h1>${titleSpaced}</h1>
             <table>
               <tr><td class="label">결재번호</td><td>${a.id}</td></tr>
               <tr><td class="label">결재일자</td><td>${a.requestDate}</td></tr>
@@ -14370,20 +14420,21 @@
       async function printIncomeVoucher(transactionData) {
           const authorities = await getVoucherAuthorities();
           const signatureRows = buildVoucherSignatureTableRows(authorities);
+          const { incomeDocName } = await getDocNames();
           const voucherHTML = `
               <!DOCTYPE html>
               <html>
                   <head>
-                      <title>수입전표 - ${transactionData.date}</title>
+                      <title>${incomeDocName} - ${transactionData.date}</title>
                       <style>
                           body {
                               font-family: 'Malgun Gothic', sans-serif;
                               padding: 20px;
-                              background-color: #FFF5F5;
+                              background-color: #fff;
                           }
                           h1 {
                               text-align: center;
-                              color: #FF0000;
+                              color: #d73527;
                               margin-bottom: 20px;
                           }
                           table {
@@ -14397,8 +14448,8 @@
                               border: 2px solid #333;
                           }
                           th {
-                              background-color: #FF0000;
-                              color: white;
+                              background-color: #fdecea;
+                              color: #a12a20;
                               text-align: left;
                           }
                           .signature-table {
@@ -14430,7 +14481,7 @@
                   </head>
                   <body>
                       <div class="voucher-number">전표번호: ${transactionData.voucherNumber || ''}</div>
-                      <h1>수입전표</h1>
+                      <h1>${incomeDocName}</h1>
                       <table>
                           <tr>
                               <th>거래일자</th>
@@ -14760,7 +14811,8 @@
           const authorities = await getVoucherAuthorities();
           const signatureBlockRows = buildVoucherSignatureBlockCells(authorities);
           const isIncome = t.type === 'income';
-          const title = isIncome ? '수입전표' : '지출청구서';
+          const { expenseDocName, incomeDocName } = await getDocNames();
+          const title = isIncome ? incomeDocName : expenseDocName;
           const amount = isIncome ? t.income : t.expense;
           const itemName = isIncome ? (t.incomeItem || '') : (t.expenseItem || '');
           const itemLabel = isIncome ? '수입항목' : '지출항목';
@@ -14927,6 +14979,7 @@
             async function printExpenseVoucher(transactionData) {
           const authorities = await getVoucherAuthorities();
           const signatureRows = buildVoucherSignatureTableRows(authorities);
+          const { expenseDocName } = await getDocNames();
           // 연결된 영수증 이미지 조회
           // txnId: 새 방식(TXN+timestamp), 없으면 날짜+금액으로 폴백
           let receiptImagesBlock = '';
@@ -14992,7 +15045,7 @@
               <!DOCTYPE html>
               <html>
                   <head>
-                      <title>지출청구서 - ${transactionData.date}</title>
+                      <title>${expenseDocName} - ${transactionData.date}</title>
                       <style>
                           body {
                               font-family: 'Malgun Gothic', sans-serif;
@@ -15048,7 +15101,7 @@
                   </head>
                   <body>
                       <div class="voucher-number">전표번호: ${transactionData.voucherNumber || ''}</div>
-                      <h1>지출청구서</h1>
+                      <h1>${expenseDocName}</h1>
                       <table>
                           <tr>
                               <th>거래일자</th>
@@ -17297,6 +17350,81 @@ async function loadBankInfoToSettings() {
     if (info.MANAGER_PHONE) document.getElementById('set-manager-phone').value = info.MANAGER_PHONE;
     if (info.CHECK_CYCLE)   document.getElementById('set-check-cycle').value   = info.CHECK_CYCLE;
   } catch (e) { /* 미설정 무시 */ }
+  loadVoucherDocNamesToSettings();
+}
+
+// ===== 지출/수입 문서 명칭 커스터마이징 =====
+let _docNames = null; // 캐시: { expenseDocName, incomeDocName }
+
+async function getDocNames() {
+    if (_docNames) return _docNames;
+    try {
+        const res = await api('GET', '/api/settings/voucher-names');
+        _docNames = res.success ? res.data : { expenseDocName: '지출전표', incomeDocName: '수입전표' };
+    } catch (e) {
+        _docNames = { expenseDocName: '지출전표', incomeDocName: '수입전표' };
+    }
+    return _docNames;
+}
+
+const DOC_NAME_PRESETS = {
+    expense: ['지출전표', '지출결의서', '지출품의서', '지출청구서'],
+    income:  ['수입전표', '입금표', '수입결의서', '영수증'],
+};
+
+function onDocNamePresetChange(type) {
+    const sel = document.getElementById(`set-${type}-doc-name`);
+    const customInput = document.getElementById(`set-${type}-doc-name-custom`);
+    customInput.style.display = sel.value === '__custom__' ? 'block' : 'none';
+}
+
+async function loadVoucherDocNamesToSettings() {
+    _docNames = null; // 강제 새로고침
+    const names = await getDocNames();
+    ['expense', 'income'].forEach(type => {
+        const value = names[`${type}DocName`];
+        const sel = document.getElementById(`set-${type}-doc-name`);
+        const customInput = document.getElementById(`set-${type}-doc-name-custom`);
+        if (!sel) return;
+        if (DOC_NAME_PRESETS[type].includes(value)) {
+            sel.value = value;
+            customInput.style.display = 'none';
+        } else {
+            sel.value = '__custom__';
+            customInput.value = value;
+            customInput.style.display = 'block';
+        }
+    });
+}
+
+async function saveVoucherDocNames() {
+    const getVal = (type) => {
+        const sel = document.getElementById(`set-${type}-doc-name`);
+        if (sel.value === '__custom__') {
+            return document.getElementById(`set-${type}-doc-name-custom`).value.trim();
+        }
+        return sel.value;
+    };
+    const expenseDocName = getVal('expense');
+    const incomeDocName = getVal('income');
+    if (!expenseDocName || !incomeDocName) {
+        showAlert('문서 이름을 입력해주세요.', 'error');
+        return;
+    }
+    showLoading();
+    try {
+        const res = await api('PUT', '/api/settings/voucher-names', { expenseDocName, incomeDocName });
+        hideLoading();
+        if (res.success) {
+            _docNames = res.data; // 캐시 갱신
+            showAlert('✅ 문서 명칭이 저장되었습니다. 다음 인쇄부터 새 이름이 적용됩니다.');
+        } else {
+            showAlert(res.message || '저장 실패', 'error');
+        }
+    } catch (e) {
+        hideLoading();
+        showAlert('저장 중 오류가 발생했습니다: ' + friendlyErrorMessage(e), 'error');
+    }
 }
 
 function copyAccountNumber() {
