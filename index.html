@@ -3171,6 +3171,30 @@
                         <button class="btn btn-secondary" onclick="saveBudget('expense')">💾 지출 예산 저장</button>
                     </div>
 
+                    <!-- 이번에 저장한 내역 (연속 입력 시 진행 상황 확인용) -->
+                    <div id="budgetSavedChips" style="display:none;margin-top:14px;">
+                        <div style="font-size:12px;color:#888;margin-bottom:6px;">✅ 방금 저장한 항목</div>
+                        <div id="budgetSavedChipsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                    </div>
+
+                    <!-- 일괄 입력 (엑셀 붙여넣기) -->
+                    <div style="margin-top:20px;border-top:1px dashed #ddd;padding-top:16px;">
+                        <button class="btn" onclick="toggleBudgetBulk()" style="background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;">📋 일괄 입력 (엑셀 붙여넣기)</button>
+                        <div id="budgetBulkSection" style="display:none;margin-top:12px;">
+                            <p style="font-size:12.5px;color:#666;line-height:1.6;margin-bottom:8px;">
+                                엑셀에서 <strong>구분 · 소부서 · 항목 · 금액</strong> 4개 열을 범위 선택해 복사(Ctrl+C)한 뒤 아래에 붙여넣기(Ctrl+V) 하세요.<br>
+                                · 구분은 "수입" 또는 "지출" / 수입 줄의 소부서는 "-" 또는 빈칸<br>
+                                · 소부서·항목 이름은 설정의 계정과목과 <strong>정확히 일치</strong>해야 합니다
+                            </p>
+                            <textarea id="budgetBulkText" rows="8" placeholder="예)&#10;지출	급여및사례비	강사 사업소득	56900000&#10;지출	급여및사례비	간사	24380000&#10;수입	-	회비	41700000" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:12.5px;font-family:Consolas,monospace;"></textarea>
+                            <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                                <button class="btn btn-secondary" onclick="bulkSaveBudgets()">💾 일괄 저장</button>
+                                <span id="budgetBulkProgress" style="font-size:12.5px;color:#666;"></span>
+                            </div>
+                            <div id="budgetBulkResult" style="margin-top:10px;font-size:12.5px;line-height:1.7;"></div>
+                        </div>
+                    </div>
+
                     <div style="margin-top: 20px;">
                         <button class="btn btn-warning" onclick="hideBudgetInput()">❌ 취소</button>
                     </div>
@@ -10541,10 +10565,121 @@
                 })
                 .then(result => {
                     hideLoading();
-                    if (result.success) { showAlert(`${selectedYear}년 예산이 저장되었습니다.`); resetBudgetForm(); }
+                    if (result.success) {
+                        showAlert(`${selectedYear}년 예산이 저장되었습니다.`);
+                        _addBudgetSavedChip(category, department, item, amount);
+                        continueBudgetInput(category);
+                    }
                     else { showAlert(result.message || '예산 저장에 실패했습니다.', 'error'); }
                 })
                 .catch(err => { hideLoading(); showRetryableError('예산 저장'); console.error(err); });
+        }
+
+        // 저장 후 폼을 초기화하지 않고 다음 항목을 바로 입력할 수 있게 유지
+        // (카테고리와 부서 선택은 유지, 항목·금액만 비움)
+        function continueBudgetInput(category) {
+            if (category === 'income') {
+                document.getElementById('budgetIncomeItem').value = '';
+                document.getElementById('budgetIncomeAmount').value = '';
+                document.getElementById('currentIncomeAmount').style.display = 'none';
+                document.getElementById('budgetIncomeItem').focus();
+            } else {
+                // 같은 부서에 여러 항목을 연달아 입력하는 경우가 많으므로 부서는 유지
+                document.getElementById('budgetExpenseItem').value = '';
+                document.getElementById('budgetExpenseAmount').value = '';
+                document.getElementById('currentExpenseAmount').style.display = 'none';
+                document.getElementById('budgetExpenseItem').focus();
+            }
+        }
+
+        function _addBudgetSavedChip(category, department, item, amount) {
+            var box = document.getElementById('budgetSavedChips');
+            var list = document.getElementById('budgetSavedChipsList');
+            if (!box || !list) return;
+            box.style.display = 'block';
+            var label = category === 'income'
+                ? department
+                : department + (item ? ' - ' + item : '');
+            var chip = document.createElement('span');
+            chip.style.cssText = 'background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:14px;padding:3px 10px;font-size:12px;';
+            chip.textContent = label + ' ' + Number(amount).toLocaleString('ko-KR') + '원';
+            list.appendChild(chip);
+        }
+
+        function toggleBudgetBulk() {
+            var sec = document.getElementById('budgetBulkSection');
+            sec.style.display = sec.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // 엑셀에서 복사한 표(탭 구분)를 파싱해 한 건씩 저장
+        async function bulkSaveBudgets() {
+            var raw = document.getElementById('budgetBulkText').value.trim();
+            var progressEl = document.getElementById('budgetBulkProgress');
+            var resultEl = document.getElementById('budgetBulkResult');
+            resultEl.innerHTML = '';
+            if (!raw) { showAlert('붙여넣은 내용이 없습니다.', 'error'); return; }
+
+            var selectedYear = parseInt(document.getElementById('budgetInputYear').value) || new Date().getFullYear();
+
+            // 파싱: 탭 우선, 탭이 없으면 2칸 이상 공백으로 분리
+            var rows = [];
+            var errors = [];
+            raw.split(/\r?\n/).forEach(function(line, idx) {
+                var t = line.trim();
+                if (!t) return;
+                var cols = t.includes('\t') ? t.split('\t') : t.split(/\s{2,}/);
+                cols = cols.map(function(c) { return c.trim(); });
+                if (cols.length < 4) { errors.push(`${idx+1}행: 열이 4개 미만입니다 → "${t.slice(0,40)}"`); return; }
+                var [gubun, dept, item, amtRaw] = cols;
+                // 헤더 줄 자동 무시
+                if (gubun === '구분') return;
+                if (gubun !== '수입' && gubun !== '지출') { errors.push(`${idx+1}행: 구분은 "수입" 또는 "지출"이어야 합니다 → "${gubun}"`); return; }
+                var amount = Number(String(amtRaw).replace(/[,원\s]/g, ''));
+                if (isNaN(amount) || amount < 0) { errors.push(`${idx+1}행: 금액이 올바르지 않습니다 → "${amtRaw}"`); return; }
+                if (gubun === '수입') {
+                    if (!item || item === '-') { errors.push(`${idx+1}행: 수입 항목명이 비어 있습니다`); return; }
+                    rows.push({ category: '수입', department: item, item: '', label: item, amount });
+                } else {
+                    if (!dept || dept === '-') { errors.push(`${idx+1}행: 지출 소부서가 비어 있습니다`); return; }
+                    rows.push({ category: '지출', department: dept, item: (item === '-' ? '' : item), label: dept + (item && item !== '-' ? ' - ' + item : ''), amount });
+                }
+            });
+
+            if (errors.length > 0) {
+                resultEl.innerHTML = '<div style="color:#c0392b;">⚠️ 아래 행을 수정한 뒤 다시 시도해주세요 (저장은 실행되지 않았습니다):<br>' + errors.map(e => '· ' + e).join('<br>') + '</div>';
+                return;
+            }
+            if (rows.length === 0) { showAlert('저장할 행이 없습니다.', 'error'); return; }
+
+            if (!confirm(`${selectedYear}년 예산 ${rows.length}건을 일괄 저장하시겠습니까?\n(같은 항목이 이미 있으면 새 금액으로 덮어씁니다)`)) return;
+
+            var ok = [], fail = [];
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                progressEl.textContent = `저장 중... (${i+1}/${rows.length}) ${r.label}`;
+                try {
+                    var res = await api('POST', '/api/budget', {
+                        year: selectedYear, category: r.category,
+                        department: r.department, item: r.item, amount: r.amount,
+                    });
+                    if (res.success) ok.push(r);
+                    else fail.push({ r, msg: res.message || '저장 실패' });
+                } catch(e) {
+                    fail.push({ r, msg: friendlyErrorMessage(e) });
+                }
+            }
+            progressEl.textContent = '';
+            var html = `<div style="color:#2e7d32;">✅ ${ok.length}건 저장 완료</div>`;
+            if (fail.length > 0) {
+                html += '<div style="color:#c0392b;margin-top:6px;">❌ 실패 ' + fail.length + '건:<br>' +
+                    fail.map(f => `· ${f.r.label} — ${f.msg}`).join('<br>') +
+                    '<br><span style="color:#888;">(항목 이름이 설정의 계정과목과 다른 경우가 대부분입니다)</span></div>';
+            }
+            resultEl.innerHTML = html;
+            if (ok.length > 0 && fail.length === 0) {
+                document.getElementById('budgetBulkText').value = '';
+                showAlert(`${selectedYear}년 예산 ${ok.length}건이 모두 저장되었습니다.`);
+            }
         }
 
         function resetBudgetForm() {
@@ -15833,6 +15968,15 @@
             // 예산 알림도 함께 숨기기
             document.getElementById('budgetAlertSection').classList.add('hidden');
             resetBudgetForm();
+            // 저장 내역 칩과 일괄 입력 영역 초기화
+            var chips = document.getElementById('budgetSavedChips');
+            var chipList = document.getElementById('budgetSavedChipsList');
+            if (chips) chips.style.display = 'none';
+            if (chipList) chipList.innerHTML = '';
+            var bulkSec = document.getElementById('budgetBulkSection');
+            var bulkResult = document.getElementById('budgetBulkResult');
+            if (bulkSec) bulkSec.style.display = 'none';
+            if (bulkResult) bulkResult.innerHTML = '';
         }
 
         function hideBudgetView() {
