@@ -7514,9 +7514,11 @@
                             }
                             return '';
                         };
+                        // 항목명(수입항목/지출항목)은 '수입'·'지출' 단독 단어로는 짐작하지 않습니다.
+                        // ('수입'만 있으면 금액 열일 가능성이 높아 수입금액 쪽에서만 사용)
                         document.getElementById('imp-col-date').value        = guess(['날짜','일자','date','년월일','ymd']);
-                        document.getElementById('imp-col-incomeitem').value  = guess(['수입항목','수입','income']);
-                        document.getElementById('imp-col-expenseitem').value = guess(['지출항목','지출','expense']);
+                        document.getElementById('imp-col-incomeitem').value  = guess(['수입항목','계정과목','항목명']);
+                        document.getElementById('imp-col-expenseitem').value = guess(['지출항목','계정과목','항목명']);
                         document.getElementById('imp-col-desc').value        = guess(['내용','적요','desc','메모','비고']);
                         document.getElementById('imp-col-dept').value        = guess(['부서','소부서','dept','소속']);
                         document.getElementById('imp-col-income').value      = guess(['수입금액','수입','income','입금','수령']);
@@ -7661,15 +7663,15 @@
             colLetters.forEach((l, i) => {
                 const f = colFieldMap[String(i)];
                 const confirmed = f && _confirmedFields.has(f.id);
-                // 자동 짐작 상태는 아주 연하게, 사용자가 직접 지정한 항목은 진하게 표시
+                // 지정된 열은 색과 이모지로만 표시 (글자 없음). 짐작 상태는 점선+연한 색, 확정은 실선+진한 색
                 const bg = f ? (confirmed ? f.color + '22' : f.color + '0d') : '#f7f7f7';
                 const border = f ? (confirmed ? f.color : f.color + '55') : '#ddd';
-                const labelColor = f ? (confirmed ? f.color : f.color + '99') : '#bbb';
                 html += `<th ondragover="dragOverColumn(event)" ondrop="dropFieldOnColumn(event, ${i})" onclick="assignColumnToField(${i})"
+                    title="${f ? f.label + (confirmed ? '' : ' (자동 짐작)') : '이름표를 여기에 놓으세요'}"
                     style="cursor:pointer;padding:6px 8px;border:2px ${confirmed ? 'solid' : 'dashed'} ${border};background:${bg};font-size:11px;text-align:center;min-width:74px;">
                     <div style="color:#999;font-size:10px;">${l}열</div>
                     ${f
-                        ? `<div style="color:${labelColor};font-weight:${confirmed ? '700' : '500'};margin-top:2px;white-space:nowrap;">${f.emoji} ${f.label}${confirmed ? '' : ' <span style="font-size:9px;">(짐작)</span>'}</div>`
+                        ? `<div style="margin-top:2px;font-size:14px;opacity:${confirmed ? '1' : '0.55'};">${f.emoji}</div>`
                         : '<div style="color:#ccc;margin-top:2px;">여기에 놓기</div>'}
                 </th>`;
             });
