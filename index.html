@@ -4423,7 +4423,7 @@
                     </button>
                     <button id="stab-bankinfo" onclick="showSettingsTab('bankinfo')" class="settings-subtab">
                       <span class="stab-icon">🏦</span>
-                      <span class="stab-label">통장정보</span>
+                      <span class="stab-label">통장/문서설정</span>
                     </button>
                     <button id="stab-heroimage" onclick="showSettingsTab('heroimage')" class="settings-subtab">
                       <span class="stab-icon">🖼️</span>
@@ -5473,6 +5473,16 @@
                     <button class="btn" id="voucherModalPrintBtn" onclick="generateVoucher()" style="background:#333;color:#fff;">🖨️ 지출전표 출력</button>
                     <button class="btn" onclick="closeVoucherModal()" style="background:#6c757d;">❌ 취소</button>
                 </div>
+                <div style="margin-top:16px;border-top:1px dashed #ddd;padding-top:14px;">
+                    <label style="font-size:12.5px;color:#666;display:block;margin-bottom:6px;">📧 이메일로 보내기 (선택)</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <input type="email" id="voucherEmailInput" placeholder="받는 사람 이메일 주소"
+                            style="flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;">
+                        <button class="btn" id="voucherEmailSendBtn" onclick="sendVoucherEmail()"
+                            style="background:#1976d2;color:#fff;white-space:nowrap;">📧 이메일 전송</button>
+                    </div>
+                    <div id="voucherEmailStatus" style="font-size:12px;margin-top:6px;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -5524,6 +5534,16 @@
                 <div class="btn-group" style="margin-top:10px;">
                     <button class="btn" id="incomeVoucherModalPrintBtn" onclick="generateIncomeVoucher()" style="background:#d73527;color:#fff;">🖨️ 수입전표 출력</button>
                     <button class="btn" onclick="closeIncomeVoucherModal()" style="background:#6c757d;">❌ 취소</button>
+                </div>
+                <div style="margin-top:16px;border-top:1px dashed #ddd;padding-top:14px;">
+                    <label style="font-size:12.5px;color:#666;display:block;margin-bottom:6px;">📧 이메일로 보내기 (선택)</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <input type="email" id="incomeVoucherEmailInput" placeholder="받는 사람 이메일 주소"
+                            style="flex:1;min-width:180px;font-size:13px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;">
+                        <button class="btn" id="incomeVoucherEmailSendBtn" onclick="sendIncomeVoucherEmail()"
+                            style="background:#1976d2;color:#fff;white-space:nowrap;">📧 이메일 전송</button>
+                    </div>
+                    <div id="incomeVoucherEmailStatus" style="font-size:12px;margin-top:6px;"></div>
                 </div>
             </div>
         </div>
@@ -9812,13 +9832,52 @@
                 const transactionData = JSON.parse(button.getAttribute('data-transaction').replace(/&#39;/g, "'"));
                 currentVoucherData = transactionData;
                 document.getElementById('voucherModal').style.display = 'block';
+                document.getElementById('voucherEmailStatus').innerHTML = '';
                 getDocNames().then(({ expenseDocName }) => {
                     document.getElementById('voucherModalTitle').textContent = `📄 ${expenseDocName} 발행`;
                     document.getElementById('voucherModalPrintBtn').textContent = `🖨️ ${expenseDocName} 출력`;
                 });
+                api('GET', '/api/settings/email').then(res => {
+                    if (res.success && res.data) document.getElementById('voucherEmailInput').value = res.data;
+                }).catch(() => {});
             } catch (error) {
                 console.error('전표 데이터 파싱 오류:', error);
                 showRetryableError('전표 데이터를 읽는');
+            }
+        }
+
+        async function sendVoucherEmail() {
+            if (!currentVoucherData) { showAlert('전표 데이터가 없습니다.', 'error'); return; }
+            const email = document.getElementById('voucherEmailInput').value.trim();
+            const statusEl = document.getElementById('voucherEmailStatus');
+            if (!email || !email.includes('@')) {
+                statusEl.innerHTML = '<span style="color:#c0392b;">올바른 이메일 주소를 입력하세요.</span>';
+                return;
+            }
+            const btn = document.getElementById('voucherEmailSendBtn');
+            btn.disabled = true;
+            statusEl.innerHTML = '<span style="color:#888;">전송 중...</span>';
+            try {
+                const t = currentVoucherData;
+                const res = await api('POST', '/api/vouchers/expense', {
+                    email,
+                    transactionData: {
+                        date: t.date,
+                        department: t.department || '',
+                        expenseItem: t.expenseItem || '',
+                        description: t.description || '',
+                        amount: t.expense || t.amount || 0,
+                    },
+                });
+                if (res.success) {
+                    statusEl.innerHTML = `<span style="color:#2e7d32;">✅ ${email}로 전송되었습니다.</span>`;
+                } else {
+                    statusEl.innerHTML = `<span style="color:#c0392b;">❌ ${res.message || '전송 실패'}</span>`;
+                }
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#c0392b;">❌ ${friendlyErrorMessage(e)}</span>`;
+            } finally {
+                btn.disabled = false;
             }
         }
 
@@ -9950,13 +10009,51 @@
                 const transactionData = JSON.parse(button.getAttribute('data-transaction').replace(/&#39;/g, "'"));
                 currentIncomeVoucherData = transactionData;
                 document.getElementById('incomeVoucherModal').style.display = 'block';
+                document.getElementById('incomeVoucherEmailStatus').innerHTML = '';
                 getDocNames().then(({ incomeDocName }) => {
                     document.getElementById('incomeVoucherModalTitle').textContent = `📄 ${incomeDocName} 발행`;
                     document.getElementById('incomeVoucherModalPrintBtn').textContent = `🖨️ ${incomeDocName} 출력`;
                 });
+                api('GET', '/api/settings/email').then(res => {
+                    if (res.success && res.data) document.getElementById('incomeVoucherEmailInput').value = res.data;
+                }).catch(() => {});
             } catch (error) {
                 console.error('수입전표 데이터 파싱 오류:', error);
                 showRetryableError('수입전표 데이터를 읽는');
+            }
+        }
+
+        async function sendIncomeVoucherEmail() {
+            if (!currentIncomeVoucherData) { showAlert('수입전표 데이터가 없습니다.', 'error'); return; }
+            const email = document.getElementById('incomeVoucherEmailInput').value.trim();
+            const statusEl = document.getElementById('incomeVoucherEmailStatus');
+            if (!email || !email.includes('@')) {
+                statusEl.innerHTML = '<span style="color:#c0392b;">올바른 이메일 주소를 입력하세요.</span>';
+                return;
+            }
+            const btn = document.getElementById('incomeVoucherEmailSendBtn');
+            btn.disabled = true;
+            statusEl.innerHTML = '<span style="color:#888;">전송 중...</span>';
+            try {
+                const t = currentIncomeVoucherData;
+                const res = await api('POST', '/api/vouchers/income', {
+                    email,
+                    transactionData: {
+                        date: t.date,
+                        incomeItem: t.incomeItem || '',
+                        description: t.description || '',
+                        income: t.income || 0,
+                    },
+                });
+                if (res.success) {
+                    statusEl.innerHTML = `<span style="color:#2e7d32;">✅ ${email}로 전송되었습니다.</span>`;
+                } else {
+                    statusEl.innerHTML = `<span style="color:#c0392b;">❌ ${res.message || '전송 실패'}</span>`;
+                }
+            } catch (e) {
+                statusEl.innerHTML = `<span style="color:#c0392b;">❌ ${friendlyErrorMessage(e)}</span>`;
+            } finally {
+                btn.disabled = false;
             }
         }
 
