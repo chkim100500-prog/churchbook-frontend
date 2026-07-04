@@ -2846,6 +2846,9 @@
             <div class="tab-content" id="search">
                 <div class="card">
                     <h2>🔍 거래 조회 및 관리</h2>
+                    <div id="search-status-line" style="font-size:13px;color:#666;margin:-4px 0 12px;padding:8px 12px;background:#f5f7fb;border-radius:8px;">
+                        불러오는 중...
+                    </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="searchKeyword">검색어</label>
@@ -8461,6 +8464,8 @@
                     var el = document.getElementById(id);
                     if (el) el.classList.add('hidden');
                 });
+            } else if (tabName === 'search') {
+                loadSearchTabTotalCount();
             } else if (tabName === 'teacherfee') {
                 displayTeacherFeeResults([], '검색어를 입력하거나 조회 버튼을 눌러 내역을 확인하세요.');
                 if (_duesData.length === 0) loadDuesSettings();
@@ -9359,6 +9364,28 @@
         }
 
         // === 검색 관리 기능 ===
+        function setSearchStatusLine(html) {
+            const el = document.getElementById('search-status-line');
+            if (el) el.innerHTML = html;
+        }
+
+        // 조회관리 탭을 열 때, 검색 전이라도 전체 거래 건수를 바로 보여줍니다.
+        // (원장을 직접 열어보지 않아도 "총 몇 건이 있는지"를 화면에서 바로 알 수 있도록)
+        async function loadSearchTabTotalCount() {
+            setSearchStatusLine('불러오는 중...');
+            try {
+                const result = await api('GET', '/api/transactions');
+                const all = result.data || [];
+                const incomeCount = all.filter(t => t.type === 'income').length;
+                const expenseCount = all.filter(t => t.type === 'expense').length;
+                setSearchStatusLine(
+                    `💾 전체 등록된 거래: <strong>${all.length.toLocaleString()}건</strong> (수입 ${incomeCount.toLocaleString()}건 · 지출 ${expenseCount.toLocaleString()}건) — 검색어를 입력하거나 월별조회로 좁혀보세요.`
+                );
+            } catch(e) {
+                setSearchStatusLine('전체 건수를 불러오지 못했습니다. (검색은 정상적으로 사용할 수 있어요)');
+            }
+        }
+
         function performSearch() {
             const keyword = document.getElementById('searchKeyword').value.trim();
             if (!keyword) {
@@ -9412,7 +9439,10 @@
                     (statusResult.data || []).forEach(s => { _bvPrintStatus[s.rowIndex] = s.printedAt; });
                     _receiptMap = {};
                     (receiptResult.data || []).forEach(r => { if (r.txnId) _receiptMap[r.txnId] = true; if (r.txnDate && r.amount) _receiptMap[receiptFallbackKey(r.txnDate, r.amount)] = true; });
-                    displaySearchResults(result.data || []);
+                    const monthlyResults = result.data || [];
+                    displaySearchResults(monthlyResults);
+                    const periodLabel = month === 'all' ? `${year}년 전체` : `${year}년 ${month}월`;
+                    setSearchStatusLine(`📅 ${periodLabel} 조회결과: <strong>${monthlyResults.length.toLocaleString()}건</strong>`);
                 })
                 .catch(err => {
                     // 일시적인 오류일 수 있으므로 조용히 몇 번 더 시도합니다.
@@ -9439,6 +9469,7 @@
                     searchTransactions(keyword);
                 } else {
                     displaySearchResults([], '검색어를 입력하여 거래 내역을 조회하세요.');
+                    loadSearchTabTotalCount();
                 }
             }, 300);
         }
@@ -9467,8 +9498,10 @@
                     const results = result.data || [];
                     if (results.length > 0) {
                         displaySearchResults(results);
+                        setSearchStatusLine(`🔍 "${escapeHtml(keyword)}" 검색결과: <strong>${results.length.toLocaleString()}건</strong>`);
                     } else {
                         displaySearchResults([], `"${keyword}" 검색 결과가 없습니다.`);
+                        setSearchStatusLine(`🔍 "${escapeHtml(keyword)}" 검색결과: <strong>0건</strong>`);
                     }
                 })
                 .catch(err => {
@@ -9488,13 +9521,13 @@
         
         // displaySearchResults 함수에서 버튼 생성 부분 수정
         let _lastSearchResults = []; // 엑셀 다운로드용 원본 데이터
-        function displaySearchResults(results) {
+        function displaySearchResults(results, emptyMessage) {
             _lastSearchResults = results || [];
             const tbody = document.getElementById('searchResults');
             tbody.innerHTML = '';
 
             if (results.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 30px; color: #999;">검색 결과가 없습니다.</td></tr>';
+                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 30px; color: #999;">${escapeHtml(emptyMessage || '검색 결과가 없습니다.')}</td></tr>`;
                 return;
             }
 
@@ -9585,7 +9618,7 @@
             const totalRow = document.createElement('tr');
             totalRow.className = 'total-row';
             totalRow.innerHTML = `
-                <td colspan="6" style="text-align: center;"><strong>합 계</strong></td>
+                <td colspan="6" style="text-align: center;"><strong>합 계 (총 ${results.length.toLocaleString()}건)</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalExpense)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome - totalExpense)}</strong></td>
