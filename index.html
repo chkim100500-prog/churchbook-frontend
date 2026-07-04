@@ -5066,7 +5066,7 @@
                       · <strong>최근 5년</strong>: "언제·누가·무엇을 했는지" 요약 + 상세 데이터(복구 가능)까지 전부 보관됩니다.<br>
                       · <strong>5년이 지난 이력</strong>: 상세 데이터(복구용 원본 데이터)는 정리되고, "언제·누가·무엇을 했는지" 요약 정보는 계속 보관됩니다. 상세 데이터가 정리되기 전 정기적으로 엑셀 백업이 이루어집니다. (일반적으로 회계자료 보관 의무기간이 5년인 점을 반영했습니다.)<br>
                       · 즉, <strong>5년이 지난 삭제 건은 "복구" 버튼을 쓸 수 없습니다.</strong> 복구가 필요하면 5년 이내에 확인해주세요.<br>
-                      · <strong>일괄가져오기</strong>: 엑셀로 여러 건을 한꺼번에 등록한 건을 요약해서 보여줍니다.
+                      · <strong>일괄가져오기</strong>: 엑셀로 여러 건을 한꺼번에 등록한 건을 요약해서 보여줍니다. <strong>가져온 지 24시간이 지나면 일괄 취소 버튼이 비활성화</strong>됩니다 (그 이후엔 조회관리에서 개별 수정·삭제해주세요).
                     </div>
 
                     <!-- 필터 -->
@@ -8013,7 +8013,15 @@
                         <td style="padding:9px 8px;text-align:center;">
                             ${hasDiff ? `<button onclick="showAuditDetail(${log.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#555;">비교</button>` : '-'}
                             ${(log.action === 'delete' && log.before_data && log.target === 'transaction') ? `<button onclick="restoreDeletedTransaction(${log.id})" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#2e7d32;margin-left:4px;">↩️ 복구</button>` : ''}
-                            ${(log.action === 'import' && log.target === 'transaction' && log.after_data && log.after_data.batchId) ? `<button onclick="undoImportBatchFromLog('${log.after_data.batchId}')" style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#a35b00;margin-left:4px;">↩️ 가져오기 취소</button>` : ''}
+                            ${(log.action === 'import' && log.target === 'transaction' && log.after_data && log.after_data.batchId) ? (
+                                (() => {
+                                    const importedAt = parseInt(String(log.after_data.batchId).slice(3), 10);
+                                    const expired = !isNaN(importedAt) && (Date.now() - importedAt) > (24 * 60 * 60 * 1000);
+                                    return expired
+                                        ? `<span title="가져온 지 24시간이 지나 취소할 수 없습니다. 조회관리에서 개별 수정·삭제해주세요." style="background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:11px;color:#bbb;margin-left:4px;cursor:not-allowed;">↩️ 가져오기 취소</span>`
+                                        : `<button onclick="undoImportBatchFromLog('${log.after_data.batchId}')" style="background:#fff3e0;border:1px solid #ffb74d;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;color:#a35b00;margin-left:4px;">↩️ 가져오기 취소</button>`;
+                                })()
+                            ) : ''}
                         </td>
                     </tr>`;
                 }).join('');
