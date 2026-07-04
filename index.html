@@ -2864,20 +2864,20 @@
                 </div>
 
                 <div class="card">
-                    <div class="table-container">
+                    <div class="table-container" style="max-height:65vh;overflow-y:auto;">
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th style="width: 9%;">날짜</th>
-                                    <th style="width: 8%;">거래구분</th>
-                                    <th style="width: 11%;">소부서</th>
-                                    <th style="width: 11%;">수입항목</th>
-                                    <th style="width: 11%;">지출항목</th>
-                                    <th style="width: 17%;">적요</th>
-                                    <th style="width: 9%;">수입금액</th>
-                                    <th style="width: 9%;">지출금액</th>
-                                    <th style="width: 9%;">차인잔고</th>
-                                    <th style="width: 6%;">관리</th>
+                                    <th style="width: 9%;position:sticky;top:0;background:#fff;z-index:2;">날짜</th>
+                                    <th style="width: 8%;position:sticky;top:0;background:#fff;z-index:2;">거래구분</th>
+                                    <th style="width: 11%;position:sticky;top:0;background:#fff;z-index:2;">소부서</th>
+                                    <th style="width: 11%;position:sticky;top:0;background:#fff;z-index:2;">수입항목</th>
+                                    <th style="width: 11%;position:sticky;top:0;background:#fff;z-index:2;">지출항목</th>
+                                    <th style="width: 17%;position:sticky;top:0;background:#fff;z-index:2;">적요</th>
+                                    <th style="width: 9%;position:sticky;top:0;background:#fff;z-index:2;">수입금액</th>
+                                    <th style="width: 9%;position:sticky;top:0;background:#fff;z-index:2;">지출금액</th>
+                                    <th style="width: 9%;position:sticky;top:0;background:#fff;z-index:2;">차인잔고</th>
+                                    <th style="width: 6%;position:sticky;top:0;background:#fff;z-index:2;">관리</th>
                                 </tr>
                             </thead>
                             <tbody id="searchResults">
@@ -2889,6 +2889,7 @@
                             </tbody>
                         </table>
                     </div>
+                    <div id="search-pagination" style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:14px;"></div>
                 </div>
             </div>
 
@@ -9521,31 +9522,46 @@
         
         // displaySearchResults 함수에서 버튼 생성 부분 수정
         let _lastSearchResults = []; // 엑셀 다운로드용 원본 데이터
+        let _searchSortedResults = [];
+        let _searchPage = 1;
+        const SEARCH_PAGE_SIZE = 50;
+
         function displaySearchResults(results, emptyMessage) {
             _lastSearchResults = results || [];
             const tbody = document.getElementById('searchResults');
-            tbody.innerHTML = '';
+            document.getElementById('search-pagination').innerHTML = '';
 
-            if (results.length === 0) {
+            if (!results || results.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 30px; color: #999;">${escapeHtml(emptyMessage || '검색 결과가 없습니다.')}</td></tr>`;
                 return;
             }
 
             // 최신 거래가 위에 오도록 날짜 역순 + 같은 날짜는 입력순서 역순(나중 입력이 위)
-            results = [...results].sort((a, b) => {
+            _searchSortedResults = [...results].sort((a, b) => {
                 const da = new Date(a.date || a.Date || 0);
                 const db = new Date(b.date || b.Date || 0);
                 if (db.getTime() !== da.getTime()) return db - da;
                 return (b.id || 0) - (a.id || 0);
             });
+            _searchPage = 1;
+            renderSearchResultsPage();
+        }
 
-            let totalIncome = 0;
-            let totalExpense = 0;
+        function renderSearchResultsPage() {
+            const tbody = document.getElementById('searchResults');
+            tbody.innerHTML = '';
+            const all = _searchSortedResults;
 
-            results.forEach(row => {
-                totalIncome += row.income || 0;
-                totalExpense += row.expense || 0;
+            // 합계는 페이지가 아니라 전체(검색/조회된) 결과 기준으로 계산합니다.
+            let totalIncome = 0, totalExpense = 0;
+            all.forEach(row => { totalIncome += row.income || 0; totalExpense += row.expense || 0; });
 
+            const totalPages = Math.max(1, Math.ceil(all.length / SEARCH_PAGE_SIZE));
+            _searchPage = Math.min(Math.max(1, _searchPage), totalPages);
+            const start = (_searchPage - 1) * SEARCH_PAGE_SIZE;
+            const pageRows = all.slice(start, start + SEARCH_PAGE_SIZE);
+
+            pageRows.forEach(row => {
                 const tr = document.createElement('tr');
                 const _printedAt = _bvPrintStatus[row.id];
                 const _hasReceipt = hasReceiptForRow(row);
@@ -9614,17 +9630,53 @@
                 tbody.appendChild(tr);
             });
 
-            // 합계 행 추가
+            // 합계 행 추가 (전체 결과 기준, 페이지 기준 아님)
             const totalRow = document.createElement('tr');
             totalRow.className = 'total-row';
             totalRow.innerHTML = `
-                <td colspan="6" style="text-align: center;"><strong>합 계 (총 ${results.length.toLocaleString()}건)</strong></td>
+                <td colspan="6" style="text-align: center;"><strong>합 계 (총 ${all.length.toLocaleString()}건)</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalExpense)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome - totalExpense)}</strong></td>
                 <td></td>
             `;
             tbody.appendChild(totalRow);
+
+            renderSearchPagination(totalPages, all.length, start, pageRows.length);
+        }
+
+        function renderSearchPagination(totalPages, totalCount, start, pageCount) {
+            const box = document.getElementById('search-pagination');
+            if (totalPages <= 1) { box.innerHTML = ''; return; }
+
+            const rangeLabel = `${(start + 1).toLocaleString()}–${(start + pageCount).toLocaleString()} / 총 ${totalCount.toLocaleString()}건`;
+            let html = `<span style="font-size:12px;color:#888;margin-right:8px;align-self:center;">${rangeLabel}</span>`;
+
+            const mkBtn = (label, page, disabled, active) =>
+                `<button ${disabled ? 'disabled' : `onclick="goSearchPage(${page})"`}
+                    style="padding:6px 12px;border:1px solid ${active ? '#f48fb1' : '#ddd'};border-radius:6px;
+                    background:${active ? '#f48fb1' : (disabled ? '#f5f5f5' : 'white')};
+                    color:${active ? 'white' : (disabled ? '#ccc' : '#333')};
+                    font-size:13px;cursor:${disabled ? 'default' : 'pointer'};">${label}</button>`;
+
+            html += mkBtn('이전', _searchPage - 1, _searchPage === 1, false);
+
+            // 페이지 번호는 최대 7개까지만 (현재 페이지 주변)
+            let pStart = Math.max(1, _searchPage - 3);
+            let pEnd = Math.min(totalPages, pStart + 6);
+            pStart = Math.max(1, pEnd - 6);
+            for (let p = pStart; p <= pEnd; p++) {
+                html += mkBtn(String(p), p, false, p === _searchPage);
+            }
+
+            html += mkBtn('다음', _searchPage + 1, _searchPage === totalPages, false);
+            box.innerHTML = html;
+        }
+
+        function goSearchPage(page) {
+            _searchPage = page;
+            renderSearchResultsPage();
+            document.querySelector('#search .table-container').scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // === 수정/삭제 기능 ===
