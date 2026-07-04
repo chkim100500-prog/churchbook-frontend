@@ -5169,7 +5169,7 @@
                 </div>
                 <div style="flex:1;height:2px;background:#e0e0e0;margin:0 8px;"></div>
                 <div id="imp-step-2-ind" style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#aaa;">
-                    <span style="width:24px;height:24px;border-radius:50%;background:#ddd;color:#666;display:flex;align-items:center;justify-content:center;font-size:12px;">2</span>컬럼 매핑
+                    <span style="width:24px;height:24px;border-radius:50%;background:#ddd;color:#666;display:flex;align-items:center;justify-content:center;font-size:12px;">2</span>항목 확인
                 </div>
                 <div style="flex:1;height:2px;background:#e0e0e0;margin:0 8px;"></div>
                 <div id="imp-step-3-ind" style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#aaa;">
@@ -5198,53 +5198,59 @@
                         <table id="imp-raw-table" style="width:100%;font-size:11px;border-collapse:collapse;"></table>
                     </div>
                     <div style="margin-top:16px;text-align:right;">
-                        <button class="btn" onclick="goImportStep(2)" style="background:#1a73e8;color:white;padding:10px 24px;">다음 → 컬럼 매핑</button>
+                        <button class="btn" onclick="goImportStep(2)" style="background:#1a73e8;color:white;padding:10px 24px;">다음 → 항목 확인</button>
                     </div>
                 </div>
             </div>
 
-            <!-- 2단계: 컬럼 매핑 -->
+            <!-- 2단계: 항목 확인 (클릭식) -->
             <div id="imp-step-2" style="display:none;">
-                <div style="background:#f0f7ff;border-radius:8px;padding:12px 14px;font-size:12px;color:#1a73e8;margin-bottom:16px;">
-                    💡 각 항목에 해당하는 열을 선택하세요. 없는 항목은 "없음"으로 두세요.
+                <div id="imp-step2-intro" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;padding:12px 14px;font-size:13px;color:#1a6b4a;margin-bottom:14px;line-height:1.6;">
+                    🎉 <strong>자동으로 항목을 찾아봤어요!</strong> 아래 표에 색깔로 표시된 부분을 한번 확인해주세요. 틀린 게 있으면, 아래에서 <strong>항목 이름을 먼저 누르고</strong> 표에서 <strong>해당하는 칸(열)을 눌러</strong> 다시 지정하면 됩니다.
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">📅 날짜 열 <span style="color:red;">*</span></label>
-                        <select id="imp-col-date" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">📝 수입항목 열</label>
-                        <select id="imp-col-incomeitem" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">📝 지출항목 열</label>
-                        <select id="imp-col-expenseitem" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">💬 적요(내용) 열</label>
-                        <select id="imp-col-desc" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">🏢 부서 열</label>
-                        <select id="imp-col-dept" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">💰 수입금액 열</label>
-                        <select id="imp-col-income" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">💸 지출금액 열</label>
-                        <select id="imp-col-expense" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;"></select>
-                    </div>
+                <div id="imp-step2-instruction" style="display:none;background:#fff3e0;border:1px solid #ffb74d;border-radius:8px;padding:10px 14px;font-size:13px;color:#a35b00;margin-bottom:14px;font-weight:600;"></div>
+
+                <!-- 필수 항목 -->
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:12px;color:#888;margin-bottom:6px;">✅ 꼭 필요해요</div>
+                    <div id="imp-required-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
                 </div>
-                <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-                    <div>
-                        <label style="font-size:13px;font-weight:600;color:#333;display:block;margin-bottom:4px;">데이터 시작 행</label>
-                        <input type="number" id="imp-start-row" value="2" min="1" style="width:100px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
-                        <span style="font-size:12px;color:#888;margin-left:6px;">(헤더 다음 행, 보통 2행)</span>
+
+                <!-- 선택 항목 (접기/펼치기) -->
+                <div style="margin-bottom:14px;">
+                    <button type="button" onclick="toggleOptionalFields()" id="imp-optional-toggle"
+                        style="background:none;border:none;color:#1a73e8;font-size:12.5px;cursor:pointer;padding:0;">▾ 선택 항목 더보기 (부서·적요·수입/지출 항목명)</button>
+                    <div id="imp-optional-chips" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;flex-direction:row;"></div>
+                </div>
+
+                <!-- 클릭식 미리보기 표 -->
+                <div style="font-size:12px;color:#666;margin-bottom:6px;">👇 이 표에서 열(세로줄)을 클릭해 항목을 지정하세요</div>
+                <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px;margin-bottom:14px;">
+                    <table id="imp-click-table" style="width:100%;font-size:12px;border-collapse:collapse;"></table>
+                </div>
+
+                <!-- 고급 설정 (평소엔 숨김) -->
+                <div style="margin-bottom:14px;">
+                    <button type="button" onclick="toggleImportAdvanced()" id="imp-advanced-toggle"
+                        style="background:none;border:none;color:#999;font-size:12px;cursor:pointer;padding:0;">⚙️ 고급 설정</button>
+                    <div id="imp-advanced-box" style="display:none;margin-top:8px;padding:10px 12px;background:#fafafa;border-radius:8px;">
+                        <label style="font-size:12.5px;color:#555;display:block;margin-bottom:4px;">데이터가 시작되는 줄 번호</label>
+                        <input type="number" id="imp-start-row" value="2" min="1" style="width:100px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                        <span style="font-size:12px;color:#888;margin-left:6px;">보통 첫 줄이 제목이라 2줄부터 시작해요. 표가 이상하게 보이면 조정해보세요.</span>
                     </div>
                 </div>
+
+                <!-- 실제 값을 담는 숨겨진 select (기존 로직과의 호환용, 화면에는 표시하지 않음) -->
+                <div style="display:none;">
+                    <select id="imp-col-date"></select>
+                    <select id="imp-col-incomeitem"></select>
+                    <select id="imp-col-expenseitem"></select>
+                    <select id="imp-col-desc"></select>
+                    <select id="imp-col-dept"></select>
+                    <select id="imp-col-income"></select>
+                    <select id="imp-col-expense"></select>
+                </div>
+
                 <div id="imp-map-alert"></div>
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
                     <button class="btn" onclick="goImportStep(1)" style="background:#6c757d;color:white;padding:10px 20px;">← 이전</button>
@@ -7423,6 +7429,7 @@
         function showImportWizard() {
             _importRawRows = [];
             _importParsed  = [];
+            _activeMappingField = null;
             document.getElementById('importFileInput').value = '';
             document.getElementById('imp-file-name').textContent = '';
             document.getElementById('imp-raw-preview').style.display = 'none';
@@ -7430,6 +7437,8 @@
             document.getElementById('imp-import-alert').innerHTML = '';
             document.getElementById('imp-missing-master').style.display = 'none';
             document.getElementById('imp-missing-master').innerHTML = '';
+            const instr = document.getElementById('imp-step2-instruction');
+            if (instr) instr.style.display = 'none';
             _importMissing = { income: [], expense: [] };
             goImportStep(1);
             document.getElementById('importModal').style.display = 'flex';
@@ -7518,12 +7527,143 @@
                         document.getElementById('imp-col-income').value      = guess(['수입금액','수입','income','입금','수령']);
                         document.getElementById('imp-col-expense').value     = guess(['지출금액','지출','expense','출금','지급']);
                     }
+                    renderImportStep2();
                 } catch(e) {
                     alert('파일을 읽을 수 없습니다. 엑셀(.xlsx/.xls) 또는 CSV 파일인지 확인해 주세요.');
                     console.error(e);
                 }
             };
             reader.readAsArrayBuffer(file);
+        }
+
+        // ===== 2단계: 클릭식 항목 확인 UI =====
+        const IMPORT_FIELDS = [
+            { id: 'date',        label: '날짜',     emoji: '📅', color: '#1a73e8', required: true },
+            { id: 'income',      label: '수입금액', emoji: '📥', color: '#2e7d32', required: true },
+            { id: 'expense',     label: '지출금액', emoji: '📤', color: '#c0392b', required: true },
+            { id: 'incomeitem',  label: '수입항목', emoji: '📝', color: '#8e44ad', required: false },
+            { id: 'expenseitem', label: '지출항목', emoji: '📝', color: '#8e44ad', required: false },
+            { id: 'desc',        label: '적요',     emoji: '💬', color: '#16a085', required: false },
+            { id: 'dept',        label: '부서',     emoji: '🏢', color: '#e67e22', required: false },
+        ];
+        let _activeMappingField = null;
+
+        function renderImportStep2() {
+            const requiredBox = document.getElementById('imp-required-chips');
+            const optionalBox = document.getElementById('imp-optional-chips');
+            requiredBox.innerHTML = '';
+            optionalBox.innerHTML = '';
+            IMPORT_FIELDS.forEach(f => {
+                const chip = buildFieldChip(f);
+                (f.required ? requiredBox : optionalBox).appendChild(chip);
+            });
+            const maxCols = Math.max(1, ...(_importRawRows.slice(0, 10).map(r => r.length)));
+            buildImportClickTable(maxCols);
+        }
+
+        function buildFieldChip(f) {
+            const sel = document.getElementById(`imp-col-${f.id}`);
+            const val = sel ? sel.value : '';
+            const assigned = val !== '';
+            const colLetter = assigned ? String.fromCharCode(65 + parseInt(val, 10)) : null;
+            const div = document.createElement('div');
+            div.id = `imp-chip-${f.id}`;
+            div.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12.5px;cursor:pointer;border:2px solid ${assigned ? f.color : '#ddd'};background:${assigned ? f.color + '18' : '#fafafa'};color:${assigned ? f.color : '#888'};font-weight:600;transition:box-shadow 0.15s;`;
+            div.innerHTML = `${f.emoji} ${f.label} <span style="opacity:0.8;font-weight:500;">${assigned ? '· ' + colLetter + '열' : (f.required ? '· 지정 필요' : '· 없음')}</span>` +
+                (assigned ? ` <span style="margin-left:2px;opacity:0.6;" title="지정 취소">✕</span>` : '');
+            div.onclick = (ev) => {
+                // 배지의 ✕ 부분을 눌렀으면 지정 취소, 아니면 항목 선택 모드로 진입
+                if (assigned && ev.offsetX > div.clientWidth - 22) {
+                    clearFieldAssignment(f.id);
+                } else {
+                    selectMappingField(f.id);
+                }
+            };
+            return div;
+        }
+
+        function selectMappingField(fieldId) {
+            _activeMappingField = fieldId;
+            const f = IMPORT_FIELDS.find(x => x.id === fieldId);
+            IMPORT_FIELDS.forEach(x => {
+                const el = document.getElementById(`imp-chip-${x.id}`);
+                if (el) el.style.boxShadow = (x.id === fieldId) ? `0 0 0 3px ${x.color}55` : 'none';
+            });
+            const instr = document.getElementById('imp-step2-instruction');
+            instr.style.display = 'block';
+            instr.textContent = `👉 아래 표에서 "${f.emoji} ${f.label}"에 해당하는 열을 클릭하세요.`;
+        }
+
+        function clearFieldAssignment(fieldId) {
+            const sel = document.getElementById(`imp-col-${fieldId}`);
+            if (sel) sel.value = '';
+            if (_activeMappingField === fieldId) _activeMappingField = null;
+            renderImportStep2();
+        }
+
+        function assignColumnToField(colIndex) {
+            if (!_activeMappingField) {
+                const instr = document.getElementById('imp-step2-instruction');
+                instr.style.display = 'block';
+                instr.textContent = '☝️ 먼저 위에서 지정할 항목(날짜·수입금액 등)을 눌러주세요.';
+                return;
+            }
+            const sel = document.getElementById(`imp-col-${_activeMappingField}`);
+            if (sel) sel.value = String(colIndex);
+            _activeMappingField = null;
+            document.getElementById('imp-step2-instruction').style.display = 'none';
+            renderImportStep2();
+        }
+
+        function buildImportClickTable(maxCols) {
+            const rows = _importRawRows;
+            const preview = rows.slice(0, 6);
+            const colLetters = Array.from({ length: maxCols }, (_, i) => String.fromCharCode(65 + i));
+
+            const colFieldMap = {};
+            IMPORT_FIELDS.forEach(f => {
+                const sel = document.getElementById(`imp-col-${f.id}`);
+                const v = sel ? sel.value : '';
+                if (v !== '') colFieldMap[v] = f;
+            });
+
+            let html = '<thead><tr>';
+            html += '<th style="padding:6px 8px;border:1px solid #eee;font-size:10px;color:#bbb;background:#fafafa;">행</th>';
+            colLetters.forEach((l, i) => {
+                const f = colFieldMap[String(i)];
+                const bg = f ? f.color + '18' : '#f7f7f7';
+                const border = f ? f.color : '#ddd';
+                html += `<th onclick="assignColumnToField(${i})" style="cursor:pointer;padding:6px 8px;border:2px solid ${border};background:${bg};font-size:11px;text-align:center;min-width:74px;">
+                    <div style="color:#999;font-size:10px;">${l}열</div>
+                    ${f ? `<div style="color:${f.color};font-weight:700;margin-top:2px;white-space:nowrap;">${f.emoji} ${f.label}</div>` : '<div style="color:#bbb;margin-top:2px;">클릭해서 지정</div>'}
+                </th>`;
+            });
+            html += '</tr></thead><tbody>';
+            preview.forEach((row, ri) => {
+                html += `<tr style="${ri % 2 === 0 ? '' : 'background:#fafafa'}">`;
+                html += `<td style="padding:5px 8px;border:1px solid #f0f0f0;font-size:10px;color:#bbb;">${ri + 1}</td>`;
+                colLetters.forEach((_, ci) => {
+                    const v = row[ci] !== undefined ? String(row[ci]) : '';
+                    html += `<td onclick="assignColumnToField(${ci})" style="cursor:pointer;padding:5px 8px;border:1px solid #f0f0f0;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(v)}">${escapeHtml(v.slice(0, 18))}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody>';
+            document.getElementById('imp-click-table').innerHTML = html;
+        }
+
+        function toggleOptionalFields() {
+            const box = document.getElementById('imp-optional-chips');
+            const btn = document.getElementById('imp-optional-toggle');
+            const show = box.style.display === 'none' || !box.style.display;
+            box.style.display = show ? 'flex' : 'none';
+            btn.textContent = show ? '▴ 선택 항목 접기' : '▾ 선택 항목 더보기 (부서·적요·수입/지출 항목명)';
+        }
+
+        function toggleImportAdvanced() {
+            const box = document.getElementById('imp-advanced-box');
+            const show = box.style.display === 'none' || !box.style.display;
+            box.style.display = show ? 'block' : 'none';
         }
 
         function parseAndPreview() {
