@@ -7420,6 +7420,20 @@
         let _importRawRows = [];   // 파일에서 읽은 원본 행 배열
         let _importParsed  = [];   // 파싱된 거래 배열
 
+        // 엑셀 날짜 시리얼 번호(예: 45855)를 사람이 보기 쉬운 "YYYY-MM-DD" 형식으로 바꿔줍니다.
+        // 날짜 시리얼 번호가 아닌 값(금액 등)이면 null을 반환해서 원래 값을 그대로 보여주게 합니다.
+        function excelSerialToDateStr(num) {
+            if (typeof num !== 'number' || !isFinite(num)) return null;
+            // 대략 1970년~2050년 사이의 날짜만 인정 (그 밖의 숫자는 금액 등 다른 값으로 취급)
+            if (num < 25569 || num > 55000) return null;
+            const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+            if (isNaN(d.getTime())) return null;
+            const y = d.getUTCFullYear();
+            const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        }
+
         function showImportWizard() {
             _importRawRows = [];
             _importParsed  = [];
@@ -7472,6 +7486,17 @@
                     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
                     _importRawRows = rows;
 
+                    // 자동 추천 (헤더 행 분석) — 미리보기 표를 만들기 전에 먼저 날짜 열을 짐작해둡니다.
+                    // (짐작된 날짜 열은 미리보기에서 엑셀 시리얼 번호가 아니라 보통 날짜 형식으로 보여주기 위함)
+                    let guessedDateColIdx = -1;
+                    if (rows.length > 0) {
+                        const header0 = rows[0].map(v => String(v || '').toLowerCase());
+                        for (const kw of ['날짜','일자','date','년월일','ymd']) {
+                            const idx = header0.findIndex(h => h.includes(kw));
+                            if (idx !== -1) { guessedDateColIdx = idx; break; }
+                        }
+                    }
+
                     // 원본 미리보기 테이블 (상위 10행)
                     const preview = rows.slice(0, 10);
                     const maxCols = Math.max(...preview.map(r => r.length));
@@ -7487,7 +7512,10 @@
                         html += `<tr style="${ri%2===0?'':'background:#fafafa'}">`;
                         html += `<td style="padding:5px 8px;border:1px solid #eee;font-size:11px;color:#999;">${ri+1}</td>`;
                         colLetters.forEach((_, ci) => {
-                            const v = row[ci] !== undefined ? String(row[ci]) : '';
+                            const raw = row[ci];
+                            // 날짜로 짐작된 열이면 시리얼 번호 대신 사람이 읽기 쉬운 날짜(YYYY-MM-DD)로 표시
+                            const dateStr = (ci === guessedDateColIdx) ? excelSerialToDateStr(raw) : null;
+                            const v = dateStr || (raw !== undefined ? String(raw) : '');
                             html += `<td style="padding:5px 8px;border:1px solid #eee;font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${v}">${v.slice(0,20)}</td>`;
                         });
                         html += '</tr>';
@@ -7504,7 +7532,7 @@
                     ['date','incomeitem','expenseitem','desc','dept','income','expense'].forEach(id => {
                         document.getElementById(`imp-col-${id}`).innerHTML = opts;
                     });
-                    // 자동 추천 (헤더 행 분석)
+                    // 자동 추천 값 채우기 (헤더 행 분석)
                     if (rows.length > 0) {
                         const header = rows[0].map(v => String(v || '').toLowerCase());
                         const guess = (keywords) => {
@@ -7516,7 +7544,7 @@
                         };
                         // 항목명(수입항목/지출항목)은 '수입'·'지출' 단독 단어로는 짐작하지 않습니다.
                         // ('수입'만 있으면 금액 열일 가능성이 높아 수입금액 쪽에서만 사용)
-                        document.getElementById('imp-col-date').value        = guess(['날짜','일자','date','년월일','ymd']);
+                        document.getElementById('imp-col-date').value        = guessedDateColIdx >= 0 ? String(guessedDateColIdx) : '';
                         document.getElementById('imp-col-incomeitem').value  = guess(['수입항목','계정과목','항목명']);
                         document.getElementById('imp-col-expenseitem').value = guess(['지출항목','계정과목','항목명']);
                         document.getElementById('imp-col-desc').value        = guess(['내용','적요','desc','메모','비고']);
@@ -7569,10 +7597,12 @@
             const div = document.createElement('div');
             div.id = `imp-chip-${f.id}`;
             div.setAttribute('draggable', 'true');
-            div.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12.5px;cursor:grab;border:2px solid ${assigned ? f.color : '#bbb'};background:${assigned ? f.color + '18' : '#fff'};color:${assigned ? f.color : '#666'};font-weight:600;transition:box-shadow 0.15s;user-select:none;`;
+            // 아직 지정 안 된 이름표는 눈에 띄는 색으로, 이미 열에 지정된 이름표는 회색으로 표시합니다.
+            // (회색이 되어도 계속 드래그하거나 눌러서 다른 열로 다시 지정할 수 있습니다 — X를 먼저 누를 필요 없음)
+            div.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:20px;font-size:12.5px;cursor:grab;border:2px solid ${assigned ? '#c4c7cc' : f.color};background:${assigned ? '#f1f3f4' : f.color + '18'};color:${assigned ? '#80868b' : f.color};font-weight:600;transition:box-shadow 0.15s, background 0.15s, border-color 0.15s, color 0.15s;user-select:none;`;
             div.innerHTML = `${f.emoji} ${f.label}<span style="opacity:0.75;font-weight:500;">${assigned ? ' · ' + colLetter + '열' : ''}</span>` +
                 (assigned ? ` <span style="margin-left:2px;opacity:0.6;" title="지정 취소">✕</span>` : '');
-            // 드래그 소스: 이 이름표를 표의 열 위로 끌어다 놓습니다
+            // 드래그 소스: 이 이름표를 표의 열 위로 끌어다 놓습니다 (지정된 이름표도 다시 드래그해서 다른 열로 옮길 수 있습니다)
             div.ondragstart = (ev) => {
                 ev.dataTransfer.setData('text/plain', f.id);
                 ev.dataTransfer.effectAllowed = 'copy';
@@ -7581,7 +7611,7 @@
                 if (assigned && ev.offsetX > div.clientWidth - 22) {
                     clearFieldAssignment(f.id);
                 } else {
-                    selectMappingField(f.id); // 터치기기용: 이름표 누르고 → 열 누르기
+                    selectMappingField(f.id); // 터치기기용: 이름표 누르고 → 열 누르기 (지정된 이름표도 그대로 다시 선택 가능)
                 }
             };
             return div;
@@ -7612,6 +7642,19 @@
             ev.dataTransfer.effectAllowed = 'copy';
         }
 
+        // 어떤 열에 이미 다른 이름표가 배정돼 있다면 그 배정을 풀어줍니다.
+        // (이걸 안 해주면 같은 열에 두 이름표가 동시에 물려서, 다시 드래그해도 안 바뀐 것처럼 보이는 문제가 있었습니다)
+        function _releaseColumnFromOtherFields(colIndex, exceptFieldId) {
+            IMPORT_FIELDS.forEach(f => {
+                if (f.id === exceptFieldId) return;
+                const otherSel = document.getElementById(`imp-col-${f.id}`);
+                if (otherSel && otherSel.value === String(colIndex)) {
+                    otherSel.value = '';
+                    _confirmedFields.delete(f.id);
+                }
+            });
+        }
+
         function assignColumnToField(colIndex) {
             if (!_activeMappingField) {
                 const instr = document.getElementById('imp-step2-instruction');
@@ -7619,6 +7662,7 @@
                 instr.textContent = '☝️ 먼저 위에서 이름표(날짜·수입금액 등)를 눌러주세요.';
                 return;
             }
+            _releaseColumnFromOtherFields(colIndex, _activeMappingField);
             const sel = document.getElementById(`imp-col-${_activeMappingField}`);
             if (sel) sel.value = String(colIndex);
             _confirmedFields.add(_activeMappingField);
@@ -7627,12 +7671,13 @@
             renderImportStep2();
         }
 
-        // 이름표를 표의 열 위에 놓았을 때 호출
+        // 이름표를 표의 열 위에 놓았을 때 호출 (이미 지정된 이름표를 다시 끌어다 놓아도 항상 바로 반영됩니다)
         function dropFieldOnColumn(ev, colIndex) {
             ev.preventDefault();
             const fieldId = ev.dataTransfer.getData('text/plain');
             const field = IMPORT_FIELDS.find(x => x.id === fieldId);
             if (!field) return;
+            _releaseColumnFromOtherFields(colIndex, fieldId);
             const sel = document.getElementById(`imp-col-${fieldId}`);
             if (sel) sel.value = String(colIndex);
             _confirmedFields.add(fieldId);
@@ -7680,7 +7725,11 @@
                 html += `<tr style="${ri % 2 === 0 ? '' : 'background:#fafafa'}">`;
                 html += `<td style="padding:5px 8px;border:1px solid #f0f0f0;font-size:10px;color:#bbb;">${ri + 1}</td>`;
                 colLetters.forEach((_, ci) => {
-                    const v = row[ci] !== undefined ? String(row[ci]) : '';
+                    const raw = row[ci];
+                    const mappedField = colFieldMap[String(ci)];
+                    // 날짜 필드로 지정된 열은 시리얼 번호 대신 사람이 읽기 쉬운 날짜(YYYY-MM-DD)로 표시
+                    const dateStr = (mappedField && mappedField.id === 'date') ? excelSerialToDateStr(raw) : null;
+                    const v = dateStr || (raw !== undefined ? String(raw) : '');
                     html += `<td ondragover="dragOverColumn(event)" ondrop="dropFieldOnColumn(event, ${ci})" onclick="assignColumnToField(${ci})" style="cursor:pointer;padding:5px 8px;border:1px solid #f0f0f0;font-size:11px;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(v)}">${escapeHtml(v.slice(0, 18))}</td>`;
                 });
                 html += '</tr>';
