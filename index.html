@@ -2015,12 +2015,10 @@
 
         /* 설정·잔고 탭 카드 내 테이블 overflow 처리 */
         #stab-content-master .table,
-        #stab-content-reorder .table,
         #stab-content-dues .table,
         #stab-content-auth .table,
         #stab-content-bankinfo .table,
         #stab-content-account .table,
-        #stab-content-handover .table,
         #balance .table,
         #settings .table {
             display: block;
@@ -4420,10 +4418,6 @@
                       <span class="stab-icon">⚙️</span>
                       <span class="stab-label">계정과목</span>
                     </button>
-                    <button id="stab-reorder" onclick="showSettingsTab('reorder')" class="settings-subtab">
-                      <span class="stab-icon">↕️</span>
-                      <span class="stab-label">순서편집</span>
-                    </button>
                     <button id="stab-dues" onclick="showSettingsTab('dues')" class="settings-subtab">
                       <span class="stab-icon">💰</span>
                       <span class="stab-label">부서회비</span>
@@ -4434,19 +4428,11 @@
                     </button>
                     <button id="stab-bankinfo" onclick="showSettingsTab('bankinfo')" class="settings-subtab">
                       <span class="stab-icon">🏦</span>
-                      <span class="stab-label">통장/문서설정</span>
-                    </button>
-                    <button id="stab-heroimage" onclick="showSettingsTab('heroimage')" class="settings-subtab">
-                      <span class="stab-icon">🖼️</span>
-                      <span class="stab-label">홈이미지</span>
+                      <span class="stab-label">통장/담당자</span>
                     </button>
                     <button id="stab-account" onclick="showSettingsTab('account')" class="settings-subtab">
                       <span class="stab-icon">🔑</span>
                       <span class="stab-label">계정</span>
-                    </button>
-                    <button id="stab-handover" onclick="showSettingsTab('handover')" class="settings-subtab">
-                      <span class="stab-icon">🔄</span>
-                      <span class="stab-label">담당자교체</span>
                     </button>
                     <button id="stab-audit" onclick="showSettingsTab('audit')" class="settings-subtab">
                       <span class="stab-icon">📋</span>
@@ -4548,9 +4534,84 @@
                     💾 문서 명칭 저장
                   </button>
                 </div>
+
+                <!-- 담당자 교체 (통장/문서설정과 같은 탭으로 통합) -->
+                <div class="card" style="border-left:4px solid #ff9800;">
+                    <h2>🔄 담당자 교체</h2>
+                    <p style="color:#666;font-size:13px;margin-bottom:16px;">
+                      새 담당자에게 계정을 인계합니다. 이메일·비밀번호·통장정보·잔고 기록이 한 번에 처리됩니다.
+                    </p>
+                    <div id="handoverAlert"></div>
+
+                    <!-- 본인 확인 -->
+                    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#856404;">
+                      ⚠️ 교체 전 반드시 현재 통장 잔고를 확인하고 입력해 주세요.
+                    </div>
+
+                    <div style="max-width:480px;display:flex;flex-direction:column;gap:12px;">
+
+                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
+                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">🔐 현재 담당자 확인</div>
+                        <input type="password" id="ho-current-pw" placeholder="현재 비밀번호"
+                          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                      </div>
+
+                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
+                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">👤 신임 담당자 정보</div>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                          <input type="text" id="ho-new-name" placeholder="신임 담당자 이름 *"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="tel" id="ho-new-phone" placeholder="연락처 (예: 010-1234-5678)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="email" id="ho-new-email" placeholder="새 이메일 * (아이디/비번 찾기용)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="password" id="ho-new-pw" placeholder="새 비밀번호 * (4자 이상)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="password" id="ho-new-pw2" placeholder="새 비밀번호 확인 *"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                        </div>
+                      </div>
+
+                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
+                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">🏦 통장 변경 여부</div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px;">
+                          <input type="checkbox" id="ho-change-bank" onchange="toggleHandoverBank(this.checked)"
+                            style="width:16px;height:16px;">
+                          <span>통장이 변경됩니다 (개인통장 → 새 담당자 통장)</span>
+                        </label>
+                        <div id="ho-bank-fields" style="display:none;flex-direction:column;gap:8px;">
+                          <select id="ho-bank-type" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                            <option value="법인">법인/단체통장</option>
+                            <option value="개인">개인통장 (담당자 명의)</option>
+                            <option value="모임">카카오뱅크 모임통장</option>
+                          </select>
+                          <input type="text" id="ho-bank-name" placeholder="은행명 (예: 국민은행)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="text" id="ho-bank-nick" placeholder="계좌별칭 (예: 청년부 운영계좌)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                        </div>
+                      </div>
+
+                      <div>
+                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📒 잔고 이관 기록 (선택)</div>
+                        <div style="display:flex;gap:8px;margin-bottom:8px;">
+                          <input type="month" id="ho-month"
+                            style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                          <input type="number" inputmode="numeric" id="ho-actual" placeholder="이관 기준 통장 잔고 (원)"
+                            style="flex:2;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;text-align:right;">
+                        </div>
+                        <input type="text" id="ho-memo" placeholder="이관 메모 (선택)"
+                          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                      </div>
+
+                      <button class="btn" id="handoverBtn" onclick="submitHandover()"
+                        style="background:#ff9800;color:white;width:100%;padding:13px;border-radius:8px;font-size:15px;font-weight:700;margin-top:4px;">
+                        🔄 담당자 교체 확정
+                      </button>
+                    </div>
                 </div>
-                <!-- 서브탭: 홈이미지 -->
-                <div id="stab-content-heroimage" style="display:none">
+
+                <!-- 홈 화면 히어로 이미지 (자주 안 쓰는 설정이라 통장/담당자 탭 안에 서브 섹션으로 통합) -->
                 <div class="card">
                   <h2>🖼️ 홈 화면 히어로 이미지</h2>
                   <p style="color:#666;font-size:13px;margin-bottom:16px;">홈 화면 상단에 표시할 배너 이미지를 등록합니다. 업로드 시 자동으로 크기를 줄여 저장합니다.</p>
@@ -4767,34 +4828,37 @@
                         </div>
                     </div>
                     </div><!-- /card: 계정과목 -->
-                </div><!-- /stab-content-master -->
 
-                <!-- 서브탭: 순서편집 -->
-                <div id="stab-content-reorder" style="display:none;">
-                <div class="card">
-                  <h2>↕️ 순서 편집</h2>
-                  <p style="color:#666;font-size:13px;margin-bottom:14px;">항목을 클릭해서 선택한 뒤, 아래 고정된 ▲▼ 버튼으로 원하는 위치까지 이동하세요. 저장하면 회계보고서와 드롭다운에 즉시 반영됩니다.</p>
-                  <div style="margin-bottom:20px;">
-                    <h3 style="color:#27ae60;margin:0 0 8px;font-size:14px;">📥 수입 항목 순서</h3>
-                    <div id="reorderIncomeCtrl"></div>
-                    <div id="reorderIncomeList" style="display:flex;flex-direction:column;gap:4px;"></div>
-                  </div>
-                  <div style="margin-bottom:20px;">
-                    <h3 style="color:#e74c3c;margin:0 0 6px;font-size:14px;">📤 지출 항목 순서</h3>
-                    <p style="font-size:12px;color:#888;margin:0 0 5px;">① 부서 순서</p>
-                    <div id="reorderDeptCtrl"></div>
-                    <div id="reorderDeptList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"></div>
-                    <p style="font-size:12px;color:#888;margin:0 0 5px;">② 부서 내 세부항목 (부서 선택)</p>
-                    <div id="reorderDeptSelector" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;"></div>
-                    <div id="reorderItemCtrl"></div>
-                    <div id="reorderItemList" style="display:flex;flex-direction:column;gap:4px;"></div>
-                  </div>
-                  <button onclick="saveReorder()"
-                    style="width:100%;padding:12px;background:#2980b9;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;">
-                    💾 순서 저장
-                  </button>
-                </div>
-                </div><!-- /stab-content-reorder -->
+                    <!-- 항목 순서 편집 (자주 안 쓰는 설정이라 계정과목 탭 안에 접이식 섹션으로 통합) -->
+                    <div class="card">
+                      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleReorderSection()">
+                        <h2 style="margin:0;">↕️ 항목 순서 편집</h2>
+                        <span id="reorderSectionToggleIcon" style="font-size:13px;color:#666;">펼치기 ▾</span>
+                      </div>
+                      <div id="reorderSectionBody" style="display:none;margin-top:14px;">
+                        <p style="color:#666;font-size:13px;margin-bottom:14px;">항목을 클릭해서 선택한 뒤, 아래 고정된 ▲▼ 버튼으로 원하는 위치까지 이동하세요. 저장하면 회계보고서와 드롭다운에 즉시 반영됩니다.</p>
+                        <div style="margin-bottom:20px;">
+                          <h3 style="color:#27ae60;margin:0 0 8px;font-size:14px;">📥 수입 항목 순서</h3>
+                          <div id="reorderIncomeCtrl"></div>
+                          <div id="reorderIncomeList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                        </div>
+                        <div style="margin-bottom:20px;">
+                          <h3 style="color:#e74c3c;margin:0 0 6px;font-size:14px;">📤 지출 항목 순서</h3>
+                          <p style="font-size:12px;color:#888;margin:0 0 5px;">① 부서 순서</p>
+                          <div id="reorderDeptCtrl"></div>
+                          <div id="reorderDeptList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"></div>
+                          <p style="font-size:12px;color:#888;margin:0 0 5px;">② 부서 내 세부항목 (부서 선택)</p>
+                          <div id="reorderDeptSelector" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;"></div>
+                          <div id="reorderItemCtrl"></div>
+                          <div id="reorderItemList" style="display:flex;flex-direction:column;gap:4px;"></div>
+                        </div>
+                        <button onclick="saveReorder()"
+                          style="width:100%;padding:12px;background:#2980b9;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:bold;cursor:pointer;">
+                          💾 순서 저장
+                        </button>
+                      </div>
+                    </div>
+                </div><!-- /stab-content-master -->
 
                 <!-- 서브탭: 부서회비 설정 -->
                 <div id="stab-content-dues" style="display:none;">
@@ -4977,84 +5041,6 @@
                     </div>
                   </div>
                 </div><!-- /stab-content-account -->
-
-                <!-- 서브탭: 담당자 교체 -->
-                <div id="stab-content-handover" style="display:none;">
-                  <div class="card" style="border-left:4px solid #ff9800;">
-                    <h2>🔄 담당자 교체</h2>
-                    <p style="color:#666;font-size:13px;margin-bottom:16px;">
-                      새 담당자에게 계정을 인계합니다. 이메일·비밀번호·통장정보·잔고 기록이 한 번에 처리됩니다.
-                    </p>
-                    <div id="handoverAlert"></div>
-
-                    <!-- 본인 확인 -->
-                    <div style="background:#fff8e1;border:1px solid #ffc107;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#856404;">
-                      ⚠️ 교체 전 반드시 현재 통장 잔고를 확인하고 입력해 주세요.
-                    </div>
-
-                    <div style="max-width:480px;display:flex;flex-direction:column;gap:12px;">
-
-                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
-                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">🔐 현재 담당자 확인</div>
-                        <input type="password" id="ho-current-pw" placeholder="현재 비밀번호"
-                          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                      </div>
-
-                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
-                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">👤 신임 담당자 정보</div>
-                        <div style="display:flex;flex-direction:column;gap:8px;">
-                          <input type="text" id="ho-new-name" placeholder="신임 담당자 이름 *"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="tel" id="ho-new-phone" placeholder="연락처 (예: 010-1234-5678)"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="email" id="ho-new-email" placeholder="새 이메일 * (아이디/비번 찾기용)"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="password" id="ho-new-pw" placeholder="새 비밀번호 * (4자 이상)"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="password" id="ho-new-pw2" placeholder="새 비밀번호 확인 *"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                        </div>
-                      </div>
-
-                      <div style="border-bottom:1px solid #eee;padding-bottom:14px;margin-bottom:4px;">
-                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">🏦 통장 변경 여부</div>
-                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px;">
-                          <input type="checkbox" id="ho-change-bank" onchange="toggleHandoverBank(this.checked)"
-                            style="width:16px;height:16px;">
-                          <span>통장이 변경됩니다 (개인통장 → 새 담당자 통장)</span>
-                        </label>
-                        <div id="ho-bank-fields" style="display:none;flex-direction:column;gap:8px;">
-                          <select id="ho-bank-type" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                            <option value="법인">법인/단체통장</option>
-                            <option value="개인">개인통장 (담당자 명의)</option>
-                            <option value="모임">카카오뱅크 모임통장</option>
-                          </select>
-                          <input type="text" id="ho-bank-name" placeholder="은행명 (예: 국민은행)"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="text" id="ho-bank-nick" placeholder="계좌별칭 (예: 청년부 운영계좌)"
-                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                        </div>
-                      </div>
-
-                      <div>
-                        <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📒 잔고 이관 기록 (선택)</div>
-                        <div style="display:flex;gap:8px;margin-bottom:8px;">
-                          <input type="month" id="ho-month"
-                            style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                          <input type="number" inputmode="numeric" id="ho-actual" placeholder="이관 기준 통장 잔고 (원)"
-                            style="flex:2;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;text-align:right;">
-                        </div>
-                        <input type="text" id="ho-memo" placeholder="이관 메모 (선택)"
-                          style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
-                      </div>
-
-                      <button class="btn" id="handoverBtn" onclick="submitHandover()"
-                        style="background:#ff9800;color:white;width:100%;padding:13px;border-radius:8px;font-size:15px;font-weight:700;margin-top:4px;">
-                        🔄 담당자 교체 확정
-                      </button>
-                    </div>
-                  </div>
-                </div><!-- /stab-content-handover -->
 
                 <!-- 서브탭: 수정 이력 -->
                 <div id="stab-content-audit" style="display:none;">
@@ -7752,6 +7738,16 @@
             document.getElementById('imp-click-table').innerHTML = html;
         }
 
+        // 계정과목 탭 안에 접힌 상태로 들어있는 "항목 순서 편집" 섹션을 펼치고/접습니다.
+        function toggleReorderSection() {
+            const body = document.getElementById('reorderSectionBody');
+            const icon = document.getElementById('reorderSectionToggleIcon');
+            const show = body.style.display === 'none' || !body.style.display;
+            body.style.display = show ? 'block' : 'none';
+            icon.textContent = show ? '접기 ▴' : '펼치기 ▾';
+            if (show) loadReorderTab();
+        }
+
         function toggleImportAdvanced() {
             const box = document.getElementById('imp-advanced-box');
             const show = box.style.display === 'none' || !box.style.display;
@@ -8333,11 +8329,8 @@
 
         // ===== 설정 서브탭 전환 =====
         function showSettingsTab(tab) {
-            var tabs = ['master', 'reorder', 'dues', 'auth', 'bankinfo', 'heroimage', 'account', 'handover', 'audit'];
-            if (tab === 'reorder') { loadReorderTab(); }
-            if (tab === 'bankinfo') { loadBankInfoToSettings(); }
-            if (tab === 'heroimage') { loadHeroImageToSettings(); }
-            if (tab === 'handover') { initHandoverTab(); }
+            var tabs = ['master', 'dues', 'auth', 'bankinfo', 'account', 'audit'];
+            if (tab === 'bankinfo') { loadBankInfoToSettings(); initHandoverTab(); loadHeroImageToSettings(); }
             if (tab === 'audit') { loadAuditLogs(); }
             tabs.forEach(function(t) {
                 var btn = document.getElementById('stab-' + t);
