@@ -16627,6 +16627,9 @@
                 const budgetAmount = parseFloat(item.amount || item.budget) || 0;
                 const rawRate = item.rate != null ? parseFloat(item.rate) : (budgetAmount > 0 ? (actualAmount / budgetAmount) * 100 : 0);
                 const rate = rawRate.toFixed(1);
+                const rateCell = item.unbudgeted
+                    ? '<span style="color:#e67e22;font-size:12px;">⚠️ 예산 미설정</span>'
+                    : (budgetAmount > 0 || actualAmount > 0 ? rate + '%' : '-');
                 tr.innerHTML = `
                     <td>${escapeHtml(item.department || '')}</td>
                     <td>${escapeHtml(item.item || '')}</td>
@@ -16634,7 +16637,7 @@
                     <td class="number" style="color: ${actualAmount > 0 ? '#dc3545' : 'inherit'}; font-weight: ${actualAmount > 0 ? 'bold' : 'normal'};">
                         ${actualAmount > 0 ? formatAmount(actualAmount) + '원' : '-'}
                     </td>
-                    <td class="number">${budgetAmount > 0 || actualAmount > 0 ? rate + '%' : '-'}</td>
+                    <td class="number">${rateCell}</td>
                 `;
                 expenseTableBody.appendChild(tr);
             });
@@ -16660,11 +16663,14 @@
                 const tr = document.createElement('tr');
                 const incomeName = item.department || item.item || '';
                 const incomeRate = item.rate != null ? parseFloat(item.rate).toFixed(1) : '0.0';
+                const rateCell = item.unbudgeted
+                    ? '<span style="color:#e67e22;font-size:12px;">⚠️ 예산 미설정</span>'
+                    : incomeRate + '%';
                 tr.innerHTML = `
                     <td>${escapeHtml(incomeName)}</td>
                     <td class="number">${item.amount > 0 ? formatAmount(item.amount) + '원' : ''}</td>
                     <td class="number">${item.actual > 0 ? formatAmount(item.actual) + '원' : ''}</td>
-                    <td class="number">${incomeRate}%</td>
+                    <td class="number">${rateCell}</td>
                 `;
                 incomeTableBody.appendChild(tr);
             });
