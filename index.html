@@ -8008,6 +8008,7 @@
             // 예산 달성률 progress bar
             const barsEl = document.getElementById('dash-budget-bars');
             let overBudgetItems = [];
+            let nearBudgetItems = [];
             if (budgetData.status === 'fulfilled') {
                 const bd = budgetData.value.data || {};
                 const allExpenses = (bd.expense || []).filter(e => (parseFloat(e.amount||e.budget)||0) > 0);
@@ -8016,6 +8017,15 @@
                     const actual = Math.abs(parseFloat(e.actual)||0);
                     return budget > 0 && actual >= budget;
                 });
+                // 초과 전 단계: 90% 이상 ~ 100% 미만
+                nearBudgetItems = allExpenses.filter(e => {
+                    const budget = parseFloat(e.amount||e.budget)||0;
+                    const actual = Math.abs(parseFloat(e.actual)||0);
+                    return budget > 0 && actual >= budget * 0.9 && actual < budget;
+                }).map(e => ({
+                    label: e.item || e.department || '-',
+                    pct: Math.round(Math.abs(parseFloat(e.actual)||0) / (parseFloat(e.amount||e.budget)||1) * 100),
+                }));
                 const expenses = allExpenses.slice(0, 5);
                 if (expenses.length === 0) {
                     barsEl.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px 0;">예산 데이터가 없습니다.</div>';
@@ -8071,6 +8081,28 @@
                 }
             }
 
+            // 2-1) 반려된 결재 미처리 (수정 후 재상정 필요)
+            // 2-2) 고액 결재 대기
+            if (batchSummary.status === 'fulfilled' && batchSummary.value.success) {
+                const bs = batchSummary.value.data;
+                const rejected = (bs.items || []).filter(t => t.approvalStatus === '반려');
+                if (rejected.length > 0) {
+                    const labels = rejected.slice(0, 2).map(t => t.expenseItem || t.memo || '-');
+                    items.push({
+                        ok: false, icon: '🔴',
+                        text: `반려된 결재 ${rejected.length}건 — 수정 후 재상정 필요 (${labels.join(', ')}${rejected.length>2?' 외':''})`,
+                        onclick: "goTabFromDash('batchApproval')",
+                    });
+                }
+                if ((bs.highAmountCount || 0) > 0) {
+                    items.push({
+                        ok: false, icon: '⚠️',
+                        text: `고액 결재 ${bs.highAmountCount}건 대기 중 — 우선 처리 권장`,
+                        onclick: "goTabFromDash('batchApproval')",
+                    });
+                }
+            }
+
             // 3) 예산 초과 항목
             if (overBudgetItems.length > 0) {
                 items.push({
@@ -8078,6 +8110,32 @@
                     text: `예산초과 항목 ${overBudgetItems.length}건 (${overBudgetItems.slice(0,2).map(e=>e.item||e.department||'-').join(', ')}${overBudgetItems.length>2?' 외':''})`,
                     onclick: "goTabFromDash('budget')",
                 });
+            }
+
+            // 3-1) 예산 90% 임박 (초과 전 예방 경고)
+            if (nearBudgetItems.length > 0) {
+                const labels = nearBudgetItems.slice(0, 2).map(e => `${e.label} (${e.pct}%)`);
+                items.push({
+                    ok: false, icon: '🟠',
+                    text: `예산 90% 임박: ${labels.join(', ')}${nearBudgetItems.length>2?' 외':''}`,
+                    onclick: "goTabFromDash('budget')",
+                });
+            }
+
+            // 3-2) 월말 마감 리마인드 (말일 3일 전부터)
+            {
+                const _today = new Date();
+                const _lastDay = new Date(_today.getFullYear(), _today.getMonth() + 1, 0).getDate();
+                const _dLeft = _lastDay - _today.getDate();
+                if (_dLeft <= 3) {
+                    items.push({
+                        ok: false, icon: '📅',
+                        text: _dLeft === 0
+                            ? `오늘이 ${month}월 마지막 날입니다 — 잔고확인·미결재 정리를 마무리하세요`
+                            : `${month}월 마감 D-${_dLeft} — 잔고확인·미결재 정리를 미리 챙기세요`,
+                        onclick: "goTabFromDash('balance')",
+                    });
+                }
             }
 
             // 4) 정기거래 리마인드: 직전 2개월 연속 등장한 지출항목이 이번달엔 아직 없으면 알림
