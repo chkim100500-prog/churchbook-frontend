@@ -5183,6 +5183,7 @@
             <!-- 3단계: 미리보기 & 가져오기 -->
             <div id="imp-step-3" style="display:none;">
                 <div id="imp-parse-summary" style="border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:12px;"></div>
+                <div id="imp-missing-master" style="display:none;background:#fff8e1;border:1px solid #ffca28;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:12px;line-height:1.7;"></div>
                 <div style="overflow-x:auto;border:1px solid #eee;border-radius:8px;margin-bottom:16px;max-height:300px;overflow-y:auto;">
                     <table id="imp-preview-table" style="width:100%;font-size:12px;border-collapse:collapse;"></table>
                 </div>
@@ -7335,6 +7336,9 @@
             document.getElementById('imp-raw-preview').style.display = 'none';
             document.getElementById('imp-map-alert').innerHTML = '';
             document.getElementById('imp-import-alert').innerHTML = '';
+            document.getElementById('imp-missing-master').style.display = 'none';
+            document.getElementById('imp-missing-master').innerHTML = '';
+            _importMissing = { income: [], expense: [] };
             goImportStep(1);
             document.getElementById('importModal').style.display = 'flex';
         }
@@ -7562,6 +7566,62 @@
             document.getElementById('imp-preview-table').innerHTML = html;
             document.getElementById('imp-import-alert').innerHTML = '';
             goImportStep(3);
+            checkMissingMasterItems(); // 미등록 계정과목 대조 (비동기)
+        }
+
+        // ===== 미등록 계정과목 감지 및 자동 등록 =====
+        let _importMissing = { income: [], expense: [] };
+
+        async function checkMissingMasterItems() {
+            const box = document.getElementById('imp-missing-master');
+            _importMissing = { income: [], expense: [] };
+            box.style.display = 'none';
+            box.innerHTML = '';
+            if (!_importParsed.length) return;
+
+            try {
+                const res = await api('GET', '/api/master');
+                if (!res.success) return;
+                const d = res.data || {};
+                const knownIncome = new Set([...(d.incomeItems||[]), ...(d.inactiveIncomeItems||[])]);
+                const knownExpense = new Set();
+                const collect = (map) => Object.keys(map||{}).forEach(dept =>
+                    (map[dept]||[]).forEach(it => knownExpense.add(dept + '\u0000' + it)));
+                collect(d.expenseItemsByDept);
+                collect(d.inactiveExpenseItemsByDept);
+
+                const missIncome = new Set();
+                const missExpense = new Map(); // key -> {dept,item}
+                _importParsed.forEach(t => {
+                    if (t.type === 'income' && t.incomeItem && !knownIncome.has(t.incomeItem)) {
+                        missIncome.add(t.incomeItem);
+                    }
+                    if (t.type === 'expense' && t.department && t.expenseItem) {
+                        const key = t.department + '\u0000' + t.expenseItem;
+                        if (!knownExpense.has(key)) missExpense.set(key, { dept: t.department, item: t.expenseItem });
+                    }
+                });
+
+                _importMissing.income = [...missIncome];
+                _importMissing.expense = [...missExpense.values()];
+                const total = _importMissing.income.length + _importMissing.expense.length;
+                if (total === 0) return;
+
+                const incList = _importMissing.income.map(i => `수입 [${i}]`);
+                const expList = _importMissing.expense.map(e => `지출 [${e.dept} - ${e.item}]`);
+                const shown = [...incList, ...expList];
+                box.innerHTML =
+                    `⚠️ <strong>계정과목에 등록되어 있지 않은 항목 ${total}개</strong>가 발견되었습니다:<br>` +
+                    `<span style="color:#795548;">${shown.slice(0,10).join(', ')}${shown.length>10 ? ` 외 ${shown.length-10}개` : ''}</span><br>` +
+                    `<label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;">` +
+                    `<input type="checkbox" id="imp-auto-register" checked style="width:16px;height:16px;">` +
+                    `<span><strong>가져오기 전에 위 항목을 계정과목으로 자동 등록</strong> (권장)</span></label>` +
+                    `<div style="font-size:12px;color:#888;margin-top:4px;">체크를 해제하면 미등록 항목이 포함된 거래도 원장에는 추가되지만, 거래등록 드롭다운·예산관리에서 해당 항목을 쓸 수 없습니다.</div>`;
+                box.style.display = 'block';
+            } catch(e) {
+                // 대조 실패 시 안내만 생략하고 가져오기는 정상 진행 가능하게 둠
+                console.error('계정과목 대조 실패:', e);
+            }
         }
 
         async function executeImport() {
@@ -7586,6 +7646,29 @@
 
             const btn = document.getElementById('imp-confirm-btn');
             btn.disabled = true;
+
+            // 미등록 계정과목 자동 등록 (체크된 경우)
+            const missTotal = _importMissing.income.length + _importMissing.expense.length;
+            const autoRegChk = document.getElementById('imp-auto-register');
+            if (missTotal > 0 && autoRegChk && autoRegChk.checked) {
+                btn.textContent = '⏳ 계정과목 등록 중...';
+                try {
+                    const regRes = await api('POST', '/api/master/bulk-add', {
+                        income: _importMissing.income,
+                        expense: _importMissing.expense,
+                    });
+                    if (!regRes.success) throw new Error(regRes.message || '계정과목 등록 실패');
+                    document.getElementById('imp-missing-master').innerHTML =
+                        `<span style="color:#2d8f47;">✅ 계정과목 ${regRes.addedCount}개가 자동 등록되었습니다.</span>`;
+                } catch(e) {
+                    document.getElementById('imp-import-alert').innerHTML =
+                        `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;margin-bottom:8px;">❌ 계정과목 자동 등록에 실패해 가져오기를 중단했습니다: ${friendlyErrorMessage(e)}<br>다시 시도하거나, 체크를 해제하고 가져오기만 실행할 수 있습니다.</div>`;
+                    btn.disabled = false;
+                    btn.textContent = '✅ 가져오기 실행';
+                    return;
+                }
+            }
+
             btn.textContent = '⏳ 가져오는 중...';
 
             try {
