@@ -6995,7 +6995,7 @@
             document.getElementById('loading').style.display = 'none';
         }
 
-        function showAlert(message, type = 'success') {
+        function showAlert(message, type = 'success', duration = 3000) {
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert alert-${type} fade-in`;
             alertDiv.textContent = message;
@@ -7009,7 +7009,7 @@
 
             setTimeout(() => {
                 alertDiv.remove();
-            }, 3000);
+            }, duration);
         }
 
         // 구글시트 API 등 일시적인 오류가 발생했을 때 쓰는 공용 알림.
@@ -15715,7 +15715,7 @@
           // 딱 한 번만 안내합니다 (매번 뜨면 거슬리니 localStorage로 한 번 본 뒤엔 다시 안 뜨게 함).
           if (!_voucherAuthoritiesCache && !localStorage.getItem('cb_authority_notice_shown')) {
               localStorage.setItem('cb_authority_notice_shown', '1');
-              showAlert('💡 지금은 서명란에 기본값(회계/총무/부장)이 쓰이고 있어요. 설정 > 결재권한에서 우리 조직에 맞게 바꿀 수 있습니다.');
+              showAlert('💡 지금은 서명란에 기본값(회계/총무/부장)이 쓰이고 있어요. 설정 > 결재권한에서 우리 조직에 맞게 바꿀 수 있습니다.', 'success', 10000);
           }
           return _voucherAuthoritiesCache;
       }
