@@ -6474,7 +6474,10 @@
                 }
             }
             
-            const reportMonth = currentReportInfo.month;
+            // periodEndMonth: 백엔드(generateLedgerData)가 명시적으로 계산해서 내려주는 "이 보고서의 마지막 달".
+            // 예전에는 currentReportInfo.month를 그대로 썼는데, 상반기/하반기/연간처럼 'half'·''처럼
+            // 숫자가 아닌 값일 때 "1월~half월"처럼 깨져 보였습니다.
+            const reportMonth = ledgerData.periodEndMonth || currentReportInfo.month;
             tableRows += `
                 <tr style="background: #e3f2fd; font-weight: bold; color: #1565c0;">
                     <td colspan="5" style="border: 1px solid #ddd; padding: 8px;">연간 누계 (1월~${reportMonth}월)</td>
