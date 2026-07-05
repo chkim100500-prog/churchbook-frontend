@@ -9686,11 +9686,36 @@
         showAlert(`✅ 합계 ${total.toLocaleString()}원이 거래등록에 채워졌습니다. 소부서·지출항목을 선택하고, 인쇄한 내역서를 영수증으로 첨부한 뒤 저장해 주세요.`, 'success');
       }
 
-      // 선택 2) 개별 건으로 — 거래등록 화면에서 소부서·지출항목만 한 번 고르면, 단체 수만큼 자동으로 하나씩 등록됩니다.
+      // 카테고리 → {department, expenseItem} 매칭값을 저장 (사용자가 고치면 여기에 반영됨)
+      let _bulkCategoryMap = {};
+
+      // 카테고리 텍스트로 가장 비슷한 소부서를 추측합니다 (완전히 같은 글자가 아니어도,
+      // 예: "농어촌 및 미자립교회" ↔ 소부서 "미자립교회"처럼 서로 포함관계면 매칭합니다)
+      function _guessDeptForCategory(category) {
+        if (!category) return '';
+        const norm = (s) => String(s).replace(/[\s\/·()및]/g, '');
+        const c = norm(category);
+        if (!c) return '';
+        // 완전히 같은 이름 우선
+        let hit = DEPARTMENTS.find(d => norm(d) === c);
+        if (hit) return hit;
+        // 서로 포함관계 (둘 중 하나가 다른 하나를 포함)
+        hit = DEPARTMENTS.find(d => { const nd = norm(d); return nd && (c.includes(nd) || nd.includes(c)); });
+        return hit || '';
+      }
+
       function chooseSupportGroupBulkEntries() {
         const { name, ym, validRows } = _pendingSupportGroupData;
         _pendingBulkSupportItems = validRows;
         _pendingBulkSupportMeta = { name, ym };
+
+        // 카테고리별로 소부서를 최대한 자동으로 추측해서 미리 채워둡니다 (틀리면 화면에서 바로 고칠 수 있음)
+        _bulkCategoryMap = {};
+        [...new Set(validRows.map(r => r.category || '(미분류)'))].forEach(cat => {
+          const dept = _guessDeptForCategory(cat);
+          const item = dept && EXPENSE_ITEMS_BY_DEPT[dept] && EXPENSE_ITEMS_BY_DEPT[dept][0] ? EXPENSE_ITEMS_BY_DEPT[dept][0] : '';
+          _bulkCategoryMap[cat] = { department: dept, expenseItem: item };
+        });
 
         document.getElementById('transactionType').value = 'expense';
         updateCategoryOptions();
@@ -9699,7 +9724,7 @@
         document.getElementById('sgConfirmChoiceModal').style.display = 'none';
         showTab('register');
         renderBulkSupportBanner();
-        showAlert(`📑 ${validRows.length}건을 개별로 등록할 준비가 됐습니다. 아래 배너에서 소부서·지출항목을 고르고 일괄 등록을 눌러주세요.`, 'success');
+        showAlert(`📑 ${validRows.length}건을 개별로 등록할 준비가 됐습니다. 카테고리별로 소부서를 확인(자동으로 추측해둔 값이니 꼭 확인!)하고 일괄 등록을 눌러주세요.`, 'success');
       }
 
       function renderBulkSupportBanner() {
@@ -9710,49 +9735,102 @@
           return;
         }
         const meta = _pendingBulkSupportMeta || {};
+        const items = _pendingBulkSupportItems;
+        const categories = [...new Set(items.map(r => r.category || '(미분류)'))];
+        const countByCat = {};
+        items.forEach(r => { const c = r.category || '(미분류)'; countByCat[c] = (countByCat[c] || 0) + 1; });
+
+        const deptOptions = (selected) => '<option value="">선택 안함</option>' +
+          DEPARTMENTS.map(d => `<option value="${escapeHtml(d)}" ${d === selected ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('');
+        const itemOptions = (dept, selected) => {
+          const items2 = (dept && EXPENSE_ITEMS_BY_DEPT[dept]) || [];
+          return '<option value="">선택 안함</option>' +
+            items2.map(i => `<option value="${escapeHtml(i)}" ${i === selected ? 'selected' : ''}>${escapeHtml(i)}</option>`).join('');
+        };
+
+        const rows = categories.map(cat => {
+          const m = _bulkCategoryMap[cat] || { department: '', expenseItem: '' };
+          const notFound = !m.department;
+          return `
+            <tr>
+              <td style="padding:6px 8px;font-size:12.5px;${notFound ? 'color:#c62828;' : 'color:#333;'}">${notFound ? '⚠️ ' : ''}${escapeHtml(cat)} <span style="color:#999;">(${countByCat[cat]}건)</span></td>
+              <td style="padding:6px 8px;">
+                <select onchange="updateBulkCategoryDept('${escapeHtml(cat).replace(/'/g, "\\'")}', this.value)" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">
+                  ${deptOptions(m.department)}
+                </select>
+              </td>
+              <td style="padding:6px 8px;">
+                <select id="bulkItemSelect_${categories.indexOf(cat)}" onchange="updateBulkCategoryItem('${escapeHtml(cat).replace(/'/g, "\\'")}', this.value)" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">
+                  ${itemOptions(m.department, m.expenseItem)}
+                </select>
+              </td>
+            </tr>`;
+        }).join('');
+
         el.style.display = 'block';
         el.innerHTML = `
           <div style="background:#e8f4fd;border:1px solid #90caf9;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
-            <div style="font-size:13px;color:#1565c0;font-weight:700;margin-bottom:4px;">📑 "${escapeHtml(meta.name || '')}" ${_pendingBulkSupportItems.length}건 개별 등록 대기 중</div>
-            <div style="font-size:12px;color:#555;margin-bottom:10px;">위에서 소부서·지출항목을 선택한 뒤 아래 버튼을 누르면, 단체별로 적요만 다르게 해서 ${_pendingBulkSupportItems.length}건이 한 번에 등록됩니다.</div>
-            <div style="display:flex;gap:8px;">
+            <div style="font-size:13px;color:#1565c0;font-weight:700;margin-bottom:4px;">📑 "${escapeHtml(meta.name || '')}" ${items.length}건 개별 등록 대기 중</div>
+            <div style="font-size:12px;color:#555;margin-bottom:10px;">카테고리마다 소부서·지출항목이 다를 수 있어서, 카테고리별로 한 번씩만 지정하면 됩니다. (⚠️ 표시는 자동으로 못 찾은 것 — 꼭 골라주세요)</div>
+            <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;">
+              <thead><tr style="background:#f5f9ff;"><th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;">카테고리</th><th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;">소부서</th><th style="padding:6px 8px;text-align:left;font-size:11px;color:#888;">지출항목</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+            <div style="display:flex;gap:8px;margin-top:10px;">
               <button type="button" onclick="cancelBulkSupportEntries()" style="padding:8px 12px;background:#fff;border:1px solid #90caf9;color:#1565c0;border-radius:6px;font-size:12.5px;cursor:pointer;">취소</button>
-              <button type="button" onclick="runBulkSupportRegistration()" style="padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;">🚀 ${_pendingBulkSupportItems.length}건 일괄 등록 실행</button>
+              <button type="button" onclick="runBulkSupportRegistration()" style="padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;">🚀 ${items.length}건 일괄 등록 실행</button>
             </div>
           </div>`;
+      }
+
+      function updateBulkCategoryDept(category, dept) {
+        const item = dept && EXPENSE_ITEMS_BY_DEPT[dept] && EXPENSE_ITEMS_BY_DEPT[dept][0] ? EXPENSE_ITEMS_BY_DEPT[dept][0] : '';
+        _bulkCategoryMap[category] = { department: dept, expenseItem: item };
+        renderBulkSupportBanner();
+      }
+
+      function updateBulkCategoryItem(category, item) {
+        if (!_bulkCategoryMap[category]) _bulkCategoryMap[category] = { department: '', expenseItem: '' };
+        _bulkCategoryMap[category].expenseItem = item;
       }
 
       function cancelBulkSupportEntries() {
         _pendingBulkSupportItems = null;
         _pendingBulkSupportMeta = null;
+        _bulkCategoryMap = {};
         renderBulkSupportBanner();
       }
 
       async function runBulkSupportRegistration() {
         if (!_pendingBulkSupportItems || _pendingBulkSupportItems.length === 0) return;
-        const department = document.getElementById('transactionDepartment').value;
-        const expenseItem = document.getElementById('transactionExpenseItem').value;
-        if (!department || !expenseItem) {
-          showAlert('먼저 소부서와 지출항목을 선택해 주세요.', 'error');
+
+        const items = _pendingBulkSupportItems;
+        const missing = items.filter(it => {
+          const m = _bulkCategoryMap[it.category || '(미분류)'];
+          return !m || !m.department || !m.expenseItem;
+        });
+        if (missing.length > 0) {
+          showAlert(`⚠️ 소부서 또는 지출항목이 안 채워진 카테고리가 있습니다 (${missing.length}건). 위 표에서 ⚠️ 표시된 줄을 채워주세요.`, 'error');
           return;
         }
+
         const date = document.getElementById('transactionDate').value;
         if (!date) { showAlert('거래일자를 확인해 주세요.', 'error'); return; }
 
-        const items = _pendingBulkSupportItems;
         showLoading(`0/${items.length}건 등록 중...`);
         let successCount = 0;
         const failed = [];
         for (let i = 0; i < items.length; i++) {
           const it = items[i];
+          const m = _bulkCategoryMap[it.category || '(미분류)'];
           showLoading(`${i + 1}/${items.length}건 등록 중... (${it.orgName})`);
           try {
             await api('POST', '/api/transactions', {
               date,
               type: 'expense',
-              department,
+              department: m.department,
               incomeItem: '',
-              expenseItem,
+              expenseItem: m.expenseItem,
               description: it.category ? `${it.category} - ${it.orgName}` : it.orgName,
               income: 0,
               expense: Number(it.amount),
@@ -9767,6 +9845,7 @@
         hideLoading();
         _pendingBulkSupportItems = null;
         _pendingBulkSupportMeta = null;
+        _bulkCategoryMap = {};
         renderBulkSupportBanner();
 
         if (failed.length === 0) {
