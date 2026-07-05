@@ -9501,11 +9501,11 @@
         const available = _sgAllNames.filter(n => !_sgSelectedNames.includes(n));
 
         availEl.innerHTML = available.length
-          ? available.map(n => `<span onclick="selectSupportGroupName(${JSON.stringify(n)})" style="cursor:pointer;padding:5px 10px;background:#f0f4f8;border:1px solid #ddd;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)}</span>`).join('')
+          ? available.map(n => `<span onclick='selectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;padding:5px 10px;background:#f0f4f8;border:1px solid #ddd;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)}</span>`).join('')
           : '<span style="font-size:12px;color:#bbb;">저장된 지원명이 없거나 모두 선택됨</span>';
 
         selEl.innerHTML = _sgSelectedNames.length
-          ? _sgSelectedNames.map(n => `<span onclick="deselectSupportGroupName(${JSON.stringify(n)})" style="cursor:pointer;padding:5px 10px;background:#1565c0;color:#fff;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)} ✕</span>`).join('')
+          ? _sgSelectedNames.map(n => `<span onclick='deselectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;padding:5px 10px;background:#1565c0;color:#fff;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)} ✕</span>`).join('')
           : '<span style="font-size:12px;color:#bbb;">왼쪽에서 클릭해서 골라주세요</span>';
 
         const cntEl = document.getElementById('sg-group-count');
