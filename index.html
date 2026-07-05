@@ -5159,20 +5159,6 @@
             </div>
         </div><!-- /container -->
 
-    <!-- 지원단체 내역: 지원명별 지난 버전 이력 보기/복원 모달 -->
-    <div class="modal" id="sgHistoryModal" style="display:none;">
-        <div class="modal-content" style="max-width:460px;width:92%;max-height:80vh;overflow-y:auto;">
-            <div class="modal-header">
-                <h2>🕐 <span id="sgHistoryModalName"></span> 지난 버전</h2>
-                <button class="modal-close" onclick="document.getElementById('sgHistoryModal').style.display='none';">&times;</button>
-            </div>
-            <div style="padding:15px;">
-                <p style="font-size:12px;color:#888;margin:0 0 12px;">확정했던 시점들이 최신순으로 나옵니다. 원하는 버전을 불러오면, 지금 표에 있는 이 지원명의 내용이 그 시점 내용으로 바뀝니다.</p>
-                <div id="sgHistoryList" style="display:flex;flex-direction:column;gap:8px;"></div>
-            </div>
-        </div>
-    </div>
-
     <!-- 지원단체 내역: 전표 1장 vs 개별 건별 등록 선택 모달 -->
     <div class="modal" id="sgConfirmChoiceModal" style="display:none;">
         <div class="modal-content" style="max-width:440px;width:92%;">
@@ -5203,47 +5189,64 @@
             </div>
             <div style="padding:15px;">
                 <p style="font-size:12.5px;color:#888;margin:0 0 14px;line-height:1.6;">
-                    매달 지원단체가 거의 같고 금액만 조금씩 바뀔 때, 이 명단을 관리해서 <b>전표 한 장</b> 또는 <b>단체별 개별 등록</b>으로 처리할 수 있게 도와드립니다.
-                    지원명을 여러 개 골라서 한 화면에서 같이 관리할 수 있습니다.
+                    ① 아래에서 지원단체 현황을 관리하고 ② 이번달 처리할 목록에 담아서 전표를 만듭니다. 지난달 기록은 회계장부(조회관리)에서 확인하세요.
                 </p>
 
                 <div id="supportGroupAlert"></div>
 
-                <div class="form-row">
-                    <div class="form-group" style="flex:2;">
-                        <label>지원명 (여러 개 선택 가능 — 클릭하면 이동합니다)</label>
-                        <div style="display:flex;gap:8px;">
-                            <div style="flex:1;">
-                                <div style="font-size:11px;color:#888;margin-bottom:4px;">선택 가능</div>
-                                <div id="sg-name-available" style="min-height:64px;max-height:120px;overflow-y:auto;border:1px solid #ddd;border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;"></div>
-                            </div>
-                            <div style="flex:1;">
-                                <div style="font-size:11px;color:#1565c0;margin-bottom:4px;">✅ 선택됨</div>
-                                <div id="sg-name-selected" style="min-height:64px;max-height:120px;overflow-y:auto;border:1px solid #90caf9;background:#f5f9ff;border-radius:8px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;"></div>
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:6px;margin-top:6px;">
-                            <input type="text" id="sg-new-name" placeholder="목록에 없는 새 지원명 입력 후 추가" lang="ko"
-                                style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
-                            <button type="button" onclick="addNewSupportGroupName()" style="padding:8px 12px;background:#e8f4fd;border:1px solid #90caf9;color:#1565c0;border-radius:8px;font-size:12.5px;cursor:pointer;white-space:nowrap;">+ 추가</button>
-                        </div>
+                <!-- ① 지원단체 현황 관리 -->
+                <div style="border:1px solid #ddd;border-radius:10px;padding:14px;margin-bottom:18px;background:#fafbfc;">
+                    <div style="font-weight:700;font-size:13.5px;color:#333;margin-bottom:10px;">① 지원단체 현황 관리</div>
+
+                    <div style="display:flex;gap:8px;margin-bottom:8px;">
+                        <select id="sg-master-select" onchange="onMasterNameChange(this.value)" style="flex:1;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:13.5px;box-sizing:border-box;">
+                            <option value="">-- 지원명을 선택하세요 --</option>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label>기준 날짜</label>
-                        <input type="date" id="sg-date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
-                        <div style="font-size:11px;color:#999;margin-top:4px;">거래등록에 채워질 실제 날짜입니다 (말일로 자동 고정되지 않습니다)</div>
+                    <div style="display:flex;gap:6px;margin-bottom:10px;">
+                        <input type="text" id="sg-new-name" placeholder="새 지원명 입력 (예: 전도부 지원단체)" lang="ko"
+                            style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:12.5px;box-sizing:border-box;">
+                        <button type="button" onclick="createNewSupportGroupName()" style="padding:8px 12px;background:#e8f4fd;border:1px solid #90caf9;color:#1565c0;border-radius:8px;font-size:12.5px;cursor:pointer;white-space:nowrap;">+ 새로 만들기</button>
+                    </div>
+
+                    <div id="sg-master-section" style="display:none;">
+                        <div style="max-height:220px;overflow-y:auto;border:1px solid #eee;border-radius:8px;background:#fff;">
+                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+                                <thead>
+                                    <tr style="background:#f8f9fa;position:sticky;top:0;">
+                                        <th style="padding:6px;border-bottom:1px solid #ddd;text-align:left;width:28%;">카테고리(대분류)</th>
+                                        <th style="padding:6px;border-bottom:1px solid #ddd;text-align:left;">단체명</th>
+                                        <th style="padding:6px;border-bottom:1px solid #ddd;text-align:right;width:22%;">월금액</th>
+                                        <th style="padding:6px;border-bottom:1px solid #ddd;width:30px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sg-master-rows"></tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0;font-size:12.5px;color:#7a5c00;">
+                            <span>단체 수: <b id="sg-master-count">0</b>개 · 합계: <b id="sg-master-total">0</b>원</span>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button type="button" onclick="addMasterRow()" style="flex:1;min-width:110px;padding:9px;background:#fff;border:1px solid #90caf9;color:#1565c0;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;">➕ 단체 추가</button>
+                            <button type="button" onclick="saveMasterGroup()" style="flex:1;min-width:110px;padding:9px;background:#455a64;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:600;cursor:pointer;">💾 현황 저장</button>
+                            <button type="button" onclick="addMasterGroupToWorklist()" style="flex:1.4;min-width:150px;padding:9px;background:#1565c0;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">➡️ 이번달 목록에 추가</button>
+                        </div>
                     </div>
                 </div>
 
-                <div style="display:flex;gap:8px;margin-bottom:14px;">
-                    <button type="button" onclick="addSupportGroupRow()" style="flex:1;padding:9px;background:#e8f4fd;border:1px solid #90caf9;color:#1565c0;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">➕ 단체 추가</button>
+                <!-- ② 이번달 처리 목록 -->
+                <div style="font-weight:700;font-size:13.5px;color:#333;margin-bottom:10px;">② 이번달 처리 목록</div>
+
+                <div class="form-group" style="max-width:220px;margin-bottom:10px;">
+                    <label>기준 날짜</label>
+                    <input type="date" id="sg-date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
                 </div>
 
-                <div style="max-height:320px;overflow-y:auto;border:1px solid #eee;border-radius:8px;">
+                <div style="max-height:280px;overflow-y:auto;border:1px solid #eee;border-radius:8px;">
                     <table style="width:100%;border-collapse:collapse;font-size:13px;">
                         <thead>
                             <tr style="background:#f8f9fa;position:sticky;top:0;">
-                                <th style="padding:7px;border-bottom:1px solid #ddd;text-align:left;width:18%;">지원명</th>
+                                <th style="padding:7px;border-bottom:1px solid #ddd;text-align:left;width:16%;">지원명</th>
                                 <th style="padding:7px;border-bottom:1px solid #ddd;text-align:left;width:22%;">카테고리(대분류)</th>
                                 <th style="padding:7px;border-bottom:1px solid #ddd;text-align:left;">단체명</th>
                                 <th style="padding:7px;border-bottom:1px solid #ddd;text-align:right;width:20%;">월금액</th>
@@ -9480,173 +9483,188 @@
       }
 
       // =============================================
-      // 📋 지원단체 내역 관리 (매달 비슷한 여러 단체를 전표 한 장 또는 개별 건으로 몰아 내기)
+      // 📋 지원단체 내역 관리
+      // ① 지원단체 현황 관리(마스터, 버전 개념 없이 항상 최신 상태만 유지) + ② 이번달 처리 목록
       // =============================================
-      let _sgRows = []; // [{_id, groupName, category, orgName, amount}]
+      let _sgRows = [];       // ② 이번달 처리 목록 [{_id, groupName, category, orgName, amount}]
       let _sgRowSeq = 0;
-      let _sgAllNames = [];       // 서버에 저장된 전체 지원명 목록
-      let _sgSelectedNames = [];  // 이번에 같이 관리할 지원명들 (선택 순서 유지)
+      let _sgAllNames = [];   // 서버에 저장된 전체 지원명 목록
+
+      let _sgMasterName = '';    // ① 지금 편집 중인 지원명
+      let _sgMasterRows = [];    // ① 지금 편집 중인 단체 목록 [{_id, category, orgName, amount}]
+      let _sgMasterRowSeq = 0;
 
       function openSupportGroupModal() {
         // 창을 열 때마다 "지금 화면에서 작업 중인 임시 상태"만 깨끗이 비웁니다.
-        // (서버에 저장된 지원명별 내역은 여기서 전혀 건드리지 않습니다 — 선택하면 다시 그대로 불러와집니다)
-        _sgSelectedNames = [];
+        // (서버에 저장된 지원명별 현황 자체는 여기서 전혀 건드리지 않습니다)
         _sgRows = [];
-        _sgRowSeq = 0;
+        _sgMasterName = '';
+        _sgMasterRows = [];
+        document.getElementById('sg-master-section').style.display = 'none';
+        document.getElementById('sg-master-select').value = '';
 
         const dateEl = document.getElementById('sg-date');
         if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10); // 열 때마다 오늘 날짜로 초기화
         document.getElementById('supportGroupAlert').innerHTML = '';
         document.getElementById('supportGroupModal').style.display = 'flex';
         renderSupportGroupRows();
-        renderSupportGroupNamePickers();
         loadSupportGroupNames();
-      }
-
-      // 지금까지 썼던 지원명 목록을 가져옵니다 (오타 방지, 클릭 한 번으로 선택)
-      async function loadSupportGroupNames() {
-        try {
-          const res = await api('GET', '/api/support-groups/names');
-          _sgAllNames = (res && res.data) || [];
-        } catch (e) {
-          _sgAllNames = [];
-        }
-        renderSupportGroupNamePickers();
-      }
-
-      // 왼쪽(선택 가능) ↔ 오른쪽(선택됨) 칩 목록을 그립니다
-      function renderSupportGroupNamePickers() {
-        const availEl = document.getElementById('sg-name-available');
-        const selEl = document.getElementById('sg-name-selected');
-        if (!availEl || !selEl) return;
-        const available = _sgAllNames.filter(n => !_sgSelectedNames.includes(n));
-
-        availEl.innerHTML = available.length
-          ? available.map(n => `<span onclick='selectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;padding:5px 10px;background:#f0f4f8;border:1px solid #ddd;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)}</span>`).join('')
-          : '<span style="font-size:12px;color:#bbb;">저장된 지원명이 없거나 모두 선택됨</span>';
-
-        selEl.innerHTML = _sgSelectedNames.length
-          ? _sgSelectedNames.map(n => `<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px;background:#1565c0;color:#fff;border-radius:14px;font-size:12px;white-space:nowrap;">
-              <span onclick='deselectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;">${escapeHtml(n)}</span>
-              <span onclick='openSupportGroupHistory(${JSON.stringify(n)})' title="이 지원명의 지난 버전들 보기" style="cursor:pointer;opacity:0.85;">🕐</span>
-              <span onclick='clearSupportGroupRows(${JSON.stringify(n)})' title="이 지원명의 행을 전부 비우기 (잘못 불러온 경우 정리용)" style="cursor:pointer;opacity:0.85;">🗑️</span>
-              <span onclick='deselectSupportGroupName(${JSON.stringify(n)})' title="선택 해제" style="cursor:pointer;opacity:0.7;">✕</span>
-            </span>`).join('')
-          : '<span style="font-size:12px;color:#bbb;">왼쪽에서 클릭해서 골라주세요</span>';
-
-        const cntEl = document.getElementById('sg-group-count');
-        if (cntEl) cntEl.textContent = _sgSelectedNames.length;
-      }
-
-      // 지원명 선택 → 오른쪽으로 이동 + 그 지원명의 가장 최근 확정 내역을 자동으로 불러와 합칩니다
-      async function selectSupportGroupName(name) {
-        if (_sgSelectedNames.includes(name)) return;
-        _sgSelectedNames.push(name);
-        renderSupportGroupNamePickers();
-        try {
-          const res = await api('GET', `/api/support-groups/latest?${qs({ name })}`);
-          if (res && res.data && res.data.items && res.data.items.length > 0) {
-            res.data.items.forEach(it => {
-              _sgRowSeq += 1;
-              _sgRows.push({ _id: _sgRowSeq, groupName: name, category: it.category || '', orgName: it.orgName || '', amount: it.amount || '' });
-            });
-            renderSupportGroupRows();
-            const alertEl = document.getElementById('supportGroupAlert');
-            if (alertEl) alertEl.innerHTML = `<div style="background:#e6f4ea;color:#2d8f47;padding:8px 10px;border-radius:8px;font-size:12.5px;margin-bottom:10px;">✅ "${escapeHtml(name)}" 지난 내역 ${res.data.items.length}건을 불러왔습니다.</div>`;
-          }
-        } catch (e) { /* 처음 만드는 지원명일 수 있으니 조용히 무시 */ }
-      }
-
-      // 지원명 선택 해제 → 왼쪽으로 되돌리고, 그 지원명에 속한 행들도 같이 지웁니다
-      function deselectSupportGroupName(name) {
-        _sgSelectedNames = _sgSelectedNames.filter(n => n !== name);
-        _sgRows = _sgRows.filter(r => r.groupName !== name);
-        renderSupportGroupNamePickers();
-        renderSupportGroupRows();
-      }
-
-      // 목록에 없는 새 지원명을 직접 추가합니다
-      function addNewSupportGroupName() {
-        const input = document.getElementById('sg-new-name');
-        const name = input.value.trim();
-        if (!name) return;
-        if (!_sgAllNames.includes(name)) _sgAllNames.push(name);
-        input.value = '';
-        selectSupportGroupName(name);
-      }
-
-      // 이 지원명이 지금까지 확정했던 버전들을 보여줍니다 (과거 시점으로 되돌리는 용도)
-      async function openSupportGroupHistory(name) {
-        document.getElementById('sgHistoryModalName').textContent = name;
-        const listEl = document.getElementById('sgHistoryList');
-        listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px;">불러오는 중...</div>';
-        document.getElementById('sgHistoryModal').style.display = 'flex';
-        try {
-          const res = await api('GET', `/api/support-groups/history?${qs({ name })}`);
-          const history = (res && res.data) || [];
-          if (history.length === 0) {
-            listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px;">아직 확정된 이력이 없습니다.</div>';
-            return;
-          }
-          listEl.innerHTML = history.map((h, i) => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid #eee;border-radius:8px;${i === 0 ? 'background:#f5f9ff;border-color:#90caf9;' : ''}">
-              <div>
-                <div style="font-size:13px;font-weight:600;color:#333;">${h.confirmedAt || '(시각 미상)'} ${i === 0 ? '<span style="color:#1565c0;font-size:11px;">· 최신</span>' : ''}</div>
-                <div style="font-size:12px;color:#888;">${h.yearMonth || ''} · ${h.count}개 단체 · ${Number(h.total || 0).toLocaleString()}원</div>
-              </div>
-              <button type="button" onclick='restoreSupportGroupVersion(${JSON.stringify(name)}, ${i})' style="padding:7px 12px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">이 버전 불러오기</button>
-            </div>
-          `).join('');
-          // 복원 버튼에서 바로 쓸 수 있도록 임시 보관
-          _sgHistoryCache = history;
-        } catch (e) {
-          listEl.innerHTML = errBox('이력을 불러오지 못했습니다: ' + e.message);
-        }
-      }
-
-      let _sgHistoryCache = [];
-
-      // 선택한 과거 버전으로 이 지원명의 현재 행들을 교체합니다
-      function restoreSupportGroupVersion(name, index) {
-        const version = _sgHistoryCache[index];
-        if (!version) return;
-
-        // 이 지원명이 아직 선택되어 있지 않으면 선택 목록에 추가합니다
-        if (!_sgSelectedNames.includes(name)) _sgSelectedNames.push(name);
-        // 기존에 이 지원명으로 불러와져 있던 행들은 지우고, 선택한 버전으로 교체합니다
-        _sgRows = _sgRows.filter(r => r.groupName !== name);
-        (version.items || []).forEach(it => {
-          _sgRowSeq += 1;
-          _sgRows.push({ _id: _sgRowSeq, groupName: name, category: it.category || '', orgName: it.orgName || '', amount: it.amount || '' });
-        });
-
-        renderSupportGroupNamePickers();
-        renderSupportGroupRows();
-        document.getElementById('sgHistoryModal').style.display = 'none';
-        showAlert(`✅ "${name}"을(를) ${version.confirmedAt} 시점 버전(${version.count}개 단체)으로 불러왔습니다.`, 'success');
       }
 
       function closeSupportGroupModal() {
         document.getElementById('supportGroupModal').style.display = 'none';
       }
 
-      // 이 지원명으로 불러와진 행을 전부 비웁니다 (선택은 유지 — 잘못 불러온 이력을 정리할 때 씁니다)
-      function clearSupportGroupRows(name) {
-        if (!confirm(`"${name}"의 행 ${_sgRows.filter(r => r.groupName === name).length}개를 전부 지우시겠습니까? (선택은 유지되고, 새로 단체를 추가하시면 됩니다)`)) return;
-        _sgRows = _sgRows.filter(r => r.groupName !== name);
-        renderSupportGroupRows();
+      // 지금까지 만들어둔 지원명 목록을 드롭다운에 채웁니다
+      async function loadSupportGroupNames() {
+        const select = document.getElementById('sg-master-select');
+        try {
+          const res = await api('GET', '/api/support-groups/names');
+          _sgAllNames = (res && res.data) || [];
+        } catch (e) {
+          _sgAllNames = [];
+        }
+        select.innerHTML = '<option value="">-- 지원명을 선택하세요 --</option>' +
+          _sgAllNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
       }
 
-      function addSupportGroupRow(category, orgName, amount) {
-        if (_sgSelectedNames.length === 0) {
-          showAlert('먼저 지원명을 1개 이상 선택(또는 추가)해 주세요.', 'error');
+      // ① 지원명을 고르면 그 현황(가장 최근 저장된 단체 목록)을 불러와서 편집할 수 있게 보여줍니다
+      async function onMasterNameChange(name) {
+        const alertEl = document.getElementById('supportGroupAlert');
+        alertEl.innerHTML = '';
+        if (!name) {
+          document.getElementById('sg-master-section').style.display = 'none';
+          _sgMasterName = '';
+          _sgMasterRows = [];
           return;
         }
-        _sgRowSeq += 1;
-        _sgRows.push({ _id: _sgRowSeq, groupName: _sgSelectedNames[_sgSelectedNames.length - 1], category: category || '', orgName: orgName || '', amount: amount || '' });
-        renderSupportGroupRows();
+        _sgMasterName = name;
+        _sgMasterRows = [];
+        document.getElementById('sg-master-section').style.display = 'block';
+        try {
+          const res = await api('GET', `/api/support-groups/latest?${qs({ name })}`);
+          if (res && res.data && res.data.items) {
+            res.data.items.forEach(it => {
+              _sgMasterRowSeq += 1;
+              _sgMasterRows.push({ _id: _sgMasterRowSeq, category: it.category || '', orgName: it.orgName || '', amount: it.amount || '' });
+            });
+          }
+        } catch (e) { /* 저장된 게 없으면 빈 목록으로 시작 */ }
+        renderMasterTable();
       }
 
+      // 목록에 없는 새 지원명을 만듭니다 (빈 목록으로 시작)
+      function createNewSupportGroupName() {
+        const input = document.getElementById('sg-new-name');
+        const name = input.value.trim();
+        if (!name) { showAlert('새 지원명을 입력해 주세요.', 'error'); return; }
+        if (!_sgAllNames.includes(name)) {
+          _sgAllNames.push(name);
+          const select = document.getElementById('sg-master-select');
+          select.innerHTML += `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`;
+        }
+        document.getElementById('sg-master-select').value = name;
+        input.value = '';
+        _sgMasterName = name;
+        _sgMasterRows = [];
+        document.getElementById('sg-master-section').style.display = 'block';
+        renderMasterTable();
+        showAlert(`"${name}" 지원명을 새로 만들었습니다. 단체를 추가하고 저장해 주세요.`, 'success');
+      }
+
+      function addMasterRow() {
+        _sgMasterRowSeq += 1;
+        _sgMasterRows.push({ _id: _sgMasterRowSeq, category: '', orgName: '', amount: '' });
+        renderMasterTable();
+      }
+
+      function removeMasterRow(id) {
+        _sgMasterRows = _sgMasterRows.filter(r => r._id !== id);
+        renderMasterTable();
+      }
+
+      function updateMasterField(id, field, value) {
+        const row = _sgMasterRows.find(r => r._id === id);
+        if (row) row[field] = value;
+        updateMasterTotals();
+      }
+
+      function renderMasterTable() {
+        const tbody = document.getElementById('sg-master-rows');
+        if (!tbody) return;
+        if (_sgMasterRows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="padding:14px;text-align:center;color:#999;">등록된 단체가 없습니다. [➕ 단체 추가]로 시작하세요.</td></tr>';
+        } else {
+          tbody.innerHTML = _sgMasterRows.map(r => `
+            <tr>
+              <td style="padding:5px;border-bottom:1px solid #f2f2f2;">
+                <input type="text" value="${escapeHtml(r.category)}" placeholder="예: 농어촌 및 미자립교회" lang="ko"
+                  oninput="updateMasterField(${r._id}, 'category', this.value)"
+                  style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box;">
+              </td>
+              <td style="padding:5px;border-bottom:1px solid #f2f2f2;">
+                <input type="text" value="${escapeHtml(r.orgName)}" placeholder="단체명" lang="ko"
+                  oninput="updateMasterField(${r._id}, 'orgName', this.value)"
+                  style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px;box-sizing:border-box;">
+              </td>
+              <td style="padding:5px;border-bottom:1px solid #f2f2f2;">
+                <input type="number" inputmode="numeric" value="${r.amount}" placeholder="0" min="0"
+                  oninput="updateMasterField(${r._id}, 'amount', this.value)"
+                  style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:12px;text-align:right;box-sizing:border-box;">
+              </td>
+              <td style="padding:5px;border-bottom:1px solid #f2f2f2;text-align:center;">
+                <button type="button" onclick="removeMasterRow(${r._id})" title="삭제"
+                  style="background:none;border:none;color:#e74c3c;font-size:15px;cursor:pointer;line-height:1;">✕</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+        updateMasterTotals();
+      }
+
+      function updateMasterTotals() {
+        const total = _sgMasterRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        const countEl = document.getElementById('sg-master-count');
+        const totalEl = document.getElementById('sg-master-total');
+        if (countEl) countEl.textContent = _sgMasterRows.length;
+        if (totalEl) totalEl.textContent = total.toLocaleString();
+      }
+
+      // ① [💾 현황 저장] — 이 지원명의 "현재 상태"를 그대로 저장합니다. 버전/이력 개념 없이 항상 최신 상태만 남습니다.
+      async function saveMasterGroup() {
+        if (!_sgMasterName) { showAlert('먼저 지원명을 선택하거나 새로 만들어 주세요.', 'error'); return; }
+        const validRows = _sgMasterRows.filter(r => r.orgName && Number(r.amount) > 0);
+        if (validRows.length === 0) { showAlert('단체명과 금액이 채워진 항목이 1개 이상 있어야 저장할 수 있습니다.', 'error'); return; }
+
+        try {
+          await api('POST', '/api/support-groups', {
+            name: _sgMasterName,
+            yearMonth: new Date().toISOString().slice(0, 7),
+            items: validRows.map(r => ({ category: r.category || '', orgName: r.orgName, amount: Number(r.amount) })),
+          });
+          showAlert(`✅ "${_sgMasterName}" 현황이 저장되었습니다 (${validRows.length}개 단체).`, 'success');
+        } catch (e) {
+          showAlert('저장 실패: ' + e.message, 'error');
+        }
+      }
+
+      // ① → ② [➡️ 이번달 목록에 추가] — 지금 보이는 단체들을 이번달 처리 목록에 담습니다.
+      // 같은 지원명을 이미 담았다면, 그 지원명의 이전 내용을 지우고 지금 내용으로 다시 담습니다 (중복 방지).
+      function addMasterGroupToWorklist() {
+        if (!_sgMasterName) { showAlert('먼저 지원명을 선택하거나 새로 만들어 주세요.', 'error'); return; }
+        const validRows = _sgMasterRows.filter(r => r.orgName && Number(r.amount) > 0);
+        if (validRows.length === 0) { showAlert('단체명과 금액이 채워진 항목이 1개 이상 있어야 합니다.', 'error'); return; }
+
+        _sgRows = _sgRows.filter(r => r.groupName !== _sgMasterName);
+        validRows.forEach(r => {
+          _sgRowSeq += 1;
+          _sgRows.push({ _id: _sgRowSeq, groupName: _sgMasterName, category: r.category || '', orgName: r.orgName, amount: r.amount });
+        });
+        renderSupportGroupRows();
+        showAlert(`✅ "${_sgMasterName}" ${validRows.length}건이 이번달 처리 목록에 담겼습니다. 아래 ②번 표를 확인하세요.`, 'success');
+      }
+
+      // ② 이번달 처리 목록 — 행 관리
       function removeSupportGroupRow(id) {
         _sgRows = _sgRows.filter(r => r._id !== id);
         renderSupportGroupRows();
@@ -9662,9 +9680,10 @@
         const tbody = document.getElementById('sg-rows');
         if (!tbody) return;
         if (_sgRows.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;">지원명을 선택하면 지난 내역이 자동으로 불러와집니다. 또는 [단체 추가]로 새로 시작하세요.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#999;">위 ①번에서 지원명을 고르고 [➡️ 이번달 목록에 추가]를 누르면 여기에 담깁니다.</td></tr>';
         } else {
-          const groupOptions = (selected) => _sgSelectedNames.map(n => `<option value="${escapeHtml(n)}" ${n === selected ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+          const groupNamesInUse = [...new Set(_sgRows.map(r => r.groupName))];
+          const groupOptions = (selected) => groupNamesInUse.map(n => `<option value="${escapeHtml(n)}" ${n === selected ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
           tbody.innerHTML = _sgRows.map(r => `
             <tr>
               <td style="padding:5px;border-bottom:1px solid #f2f2f2;">
@@ -9699,28 +9718,30 @@
 
       function updateSupportGroupTotals() {
         const total = _sgRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        const groupCount = new Set(_sgRows.map(r => r.groupName)).size;
         const countEl = document.getElementById('sg-count');
         const totalEl = document.getElementById('sg-total');
         const groupCntEl = document.getElementById('sg-group-count');
         if (countEl) countEl.textContent = _sgRows.length;
         if (totalEl) totalEl.textContent = total.toLocaleString();
-        if (groupCntEl) groupCntEl.textContent = _sgSelectedNames.length;
+        if (groupCntEl) groupCntEl.textContent = groupCount;
       }
 
       // 내역서를 종이 양식처럼 인쇄/PDF로 저장할 수 있게 보여줍니다. (지원명 → 카테고리 순으로 묶어서 표시)
       function printSupportGroupSheet() {
-        if (_sgRows.length === 0) { showAlert('먼저 단체를 추가해 주세요.', 'error'); return; }
+        if (_sgRows.length === 0) { showAlert('먼저 ②번 목록에 단체를 담아주세요.', 'error'); return; }
         const date = document.getElementById('sg-date').value || '';
-        const title = _sgSelectedNames.length > 1
-          ? `${date} 지원단체 내역 (${_sgSelectedNames.length}개 지원명 통합)`
-          : `${date} ${_sgSelectedNames[0] || '지원단체'} 내역`;
+        const groupNames = [...new Set(_sgRows.map(r => r.groupName))];
+        const title = groupNames.length > 1
+          ? `${date} 지원단체 내역 (${groupNames.length}개 지원명 통합)`
+          : `${date} ${groupNames[0] || '지원단체'} 내역`;
 
         let bodyRows = '';
         let grandTotal = 0;
-        _sgSelectedNames.forEach(groupName => {
+        groupNames.forEach(groupName => {
           const groupRows = _sgRows.filter(r => r.groupName === groupName);
           if (groupRows.length === 0) return;
-          if (_sgSelectedNames.length > 1) {
+          if (groupNames.length > 1) {
             bodyRows += `<tr style="background:#e3f2fd;"><td colspan="3"><strong>📌 ${escapeHtml(groupName)}</strong></td></tr>`;
           }
           const cats = [];
@@ -9763,41 +9784,25 @@
         mobilePrint(html);
       }
 
-      // 이번 내역을 지원명별로 나눠서 확정 저장하고(다음번 "불러오기"용), 등록 방법을 고르게 합니다.
-      let _pendingSupportGroupData = null; // { names, date, validRows, total } — 선택 모달에서 쓰기 위한 임시 저장
-      let _pendingBulkSupportItems = null; // 개별 건별 등록을 선택했을 때, 거래등록 화면에서 실행할 목록
-      let _pendingBulkSupportMeta = null;  // { names, date }
+      // 이번 목록을 확정하고, 등록 방법(전표1장 / 개별건)을 고르게 합니다.
+      let _pendingSupportGroupData = null; // { names, date, validRows, total }
+      let _pendingBulkSupportItems = null;
+      let _pendingBulkSupportMeta = null;
 
-      async function confirmSupportGroupToTransaction() {
+      function confirmSupportGroupToTransaction() {
         const date = document.getElementById('sg-date').value;
         const alertEl = document.getElementById('supportGroupAlert');
         alertEl.innerHTML = '';
 
-        if (_sgSelectedNames.length === 0) { alertEl.innerHTML = errBox('지원명을 1개 이상 선택(또는 추가)해 주세요.'); return; }
         if (!date) { alertEl.innerHTML = errBox('기준 날짜를 선택해 주세요.'); return; }
         const validRows = _sgRows.filter(r => r.orgName && Number(r.amount) > 0);
-        if (validRows.length === 0) { alertEl.innerHTML = errBox('단체명과 금액이 채워진 항목이 1개 이상 있어야 합니다.'); return; }
+        if (validRows.length === 0) { alertEl.innerHTML = errBox('②번 목록에 단체가 1개 이상 있어야 합니다. ①에서 [➡️ 이번달 목록에 추가]를 먼저 눌러주세요.'); return; }
 
         const total = validRows.reduce((s, r) => s + Number(r.amount), 0);
-        const ym = date.slice(0, 7); // 지원단체 저장 API는 연월 단위로 이력을 관리합니다
+        const names = [...new Set(validRows.map(r => r.groupName))];
 
-        // 지원명별로 나눠서 각각 저장 (다음번 "불러오기"가 지원명별로 정확히 동작하도록)
-        for (const name of _sgSelectedNames) {
-          const rowsForName = validRows.filter(r => r.groupName === name);
-          if (rowsForName.length === 0) continue;
-          try {
-            await api('POST', '/api/support-groups', {
-              name,
-              yearMonth: ym,
-              items: rowsForName.map(r => ({ category: r.category || '', orgName: r.orgName, amount: Number(r.amount) })),
-            });
-          } catch (e) {
-            alertEl.innerHTML = errBox(`"${name}" 내역 저장에 실패했습니다: ${e.message} (등록 방법은 일단 고르실 수 있게 해드릴게요)`);
-          }
-        }
-
-        // 교회마다 등록 방식이 다를 수 있어서, 바로 채우지 않고 먼저 방법을 고르게 합니다.
-        _pendingSupportGroupData = { names: _sgSelectedNames.slice(), date, validRows, total };
+        // 등록 방식은 교회마다 다를 수 있어서 먼저 고르게 합니다.
+        _pendingSupportGroupData = { names, date, validRows, total };
         closeSupportGroupModal();
         document.getElementById('sgConfirmChoiceModal').style.display = 'flex';
       }
