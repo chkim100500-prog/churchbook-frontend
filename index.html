@@ -10238,7 +10238,7 @@
             if (isAborted && isAborted()) return null; // 취소됐으면 여기서 조립을 그만둡니다
 
             const title = (isIncome ? incomeDocName : expenseDocName) + ' (통합)';
-            const signatureBlockRows = buildVoucherSignatureBlockCells(authorities);
+            const signatureRows = buildVoucherSignatureTableRows(authorities);
 
             let total = 0;
             const lineRows = rows.map(r => {
@@ -10246,10 +10246,10 @@
                 total += Math.abs(amt) || 0;
                 const itemName = isIncome ? (r.incomeItem || '') : (r.expenseItem || '');
                 return '<tr>' +
-                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(r.department || '') + '</td>' +
-                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(itemName) + '</td>' +
-                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(r.description || '') + '</td>' +
-                    '<td style="padding:7px 8px;border:1px solid #999;text-align:right;">' + formatAmount(Math.abs(amt)) + '원</td>' +
+                    '<td>' + escapeHtml(r.department || '') + '</td>' +
+                    '<td>' + escapeHtml(itemName) + '</td>' +
+                    '<td>' + escapeHtml(r.description || '') + '</td>' +
+                    '<td style="text-align:right;">' + formatAmount(Math.abs(amt)) + '원</td>' +
                     '</tr>';
             }).join('');
 
@@ -10259,36 +10259,119 @@
             let receiptBlock = '';
             if (receiptImgs.length > 0) {
                 const imgTags = receiptImgs.map((img, i) =>
-                    '<div style="display:inline-block;vertical-align:top;margin:3px;' + (receiptImgs.length === 1 ? 'width:100%' : 'width:48%') + ';">' +
-                    '<div style="font-size:10px;color:#666;margin-bottom:3px;">📷 영수증 ' + (i + 1) + '/' + receiptImgs.length + (img.description ? ' — ' + img.description : '') + '</div>' +
-                    '<img src="' + img.imageUrl + '" style="width:100%;max-height:200px;object-fit:contain;border:1px solid #ddd;border-radius:4px;"></div>'
+                    '<div style="display:inline-block;vertical-align:top;margin:4px;' + (receiptImgs.length === 1 ? 'width:100%' : 'width:48%') + ';">' +
+                    '<div style="font-size:11px;color:#666;margin-bottom:4px;">📷 영수증 ' + (i + 1) + '/' + receiptImgs.length + (img.description ? ' — ' + img.description : '') + '</div>' +
+                    '<img src="' + img.imageUrl + '" style="width:100%;max-height:300px;object-fit:contain;border:1px solid #ddd;border-radius:4px;"></div>'
                 ).join('');
-                receiptBlock = '<div style="margin-top:10px;border-top:1px dashed #ccc;padding-top:8px;"><div style="font-size:11px;font-weight:bold;color:#333;margin-bottom:6px;">📷 첨부 영수증 (' + receiptImgs.length + '건)</div><div style="font-size:0;">' + imgTags + '</div></div>';
+                receiptBlock = '<div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;page-break-inside:avoid;">' +
+                    '<div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증 (' + receiptImgs.length + '건)</div>' +
+                    '<div style="font-size:0;">' + imgTags + '</div></div>';
             }
 
-            const headerColor = isIncome ? '#d73527' : '#333';
+            // 결재상태: 선택된 건들의 상태가 전부 같으면 하나로, 다르면 건별로 표시합니다.
+            const badges = [...new Set(rows.map(r => r.approvalBadge || ''))].filter(Boolean);
+            let approvalBlock = '';
+            if (badges.length === 1) {
+                approvalBlock = buildPostHocApprovalBlock(rows[0]);
+            } else if (badges.length > 1) {
+                approvalBlock = '<div style="margin-top:16px;font-size:12px;color:#555;">' +
+                    rows.map(r => r.approvalBadge ? ('· ' + escapeHtml(r.description || r.department || '') + ' — ' + escapeHtml(r.approvalBadge)) : '').filter(Boolean).join('<br>') +
+                    '</div>';
+            }
+
             const itemLabel = isIncome ? '수입항목' : '지출항목';
-            return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
-                'body{font-family:"맑은 고딕",sans-serif;padding:20px;color:#000;}' +
-                '@media print{.no-print{display:none;}}' +
-                '</style></head><body>' +
-                '<div style="text-align:right;font-size:12px;color:#666;margin-bottom:6px;">여러 건 통합 (' + rows.length + '건)</div>' +
-                '<h2 style="text-align:center;color:' + headerColor + ';margin:0 0 12px;font-size:20px;">' + title + '</h2>' +
-                '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">' +
-                '<tr><th style="padding:8px 10px;border:2px solid #333;background:#f2f2f2;text-align:left;width:25%;">거래일자</th><td style="padding:8px 10px;border:2px solid #333;">' + (rows[0].date || '') + '</td></tr>' +
-                '</table>' +
-                '<table style="width:100%;border-collapse:collapse;">' +
-                '<thead><tr style="background:#f2f2f2;">' +
-                '<th style="padding:7px 8px;border:1px solid #999;">소부서</th>' +
-                '<th style="padding:7px 8px;border:1px solid #999;">' + itemLabel + '</th>' +
-                '<th style="padding:7px 8px;border:1px solid #999;">적요</th>' +
-                '<th style="padding:7px 8px;border:1px solid #999;">금액</th>' +
-                '</tr></thead><tbody>' + lineRows +
-                '<tr style="background:#f5f5f5;font-weight:bold;"><td colspan="3" style="padding:7px 8px;border:1px solid #999;text-align:right;">합계</td><td style="padding:7px 8px;border:1px solid #999;text-align:right;">' + formatAmount(total) + '원</td></tr>' +
-                '</tbody></table>' +
-                '<table style="width:auto;float:right;margin-top:12px;border-collapse:collapse;">' + signatureBlockRows + '</table><div style="clear:both;"></div>' +
-                receiptBlock +
-                '</body></html>';
+            return `
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>${title} - ${rows[0].date || ''}</title>
+                        <style>
+                            body {
+                                font-family: 'Malgun Gothic', sans-serif;
+                                padding: 20px;
+                                background-color: #fff;
+                            }
+                            h1 {
+                                text-align: center;
+                                color: #333;
+                                margin-bottom: 20px;
+                                font-size: 26px;
+                            }
+                            table {
+                                width: 100%;
+                                border-collapse: collapse;
+                                background-color: #fff;
+                                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                            }
+                            th, td {
+                                padding: 12px;
+                                border: 2px solid #333;
+                            }
+                            th {
+                                background-color: #f2f2f2;
+                                color: #333;
+                                text-align: left;
+                            }
+                            .line-table th, .line-table td { padding: 10px 12px; }
+                            .signature-table {
+                                width: auto;
+                                float: right;
+                                margin-top: 20px;
+                                border: none;
+                                box-shadow: none;
+                            }
+                            .signature-table td {
+                                text-align: center;
+                                border: 2px solid #333;
+                                padding: 10px 20px;
+                                font-size: 16px;
+                            }
+                            @media print {
+                                @page { size: A4; margin: 8mm; }
+                                body { padding: 0; }
+                                table { box-shadow: none; }
+                                .no-print { display: none; }
+                            }
+                            .voucher-number {
+                                text-align: right;
+                                margin-bottom: 10px;
+                                font-size: 14px;
+                                color: #666;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="voucher-number">여러 건 통합 · ${rows.length}건</div>
+                        <h1>${title}</h1>
+                        <table style="margin-bottom:16px;">
+                            <tr><th style="width:25%;">거래일자</th><td>${rows[0].date || ''}</td></tr>
+                            <tr><th>거래구분</th><td>${getTypeDisplayName(rows[0].type)}</td></tr>
+                        </table>
+                        <table class="line-table">
+                            <thead><tr>
+                                <th>소부서</th>
+                                <th>${itemLabel}</th>
+                                <th>적요</th>
+                                <th>금액</th>
+                            </tr></thead>
+                            <tbody>
+                                ${lineRows}
+                                <tr style="background:#f5f5f5;font-weight:bold;">
+                                    <td colspan="3" style="text-align:right;">합계</td>
+                                    <td style="text-align:right;">${formatAmount(total)}원</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <table class="signature-table">
+                            ${signatureRows}
+                        </table>
+                        <div style="clear:both;"></div>
+                        ${approvalBlock}
+                        ${receiptBlock}
+                    </body>
+                </html>
+            `;
         }
 
         // displaySearchResults 함수에서 버튼 생성 부분 수정
