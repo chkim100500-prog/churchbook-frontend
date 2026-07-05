@@ -5159,6 +5159,20 @@
             </div>
         </div><!-- /container -->
 
+    <!-- 지원단체 내역: 지원명별 지난 버전 이력 보기/복원 모달 -->
+    <div class="modal" id="sgHistoryModal" style="display:none;">
+        <div class="modal-content" style="max-width:460px;width:92%;max-height:80vh;overflow-y:auto;">
+            <div class="modal-header">
+                <h2>🕐 <span id="sgHistoryModalName"></span> 지난 버전</h2>
+                <button class="modal-close" onclick="document.getElementById('sgHistoryModal').style.display='none';">&times;</button>
+            </div>
+            <div style="padding:15px;">
+                <p style="font-size:12px;color:#888;margin:0 0 12px;">확정했던 시점들이 최신순으로 나옵니다. 원하는 버전을 불러오면, 지금 표에 있는 이 지원명의 내용이 그 시점 내용으로 바뀝니다.</p>
+                <div id="sgHistoryList" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- 지원단체 내역: 전표 1장 vs 개별 건별 등록 선택 모달 -->
     <div class="modal" id="sgConfirmChoiceModal" style="display:none;">
         <div class="modal-content" style="max-width:440px;width:92%;">
@@ -9512,7 +9526,11 @@
           : '<span style="font-size:12px;color:#bbb;">저장된 지원명이 없거나 모두 선택됨</span>';
 
         selEl.innerHTML = _sgSelectedNames.length
-          ? _sgSelectedNames.map(n => `<span onclick='deselectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;padding:5px 10px;background:#1565c0;color:#fff;border-radius:14px;font-size:12px;white-space:nowrap;">${escapeHtml(n)} ✕</span>`).join('')
+          ? _sgSelectedNames.map(n => `<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 8px;background:#1565c0;color:#fff;border-radius:14px;font-size:12px;white-space:nowrap;">
+              <span onclick='deselectSupportGroupName(${JSON.stringify(n)})' style="cursor:pointer;">${escapeHtml(n)}</span>
+              <span onclick='openSupportGroupHistory(${JSON.stringify(n)})' title="이 지원명의 지난 버전들 보기" style="cursor:pointer;opacity:0.85;">🕐</span>
+              <span onclick='deselectSupportGroupName(${JSON.stringify(n)})' title="선택 해제" style="cursor:pointer;opacity:0.7;">✕</span>
+            </span>`).join('')
           : '<span style="font-size:12px;color:#bbb;">왼쪽에서 클릭해서 골라주세요</span>';
 
         const cntEl = document.getElementById('sg-group-count');
@@ -9554,6 +9572,57 @@
         if (!_sgAllNames.includes(name)) _sgAllNames.push(name);
         input.value = '';
         selectSupportGroupName(name);
+      }
+
+      // 이 지원명이 지금까지 확정했던 버전들을 보여줍니다 (과거 시점으로 되돌리는 용도)
+      async function openSupportGroupHistory(name) {
+        document.getElementById('sgHistoryModalName').textContent = name;
+        const listEl = document.getElementById('sgHistoryList');
+        listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px;">불러오는 중...</div>';
+        document.getElementById('sgHistoryModal').style.display = 'flex';
+        try {
+          const res = await api('GET', `/api/support-groups/history?${qs({ name })}`);
+          const history = (res && res.data) || [];
+          if (history.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center;color:#999;font-size:13px;padding:16px;">아직 확정된 이력이 없습니다.</div>';
+            return;
+          }
+          listEl.innerHTML = history.map((h, i) => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid #eee;border-radius:8px;${i === 0 ? 'background:#f5f9ff;border-color:#90caf9;' : ''}">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#333;">${h.confirmedAt || '(시각 미상)'} ${i === 0 ? '<span style="color:#1565c0;font-size:11px;">· 최신</span>' : ''}</div>
+                <div style="font-size:12px;color:#888;">${h.yearMonth || ''} · ${h.count}개 단체 · ${Number(h.total || 0).toLocaleString()}원</div>
+              </div>
+              <button type="button" onclick='restoreSupportGroupVersion(${JSON.stringify(name)}, ${i})' style="padding:7px 12px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">이 버전 불러오기</button>
+            </div>
+          `).join('');
+          // 복원 버튼에서 바로 쓸 수 있도록 임시 보관
+          _sgHistoryCache = history;
+        } catch (e) {
+          listEl.innerHTML = errBox('이력을 불러오지 못했습니다: ' + e.message);
+        }
+      }
+
+      let _sgHistoryCache = [];
+
+      // 선택한 과거 버전으로 이 지원명의 현재 행들을 교체합니다
+      function restoreSupportGroupVersion(name, index) {
+        const version = _sgHistoryCache[index];
+        if (!version) return;
+
+        // 이 지원명이 아직 선택되어 있지 않으면 선택 목록에 추가합니다
+        if (!_sgSelectedNames.includes(name)) _sgSelectedNames.push(name);
+        // 기존에 이 지원명으로 불러와져 있던 행들은 지우고, 선택한 버전으로 교체합니다
+        _sgRows = _sgRows.filter(r => r.groupName !== name);
+        (version.items || []).forEach(it => {
+          _sgRowSeq += 1;
+          _sgRows.push({ _id: _sgRowSeq, groupName: name, category: it.category || '', orgName: it.orgName || '', amount: it.amount || '' });
+        });
+
+        renderSupportGroupNamePickers();
+        renderSupportGroupRows();
+        document.getElementById('sgHistoryModal').style.display = 'none';
+        showAlert(`✅ "${name}"을(를) ${version.confirmedAt} 시점 버전(${version.count}개 단체)으로 불러왔습니다.`, 'success');
       }
 
       function closeSupportGroupModal() {
