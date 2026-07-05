@@ -2205,6 +2205,12 @@
 
         // 실제로 인쇄 버튼을 누른 이 순간에만 "출력됨" 기록을 남김
         function _consumePendingVoucherMark() {
+            if (typeof _pendingMergedVoucherInfo !== 'undefined' && _pendingMergedVoucherInfo) {
+                const info = _pendingMergedVoucherInfo;
+                _pendingMergedVoucherInfo = null;
+                if (typeof markMergedVoucherPrinted === 'function') markMergedVoucherPrinted(info.ids, info.date);
+                return;
+            }
             if (typeof _pendingVoucherPrintIds !== 'undefined' && _pendingVoucherPrintIds && typeof markVoucherPrinted === 'function') {
                 markVoucherPrinted(_pendingVoucherPrintIds);
                 _pendingVoucherPrintIds = null;
@@ -10028,14 +10034,16 @@
             Promise.all([
                 api('GET', `/api/transactions?${params}`),
                 api('GET', '/api/voucher-print/status').catch(() => ({ data: [] })),
-                api('GET', '/api/receipts').catch(() => ({ data: [] }))
+                api('GET', '/api/receipts').catch(() => ({ data: [] })),
+                api('GET', '/api/voucher-print/merged-groups').catch(() => ({ data: [] }))
             ])
-                .then(([result, statusResult, receiptResult]) => {
+                .then(([result, statusResult, receiptResult, mergedResult]) => {
                     hideLoading();
                     _bvPrintStatus = {};
                     (statusResult.data || []).forEach(s => { _bvPrintStatus[s.rowIndex] = s.printedAt; });
                     _receiptMap = {};
                     (receiptResult.data || []).forEach(r => { if (r.txnId) _receiptMap[r.txnId] = true; if (r.txnDate && r.amount) _receiptMap[receiptFallbackKey(r.txnDate, r.amount)] = true; });
+                    _mergedGroups = mergedResult.data || [];
                     const monthlyResults = result.data || [];
                     displaySearchResults(monthlyResults);
                     const periodLabel = month === 'all' ? `${year}년 전체` : `${year}년 ${month}월`;
@@ -10078,13 +10086,14 @@
                 tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 30px; color: #007BFF;">검색 중...</td></tr>';
             }
 
-            // 거래 + 출력상태 + 영수증목록 동시 조회
+            // 거래 + 출력상태 + 영수증목록 + 통합전표기록 동시 조회
             Promise.all([
                 api('GET', `/api/transactions?${qs({ keyword })}`),
                 api('GET', '/api/voucher-print/status').catch(() => ({ data: [] })),
-                api('GET', '/api/receipts').catch(() => ({ data: [] }))
+                api('GET', '/api/receipts').catch(() => ({ data: [] })),
+                api('GET', '/api/voucher-print/merged-groups').catch(() => ({ data: [] }))
             ])
-                .then(([result, statusResult, receiptResult]) => {
+                .then(([result, statusResult, receiptResult, mergedResult]) => {
                     hideLoading();
                     // 출력상태 캐싱
                     _bvPrintStatus = {};
@@ -10092,6 +10101,8 @@
                     // 영수증 매칭 캐싱 (txnId 기준)
                     _receiptMap = {};
                     (receiptResult.data || []).forEach(r => { if (r.txnId) _receiptMap[r.txnId] = true; if (r.txnDate && r.amount) _receiptMap[receiptFallbackKey(r.txnDate, r.amount)] = true; });
+                    // 통합전표 기록 캐싱
+                    _mergedGroups = mergedResult.data || [];
                     const results = result.data || [];
                     if (results.length > 0) {
                         displaySearchResults(results);
@@ -10158,6 +10169,15 @@
 
         // 선택한 거래들을 전표 한 장으로 합쳐서 인쇄합니다.
         let _mergedVoucherAbort = false; // 생성 도중 "취소"를 누르면 true로 바뀜
+        let _pendingMergedVoucherInfo = null; // { ids, date } — 인쇄창에서 실제로 인쇄 버튼을 눌렀을 때 통합전표로 기록하기 위한 대기값
+        let _mergedGroups = []; // 지금까지 통합출력된 묶음 목록 [{rowIndexes, date, confirmedAt, count}]
+
+        // 이 거래(row.id)가 실제로 "통합전표기록"에 등록된 묶음에 속해있는지 정확히 확인합니다.
+        // (K열 출력일시만으로는 일반 일괄출력과 구분이 안 되기 때문에, 별도로 기록된 통합전표기록만 신뢰합니다)
+        function findMergedGroupForRow(rowId) {
+            const idNum = Number(rowId);
+            return _mergedGroups.find(g => Array.isArray(g.rowIndexes) && g.rowIndexes.includes(idNum)) || null;
+        }
 
         async function printMergedVoucher() {
             const ids = [..._mergedVoucherSelected];
@@ -10188,7 +10208,7 @@
                 if (_mergedVoucherAbort) {
                     showAlert('통합전표 생성을 취소했습니다.');
                 } else {
-                    _pendingVoucherPrintIds = rows.map(r => r.id);
+                    _pendingMergedVoucherInfo = { ids: rows.map(r => r.id), date: firstDate };
                     mobilePrint(html);
                     showAlert(`✅ ${rows.length}건을 하나의 전표로 합쳤습니다 (${firstDate}). 인쇄 창에서 "인쇄·PDF저장"을 눌러야 최종 출력 처리됩니다.`, 'success');
                 }
@@ -10329,11 +10349,9 @@
                     _badges += `<div style="font-size:10px;color:#1976d2;margin-top:2px;white-space:nowrap;">📷 영수증</div>`;
                 }
                 if (_printedAt) {
-                    // markVoucherPrinted는 한 번의 통합전표 출력에 포함된 모든 건에 "정확히 같은 시각"을 기록합니다.
-                    // 그래서 같은 출력시각을 가진 건이 2개 이상이면 "통합전표로 같이 출력된 건"이라는 뜻입니다.
-                    const _mergedCount = Object.values(_bvPrintStatus).filter(v => v === _printedAt).length;
-                    if (_mergedCount >= 2) {
-                        _badges += `<div style="font-size:10px;color:#6a1b9a;margin-top:2px;white-space:nowrap;" title="다른 ${_mergedCount - 1}건과 함께 전표 1장으로 통합 출력됨 (출력일시: ${_printedAt})">🔗 통합전표 출력됨</div>`;
+                    const _mergedGroup = findMergedGroupForRow(row.id);
+                    if (_mergedGroup) {
+                        _badges += `<div style="font-size:10px;color:#6a1b9a;margin-top:2px;white-space:nowrap;" title="이 거래는 ${_mergedGroup.date} 거래 ${_mergedGroup.count}건과 함께 전표 1장으로 통합 출력되었습니다 (확정: ${_mergedGroup.confirmedAt})">🔗 통합전표 출력됨</div>`;
                     } else {
                         _badges += `<div style="font-size:10px;color:#6a1b9a;margin-top:2px;white-space:nowrap;" title="출력일시: ${_printedAt}">🖨️ 출력됨</div>`;
                     }
@@ -15496,6 +15514,23 @@
               }
           } catch (e) {
               console.warn('전표 출력상태 기록 실패:', e);
+          }
+      }
+
+      // 여러 거래를 전표 한 장으로 합쳐서 출력했을 때 전용으로 기록합니다.
+      // (일반 마킹과 달리 "통합전표기록" 시트에도 묶음 자체가 남아서, 나중에 배지로 정확히 구분할 수 있습니다)
+      async function markMergedVoucherPrinted(ids, date) {
+          if (!Array.isArray(ids) || ids.length < 2) return;
+          try {
+              await api('POST', '/api/voucher-print/mark-merged', { rowIndexes: ids, date });
+              const now = new Date().toISOString();
+              ids.forEach(function(id) { _bvPrintStatus[id] = now; });
+              _mergedGroups.push({ rowIndexes: ids.map(Number), date, confirmedAt: now, count: ids.length });
+              if (typeof _lastSearchResults !== 'undefined' && _lastSearchResults.length) {
+                  displaySearchResults(_lastSearchResults);
+              }
+          } catch (e) {
+              console.warn('통합전표 기록 실패:', e);
           }
       }
       // window.opener를 통해 별도 창(window.open)에서도 호출할 수 있도록 전역 등록
