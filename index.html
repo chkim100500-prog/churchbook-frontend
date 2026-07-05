@@ -9817,30 +9817,37 @@
         const date = document.getElementById('transactionDate').value;
         if (!date) { showAlert('거래일자를 확인해 주세요.', 'error'); return; }
 
-        showLoading(`0/${items.length}건 등록 중...`);
+        // 4건씩 묶어서 동시에 등록합니다 (완전히 다 동시에 하면 빠르지만, 시트에 동시에 여러 줄을
+        // 쓰다가 드물게 줄이 꼬일 수 있어서, 속도와 안전성 사이에서 4개씩으로 절충했습니다)
+        const CONCURRENCY = 4;
         let successCount = 0;
+        let completed = 0;
         const failed = [];
-        for (let i = 0; i < items.length; i++) {
-          const it = items[i];
-          const m = _bulkCategoryMap[it.category || '(미분류)'];
-          showLoading(`${i + 1}/${items.length}건 등록 중... (${it.orgName})`);
-          try {
-            await api('POST', '/api/transactions', {
-              date,
-              type: 'expense',
-              department: m.department,
-              incomeItem: '',
-              expenseItem: m.expenseItem,
-              description: it.category ? `${it.category} - ${it.orgName}` : it.orgName,
-              income: 0,
-              expense: Number(it.amount),
-              donor: '',
-              sheetType: '',
-            });
-            successCount++;
-          } catch (e) {
-            failed.push(it.orgName);
-          }
+        showLoading(`0/${items.length}건 등록 중...`);
+        for (let start = 0; start < items.length; start += CONCURRENCY) {
+          const batch = items.slice(start, start + CONCURRENCY);
+          await Promise.all(batch.map(async (it) => {
+            const m = _bulkCategoryMap[it.category || '(미분류)'];
+            try {
+              await api('POST', '/api/transactions', {
+                date,
+                type: 'expense',
+                department: m.department,
+                incomeItem: '',
+                expenseItem: m.expenseItem,
+                description: it.category ? `${it.category} - ${it.orgName}` : it.orgName,
+                income: 0,
+                expense: Number(it.amount),
+                donor: '',
+                sheetType: '',
+              });
+              successCount++;
+            } catch (e) {
+              failed.push(it.orgName);
+            }
+            completed++;
+            showLoading(`${completed}/${items.length}건 등록 중...`);
+          }));
         }
         hideLoading();
         _pendingBulkSupportItems = null;
@@ -9853,7 +9860,7 @@
         } else {
           showAlert(`⚠️ ${successCount}건 등록 완료, ${failed.length}건 실패 (${failed.join(', ')}). 실패한 건은 직접 등록해 주세요.`, 'error');
         }
-        showTab('search');
+        showTab('register');
       }
 
 
