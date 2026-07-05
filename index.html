@@ -9474,11 +9474,18 @@
       let _sgSelectedNames = [];  // 이번에 같이 관리할 지원명들 (선택 순서 유지)
 
       function openSupportGroupModal() {
+        // 창을 열 때마다 "지금 화면에서 작업 중인 임시 상태"만 깨끗이 비웁니다.
+        // (서버에 저장된 지원명별 내역은 여기서 전혀 건드리지 않습니다 — 선택하면 다시 그대로 불러와집니다)
+        _sgSelectedNames = [];
+        _sgRows = [];
+        _sgRowSeq = 0;
+
         const dateEl = document.getElementById('sg-date');
-        if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+        if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10); // 열 때마다 오늘 날짜로 초기화
         document.getElementById('supportGroupAlert').innerHTML = '';
         document.getElementById('supportGroupModal').style.display = 'flex';
         renderSupportGroupRows();
+        renderSupportGroupNamePickers();
         loadSupportGroupNames();
       }
 
