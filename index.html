@@ -2750,6 +2750,7 @@
                         </div>
                     </div>
                     <p style="font-size:12px;color:#999;margin:4px 0 10px;text-align:right;">매달 비슷한 여러 단체·항목을 한 장의 전표로 몰아서 낼 때는 [📋 지원단체 내역으로 전표 작성]을, 기존 엑셀 장부를 통째로 옮길 때는 [📤 엑셀로 여러 건 가져오기]를 이용하세요.</p>
+                    <div id="bulkSupportBanner" style="display:none;"></div>
                     <form id="transactionForm">
                         <div class="form-row">
                             <div class="form-group">
@@ -5157,6 +5158,27 @@
 </div><!-- /settings container -->
             </div>
         </div><!-- /container -->
+
+    <!-- 지원단체 내역: 전표 1장 vs 개별 건별 등록 선택 모달 -->
+    <div class="modal" id="sgConfirmChoiceModal" style="display:none;">
+        <div class="modal-content" style="max-width:440px;width:92%;">
+            <div class="modal-header">
+                <h2>어떻게 등록할까요?</h2>
+                <button class="modal-close" onclick="document.getElementById('sgConfirmChoiceModal').style.display='none';">&times;</button>
+            </div>
+            <div style="padding:15px;">
+                <p style="font-size:13px;color:#666;margin:0 0 16px;line-height:1.6;">교회마다 방식이 다를 수 있어서 선택하실 수 있게 했습니다.</p>
+                <button type="button" onclick="chooseSupportGroupSingleVoucher()" style="width:100%;text-align:left;padding:14px;margin-bottom:10px;background:#f3e5f5;border:1px solid #ce93d8;border-radius:10px;cursor:pointer;">
+                    <div style="font-weight:700;color:#6a1b9a;font-size:14px;">📄 전표 1장으로 (합계 1건)</div>
+                    <div style="font-size:12px;color:#888;margin-top:4px;">모든 단체 합계 금액으로 거래 1건만 등록하고, 인쇄한 내역서를 영수증으로 첨부합니다.</div>
+                </button>
+                <button type="button" onclick="chooseSupportGroupBulkEntries()" style="width:100%;text-align:left;padding:14px;background:#e8f4fd;border:1px solid #90caf9;border-radius:10px;cursor:pointer;">
+                    <div style="font-weight:700;color:#1565c0;font-size:14px;">📑 개별 건으로 (단체마다 각각 등록)</div>
+                    <div style="font-size:12px;color:#888;margin-top:4px;">지금처럼 단체별로 하나씩 전표를 만들던 방식 그대로, 소부서·지출항목만 한 번 고르면 나머지는 자동으로 한 번에 등록됩니다.</div>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 지원단체 내역 관리 모달 -->
     <div class="modal" id="supportGroupModal" style="display:none;">
@@ -9616,6 +9638,10 @@
       }
 
       // 이번 달 내역을 확정 저장하고(다음 달 "불러오기"용), 거래등록 폼에 합계를 채워줍니다.
+      let _pendingSupportGroupData = null; // { name, ym, validRows, total } — 선택 모달에서 쓰기 위한 임시 저장
+      let _pendingBulkSupportItems = null; // 개별 건별 등록을 선택했을 때, 거래등록 화면에서 실행할 목록
+      let _pendingBulkSupportMeta = null;  // { name, ym }
+
       async function confirmSupportGroupToTransaction() {
         const name = document.getElementById('sg-name').value.trim();
         const ym = document.getElementById('sg-yearmonth').value;
@@ -9636,10 +9662,18 @@
             items: validRows.map(r => ({ category: r.category || '', orgName: r.orgName, amount: Number(r.amount) })),
           });
         } catch (e) {
-          alertEl.innerHTML = errBox('내역 저장에 실패했습니다: ' + e.message + ' (거래등록 칸은 일단 채워드릴게요)');
+          alertEl.innerHTML = errBox('내역 저장에 실패했습니다: ' + e.message + ' (등록 방법은 일단 고르실 수 있게 해드릴게요)');
         }
 
-        // 거래등록 폼 채우기
+        // 교회마다 등록 방식이 다를 수 있어서, 바로 채우지 않고 먼저 방법을 고르게 합니다.
+        _pendingSupportGroupData = { name, ym, validRows, total };
+        closeSupportGroupModal();
+        document.getElementById('sgConfirmChoiceModal').style.display = 'flex';
+      }
+
+      // 선택 1) 전표 1장으로 — 합계 금액 1건만 거래등록에 채웁니다.
+      function chooseSupportGroupSingleVoucher() {
+        const { name, ym, validRows, total } = _pendingSupportGroupData;
         const [y, m] = ym.split('-');
         document.getElementById('transactionType').value = 'expense';
         updateCategoryOptions();
@@ -9647,9 +9681,100 @@
         document.getElementById('transactionDescription').value = `${Number(y)}년 ${Number(m)}월 ${name} 내역 (${validRows.length}개 단체)`;
         document.getElementById('transactionDate').value = ym + '-' + String(new Date(Number(y), Number(m), 0).getDate()).padStart(2, '0');
 
-        closeSupportGroupModal();
+        document.getElementById('sgConfirmChoiceModal').style.display = 'none';
         showTab('register');
-        showAlert(`✅ 합계 ${total.toLocaleString()}원이 거래등록에 채워졌습니다. 소부서·지출항목을 선택하고, 방금 인쇄한 내역서를 영수증으로 첨부한 뒤 저장해 주세요.`, 'success');
+        showAlert(`✅ 합계 ${total.toLocaleString()}원이 거래등록에 채워졌습니다. 소부서·지출항목을 선택하고, 인쇄한 내역서를 영수증으로 첨부한 뒤 저장해 주세요.`, 'success');
+      }
+
+      // 선택 2) 개별 건으로 — 거래등록 화면에서 소부서·지출항목만 한 번 고르면, 단체 수만큼 자동으로 하나씩 등록됩니다.
+      function chooseSupportGroupBulkEntries() {
+        const { name, ym, validRows } = _pendingSupportGroupData;
+        _pendingBulkSupportItems = validRows;
+        _pendingBulkSupportMeta = { name, ym };
+
+        document.getElementById('transactionType').value = 'expense';
+        updateCategoryOptions();
+        document.getElementById('transactionDate').value = ym + '-' + String(new Date(Number(ym.split('-')[0]), Number(ym.split('-')[1]), 0).getDate()).padStart(2, '0');
+
+        document.getElementById('sgConfirmChoiceModal').style.display = 'none';
+        showTab('register');
+        renderBulkSupportBanner();
+        showAlert(`📑 ${validRows.length}건을 개별로 등록할 준비가 됐습니다. 아래 배너에서 소부서·지출항목을 고르고 일괄 등록을 눌러주세요.`, 'success');
+      }
+
+      function renderBulkSupportBanner() {
+        const el = document.getElementById('bulkSupportBanner');
+        if (!el) return;
+        if (!_pendingBulkSupportItems || _pendingBulkSupportItems.length === 0) {
+          el.style.display = 'none';
+          return;
+        }
+        const meta = _pendingBulkSupportMeta || {};
+        el.style.display = 'block';
+        el.innerHTML = `
+          <div style="background:#e8f4fd;border:1px solid #90caf9;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+            <div style="font-size:13px;color:#1565c0;font-weight:700;margin-bottom:4px;">📑 "${escapeHtml(meta.name || '')}" ${_pendingBulkSupportItems.length}건 개별 등록 대기 중</div>
+            <div style="font-size:12px;color:#555;margin-bottom:10px;">위에서 소부서·지출항목을 선택한 뒤 아래 버튼을 누르면, 단체별로 적요만 다르게 해서 ${_pendingBulkSupportItems.length}건이 한 번에 등록됩니다.</div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" onclick="cancelBulkSupportEntries()" style="padding:8px 12px;background:#fff;border:1px solid #90caf9;color:#1565c0;border-radius:6px;font-size:12.5px;cursor:pointer;">취소</button>
+              <button type="button" onclick="runBulkSupportRegistration()" style="padding:8px 14px;background:#1565c0;color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;">🚀 ${_pendingBulkSupportItems.length}건 일괄 등록 실행</button>
+            </div>
+          </div>`;
+      }
+
+      function cancelBulkSupportEntries() {
+        _pendingBulkSupportItems = null;
+        _pendingBulkSupportMeta = null;
+        renderBulkSupportBanner();
+      }
+
+      async function runBulkSupportRegistration() {
+        if (!_pendingBulkSupportItems || _pendingBulkSupportItems.length === 0) return;
+        const department = document.getElementById('transactionDepartment').value;
+        const expenseItem = document.getElementById('transactionExpenseItem').value;
+        if (!department || !expenseItem) {
+          showAlert('먼저 소부서와 지출항목을 선택해 주세요.', 'error');
+          return;
+        }
+        const date = document.getElementById('transactionDate').value;
+        if (!date) { showAlert('거래일자를 확인해 주세요.', 'error'); return; }
+
+        const items = _pendingBulkSupportItems;
+        showLoading(`0/${items.length}건 등록 중...`);
+        let successCount = 0;
+        const failed = [];
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          showLoading(`${i + 1}/${items.length}건 등록 중... (${it.orgName})`);
+          try {
+            await api('POST', '/api/transactions', {
+              date,
+              type: 'expense',
+              department,
+              incomeItem: '',
+              expenseItem,
+              description: it.category ? `${it.category} - ${it.orgName}` : it.orgName,
+              income: 0,
+              expense: Number(it.amount),
+              donor: '',
+              sheetType: '',
+            });
+            successCount++;
+          } catch (e) {
+            failed.push(it.orgName);
+          }
+        }
+        hideLoading();
+        _pendingBulkSupportItems = null;
+        _pendingBulkSupportMeta = null;
+        renderBulkSupportBanner();
+
+        if (failed.length === 0) {
+          showAlert(`✅ ${successCount}건 모두 등록 완료되었습니다!`, 'success');
+        } else {
+          showAlert(`⚠️ ${successCount}건 등록 완료, ${failed.length}건 실패 (${failed.join(', ')}). 실패한 건은 직접 등록해 주세요.`, 'error');
+        }
+        showTab('search');
       }
 
 
