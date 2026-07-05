@@ -5161,6 +5161,10 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>지원명 (예: 전도부 지원단체)</label>
+                        <select id="sg-name-select" onchange="onSupportGroupNameSelect()"
+                            style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:6px;">
+                            <option value="">불러오는 중...</option>
+                        </select>
                         <input type="text" id="sg-name" placeholder="전도부 지원단체" lang="ko"
                             style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
                     </div>
@@ -9418,6 +9422,38 @@
         document.getElementById('supportGroupAlert').innerHTML = '';
         document.getElementById('supportGroupModal').style.display = 'flex';
         if (_sgRows.length === 0) renderSupportGroupRows();
+        loadSupportGroupNames();
+      }
+
+      // 지금까지 썼던 지원명 목록을 드롭다운에 채워줍니다 (오타 방지, 원클릭 선택)
+      async function loadSupportGroupNames() {
+        const select = document.getElementById('sg-name-select');
+        select.innerHTML = '<option value="">불러오는 중...</option>';
+        try {
+          const res = await api('GET', '/api/support-groups/names');
+          const names = (res && res.data) || [];
+          let opts = '<option value="__new__">➕ 새 지원명 직접 입력</option>';
+          opts += names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+          select.innerHTML = opts;
+          // 현재 입력창에 값이 있으면 그 값을 드롭다운에서도 선택 상태로 맞춰줍니다
+          const current = document.getElementById('sg-name').value.trim();
+          if (current && names.includes(current)) select.value = current;
+        } catch (e) {
+          select.innerHTML = '<option value="__new__">➕ 새 지원명 직접 입력</option>';
+        }
+      }
+
+      // 드롭다운에서 지원명을 선택했을 때: 이름을 채우고 바로 지난 내역을 불러옵니다
+      function onSupportGroupNameSelect() {
+        const select = document.getElementById('sg-name-select');
+        const nameInput = document.getElementById('sg-name');
+        if (!select.value || select.value === '__new__') {
+          nameInput.value = '';
+          nameInput.focus();
+          return;
+        }
+        nameInput.value = select.value;
+        loadLastSupportGroup();
       }
 
       function closeSupportGroupModal() {
