@@ -2875,11 +2875,20 @@
                     </div>
                 </div>
 
+                <div id="mergedVoucherBar" style="display:none;position:sticky;top:0;z-index:5;background:#f3e5f5;border:1px solid #ce93d8;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px;color:#6a1b9a;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <span>✅ <b id="mergedVoucherCount">0</b>건 선택됨 — 계정과목이 달라도 괜찮아요. 같은 날짜의 거래를 골라 전표 1장으로 합쳐 출력합니다.</span>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" onclick="clearMergedVoucherSelection()" style="padding:7px 12px;background:#fff;border:1px solid #ce93d8;color:#6a1b9a;border-radius:6px;font-size:12.5px;cursor:pointer;">선택 해제</button>
+                        <button type="button" onclick="printMergedVoucher()" style="padding:7px 14px;background:#6a1b9a;color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer;">🖨️ 선택 건 통합전표 출력</button>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="table-container" style="max-height:65vh;overflow-y:auto;">
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width: 4%;position:sticky;top:0;background:#fff;z-index:2;"><input type="checkbox" onchange="toggleAllMergedVoucherRows(this)" title="이 페이지 전체 선택/해제"></th>
                                     <th style="width: 9%;position:sticky;top:0;background:#fff;z-index:2;">날짜</th>
                                     <th style="width: 8%;position:sticky;top:0;background:#fff;z-index:2;">거래구분</th>
                                     <th style="width: 11%;position:sticky;top:0;background:#fff;z-index:2;">소부서</th>
@@ -2894,7 +2903,7 @@
                             </thead>
                             <tbody id="searchResults">
                                 <tr>
-                                    <td colspan="10" style="text-align: center; padding: 30px; color: #999;">
+                                    <td colspan="11" style="text-align: center; padding: 30px; color: #999;">
                                         검색어를 입력하여 거래 내역을 조회하세요.
                                     </td>
                                 </tr>
@@ -10012,7 +10021,7 @@
             // 검색 중 임시 메시지 표시
             const tbody = document.getElementById('searchResults');
             if (_retryCount === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 30px; color: #007BFF;">조회 중...</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 30px; color: #007BFF;">조회 중...</td></tr>';
             }
 
             const params = qs({ year, month: month === 'all' ? '' : month, keyword });
@@ -10066,7 +10075,7 @@
             showLoading();
             const tbody = document.getElementById('searchResults');
             if (_retryCount === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 30px; color: #007BFF;">검색 중...</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 30px; color: #007BFF;">검색 중...</td></tr>';
             }
 
             // 거래 + 출력상태 + 영수증목록 동시 조회
@@ -10106,7 +10115,141 @@
                     console.error('검색 오류:', err);
                 });
         }
-        
+
+        // =============================================
+        // 🖨️ 여러 건을 전표 한 장으로 합쳐 출력 (계정과목이 달라도 됨)
+        // 수기전표에서 흔한 "한 장에 여러 항목" 관행을 그대로 지원합니다.
+        // 장부(회계원장)에는 여전히 각 건이 개별 거래로 남아있고, 출력물만 하나로 합쳐집니다.
+        // =============================================
+        let _mergedVoucherSelected = new Set(); // 선택된 row.id (문자열)
+        let _mergedVoucherRowData = {};          // row.id → 원본 거래 객체 (페이지 넘겨도 유지)
+
+        function onMergedVoucherCheck(checkbox) {
+            const id = checkbox.getAttribute('data-row-id');
+            if (checkbox.checked) _mergedVoucherSelected.add(id);
+            else _mergedVoucherSelected.delete(id);
+            updateMergedVoucherBar();
+        }
+
+        function toggleAllMergedVoucherRows(headerCheckbox) {
+            document.querySelectorAll('#searchResults .merged-voucher-check').forEach(cb => {
+                cb.checked = headerCheckbox.checked;
+                onMergedVoucherCheck(cb);
+            });
+        }
+
+        function clearMergedVoucherSelection() {
+            _mergedVoucherSelected.clear();
+            document.querySelectorAll('#searchResults .merged-voucher-check').forEach(cb => { cb.checked = false; });
+            updateMergedVoucherBar();
+        }
+
+        function updateMergedVoucherBar() {
+            const bar = document.getElementById('mergedVoucherBar');
+            const countEl = document.getElementById('mergedVoucherCount');
+            if (!bar) return;
+            if (_mergedVoucherSelected.size > 0) {
+                bar.style.display = 'flex';
+                countEl.textContent = _mergedVoucherSelected.size;
+            } else {
+                bar.style.display = 'none';
+            }
+        }
+
+        // 선택한 거래들을 전표 한 장으로 합쳐서 인쇄합니다.
+        async function printMergedVoucher() {
+            const ids = [..._mergedVoucherSelected];
+            if (ids.length < 2) { showAlert('2건 이상 선택해 주세요. (1건이면 기존 전표 버튼을 이용하세요)', 'error'); return; }
+
+            const rows = ids.map(id => _mergedVoucherRowData[id]).filter(Boolean);
+            if (rows.length !== ids.length) { showAlert('선택한 거래 중 일부를 화면에서 찾을 수 없습니다. 다시 선택해 주세요.', 'error'); return; }
+
+            // 같은 날짜 + 같은 거래구분(수입/지출)인지 확인 — 수기전표 한 장은 보통 날짜와 종류가 같습니다.
+            const firstDate = rows[0].date;
+            const firstType = rows[0].type;
+            const mismatch = rows.find(r => r.date !== firstDate || r.type !== firstType);
+            if (mismatch) {
+                showAlert('선택한 거래들의 날짜와 거래구분(수입/지출)이 모두 같아야 전표 한 장으로 합칠 수 있습니다.', 'error');
+                return;
+            }
+
+            showLoading('통합전표 만드는 중...');
+            try {
+                const html = await buildMergedVoucherHTML(rows);
+                hideLoading();
+                _pendingVoucherPrintIds = rows.map(r => r.id);
+                mobilePrint(html);
+            } catch (e) {
+                hideLoading();
+                showAlert('통합전표 생성 실패: ' + e.message, 'error');
+            }
+        }
+
+        async function buildMergedVoucherHTML(rows) {
+            const isIncome = rows[0].type === 'income';
+            const { expenseDocName, incomeDocName } = await getDocNames();
+            const title = (isIncome ? incomeDocName : expenseDocName) + ' (통합)';
+            const authorities = await getVoucherAuthorities();
+            const signatureBlockRows = buildVoucherSignatureBlockCells(authorities);
+
+            let total = 0;
+            const lineRows = rows.map(r => {
+                const amt = isIncome ? r.income : r.expense;
+                total += Math.abs(amt) || 0;
+                const itemName = isIncome ? (r.incomeItem || '') : (r.expenseItem || '');
+                return '<tr>' +
+                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(r.department || '') + '</td>' +
+                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(itemName) + '</td>' +
+                    '<td style="padding:7px 8px;border:1px solid #999;">' + escapeHtml(r.description || '') + '</td>' +
+                    '<td style="padding:7px 8px;border:1px solid #999;text-align:right;">' + formatAmount(Math.abs(amt)) + '원</td>' +
+                    '</tr>';
+            }).join('');
+
+            // 선택된 거래 전체의 영수증을 한데 모읍니다.
+            let receiptImgs = [];
+            for (const r of rows) {
+                try {
+                    const amt = isIncome ? r.income : r.expense;
+                    const params = 'date=' + encodeURIComponent(r.date) + '&amount=' + encodeURIComponent(amt);
+                    const rcResult = await api('GET', '/api/receipts/by-txn/' + encodeURIComponent(r.id || 'none') + '?' + params);
+                    receiptImgs = receiptImgs.concat(rcResult.data || []);
+                } catch (e) { /* 무시 */ }
+            }
+            let receiptBlock = '';
+            if (receiptImgs.length > 0) {
+                const imgTags = receiptImgs.map((img, i) =>
+                    '<div style="display:inline-block;vertical-align:top;margin:3px;' + (receiptImgs.length === 1 ? 'width:100%' : 'width:48%') + ';">' +
+                    '<div style="font-size:10px;color:#666;margin-bottom:3px;">📷 영수증 ' + (i + 1) + '/' + receiptImgs.length + (img.description ? ' — ' + img.description : '') + '</div>' +
+                    '<img src="' + img.imageUrl + '" style="width:100%;max-height:200px;object-fit:contain;border:1px solid #ddd;border-radius:4px;"></div>'
+                ).join('');
+                receiptBlock = '<div style="margin-top:10px;border-top:1px dashed #ccc;padding-top:8px;"><div style="font-size:11px;font-weight:bold;color:#333;margin-bottom:6px;">📷 첨부 영수증 (' + receiptImgs.length + '건)</div><div style="font-size:0;">' + imgTags + '</div></div>';
+            }
+
+            const headerColor = isIncome ? '#d73527' : '#333';
+            const itemLabel = isIncome ? '수입항목' : '지출항목';
+            return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
+                'body{font-family:"맑은 고딕",sans-serif;padding:20px;color:#000;}' +
+                '@media print{.no-print{display:none;}}' +
+                '</style></head><body>' +
+                '<div style="text-align:right;font-size:12px;color:#666;margin-bottom:6px;">여러 건 통합 (' + rows.length + '건)</div>' +
+                '<h2 style="text-align:center;color:' + headerColor + ';margin:0 0 12px;font-size:20px;">' + title + '</h2>' +
+                '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">' +
+                '<tr><th style="padding:8px 10px;border:2px solid #333;background:#f2f2f2;text-align:left;width:25%;">거래일자</th><td style="padding:8px 10px;border:2px solid #333;">' + (rows[0].date || '') + '</td></tr>' +
+                '</table>' +
+                '<table style="width:100%;border-collapse:collapse;">' +
+                '<thead><tr style="background:#f2f2f2;">' +
+                '<th style="padding:7px 8px;border:1px solid #999;">소부서</th>' +
+                '<th style="padding:7px 8px;border:1px solid #999;">' + itemLabel + '</th>' +
+                '<th style="padding:7px 8px;border:1px solid #999;">적요</th>' +
+                '<th style="padding:7px 8px;border:1px solid #999;">금액</th>' +
+                '</tr></thead><tbody>' + lineRows +
+                '<tr style="background:#f5f5f5;font-weight:bold;"><td colspan="3" style="padding:7px 8px;border:1px solid #999;text-align:right;">합계</td><td style="padding:7px 8px;border:1px solid #999;text-align:right;">' + formatAmount(total) + '원</td></tr>' +
+                '</tbody></table>' +
+                '<table style="width:auto;float:right;margin-top:12px;border-collapse:collapse;">' + signatureBlockRows + '</table><div style="clear:both;"></div>' +
+                receiptBlock +
+                '</body></html>';
+        }
+
         // displaySearchResults 함수에서 버튼 생성 부분 수정
         let _lastSearchResults = []; // 엑셀 다운로드용 원본 데이터
         let _searchSortedResults = [];
@@ -10119,7 +10262,7 @@
             document.getElementById('search-pagination').innerHTML = '';
 
             if (!results || results.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; padding: 30px; color: #999;">${escapeHtml(emptyMessage || '검색 결과가 없습니다.')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 30px; color: #999;">${escapeHtml(emptyMessage || '검색 결과가 없습니다.')}</td></tr>`;
                 return;
             }
 
@@ -10153,6 +10296,7 @@
             const pageRows = all.slice(start, start + SEARCH_PAGE_SIZE);
 
             pageRows.forEach(row => {
+                _mergedVoucherRowData[String(row.id)] = row;
                 const tr = document.createElement('tr');
                 const _printedAt = _bvPrintStatus[row.id];
                 const _hasReceipt = hasReceiptForRow(row);
@@ -10177,6 +10321,7 @@
                 }
                 const _printBadge = _badges;
                 tr.innerHTML = `
+                    <td style="text-align:center;"><input type="checkbox" class="merged-voucher-check" data-row-id="${row.id}" ${_mergedVoucherSelected.has(String(row.id)) ? 'checked' : ''} onchange="onMergedVoucherCheck(this)"></td>
                     <td>${row.date}${_printBadge}</td>
                     <td>${getTypeDisplayName(row.type)}</td>
                     <td>${escapeHtml(row.department)}</td>
@@ -10225,7 +10370,7 @@
             const totalRow = document.createElement('tr');
             totalRow.className = 'total-row';
             totalRow.innerHTML = `
-                <td colspan="6" style="text-align: center;"><strong>합 계 (총 ${all.length.toLocaleString()}건)</strong></td>
+                <td colspan="7" style="text-align: center;"><strong>합 계 (총 ${all.length.toLocaleString()}건)</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalExpense)}</strong></td>
                 <td class="number"><strong>${formatAmount(totalIncome - totalExpense)}</strong></td>
