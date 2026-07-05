@@ -16074,9 +16074,10 @@
                     row.incomeItem || '',
                     row.expenseItem || '',
                     row.description || '',
-                    row.income ? String(row.income) : '',
-                    row.expense ? String(row.expense) : '',
-                    row.balance != null ? String(row.balance) : ''
+                    // 금액은 문자열이 아니라 실제 숫자로 넣어야 엑셀에서 합계(SUM)와 서식이 정상 동작합니다.
+                    row.income ? Number(row.income) : '',
+                    row.expense ? Number(row.expense) : '',
+                    row.balance != null ? Number(row.balance) : ''
                 ]);
             });
 
@@ -16112,8 +16113,19 @@
             const ws = XLSX.utils.aoa_to_sheet(csvRows);
             ws['!cols'] = [
                 {wch:12}, {wch:8}, {wch:12}, {wch:14}, {wch:14},
-                {wch:30}, {wch:12}, {wch:12}, {wch:12}, {wch:20}
+                {wch:30}, {wch:12}, {wch:12}, {wch:12}
             ];
+            // 수입금액(G)·지출금액(H)·차인잔고(I) 열은 천 단위 구분 기호가 붙은 숫자 서식으로 표시
+            const moneyRange = XLSX.utils.decode_range(ws['!ref']);
+            ['G', 'H', 'I'].forEach(function(col) {
+                for (let r = 1; r <= moneyRange.e.r; r++) {
+                    const cellRef = col + (r + 1);
+                    const cell = ws[cellRef];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '#,##0';
+                    }
+                }
+            });
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회계원장');
             XLSX.writeFile(wb, title + '.xlsx');
