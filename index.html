@@ -2671,6 +2671,7 @@
                 <button class="tab-btn" onclick="showTab('report')">보고서</button>
                 <button class="tab-btn" onclick="showTab('receipt')" style="display:none;">영수증</button>
                 <button class="tab-btn" onclick="showTab('balance')">💰잔고확인</button>
+                <button class="tab-btn" id="doubleEntryTabBtn" onclick="showTab('doubleentry')" style="display:none;">🧮복식부기</button>
                 <button class="tab-btn" onclick="showTab('settings')">⚙️설정</button>
             </div>
 
@@ -4428,6 +4429,51 @@
             <!-- ========== /잔고확인 탭 ========== -->
               </div>
             </div>
+
+            <!-- ========== 복식부기 보고서 탭 (기능 플래그 켜진 조직만 버튼이 보임) ========== -->
+            <div class="tab-content" id="doubleentry">
+              <div class="container">
+                <div class="card">
+                  <h2 style="margin:0;">🧮 복식부기 보고서</h2>
+                  <p style="color:#666;font-size:13px;margin:6px 0 16px;">분개장에 자동 생성된 분개를 조회하고, 시산표·재무제표를 확인합니다. (읽기 전용)</p>
+
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+                    <div>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">연도</label>
+                      <select id="deReportYear" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;"></select>
+                    </div>
+                    <div>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">월</label>
+                      <select id="deReportMonth" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체</option>
+                        <option value="1">1월</option><option value="2">2월</option><option value="3">3월</option>
+                        <option value="4">4월</option><option value="5">5월</option><option value="6">6월</option>
+                        <option value="7">7월</option><option value="8">8월</option><option value="9">9월</option>
+                        <option value="10">10월</option><option value="11">11월</option><option value="12">12월</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">펀드</label>
+                      <select id="deReportFund" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체</option>
+                      </select>
+                    </div>
+                    <button onclick="loadDoubleEntryReports()" class="btn" style="background:#2980b9;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;">🔍 조회</button>
+                  </div>
+
+                  <div style="display:flex;gap:8px;margin-bottom:16px;">
+                    <button class="de-subtab-btn" data-de="journal" onclick="setDeSubtab('journal')" style="border:1px solid #ddd;background:#333;color:#fff;border-radius:20px;padding:6px 16px;font-size:12.5px;cursor:pointer;">📒 분개장</button>
+                    <button class="de-subtab-btn" data-de="trial" onclick="setDeSubtab('trial')" style="border:1px solid #ddd;background:#fff;color:#555;border-radius:20px;padding:6px 16px;font-size:12.5px;cursor:pointer;">📊 시산표</button>
+                    <button class="de-subtab-btn" data-de="fs" onclick="setDeSubtab('fs')" style="border:1px solid #ddd;background:#fff;color:#555;border-radius:20px;padding:6px 16px;font-size:12.5px;cursor:pointer;">📑 재무제표</button>
+                  </div>
+
+                  <div id="deSubtabJournal" style="overflow-x:auto;"><div id="deJournalWrap"><p style="color:#aaa;font-size:13px;">연도/월/펀드를 고르고 조회를 눌러주세요.</p></div></div>
+                  <div id="deSubtabTrial" style="display:none;overflow-x:auto;"><div id="deTrialWrap"></div></div>
+                  <div id="deSubtabFs" style="display:none;overflow-x:auto;"><div id="deFsWrap"></div></div>
+                </div>
+              </div>
+            </div>
+            <!-- ========== /복식부기 보고서 탭 ========== -->
 
             <div class="tab-content" id="settings">
                 <!-- 설정 서브탭 네비게이션 -->
@@ -8724,12 +8770,20 @@
         // 혹시 그 탭이 열려 있는 상태로 꺼졌다면 거래등록 탭으로 이동시킵니다.
         function updateFundsTabVisibility() {
             var btn = document.getElementById('stab-funds');
-            if (!btn) return;
-            btn.style.display = _doubleEntryEnabled ? '' : 'none';
+            if (btn) btn.style.display = _doubleEntryEnabled ? '' : 'none';
             if (!_doubleEntryEnabled) {
                 var content = document.getElementById('stab-content-funds');
                 if (content && content.style.display !== 'none') {
                     showSettingsTab('master');
+                }
+            }
+
+            var topBtn = document.getElementById('doubleEntryTabBtn');
+            if (topBtn) topBtn.style.display = _doubleEntryEnabled ? '' : 'none';
+            if (!_doubleEntryEnabled) {
+                var deTab = document.getElementById('doubleentry');
+                if (deTab && deTab.classList.contains('active')) {
+                    document.querySelector('.tab-btn[onclick*="showTab(\'dashboard\')"]')?.click();
                 }
             }
         }
@@ -9112,6 +9166,191 @@
                     closeFundLoanModal();
                     showAlert('✅ ' + (r.message || '처리되었습니다'), 'success');
                 }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
+        }
+
+        // =============================================
+        // 복식부기 보고서 탭 (분개장 / 시산표 / 재무제표)
+        // — 전부 읽기 전용 조회입니다.
+        // =============================================
+        var _deTabInited = false;
+
+        function initDoubleEntryReportsTab() {
+            var yearSel = document.getElementById('deReportYear');
+            if (yearSel && yearSel.options.length === 0) {
+                var thisYear = new Date().getFullYear();
+                for (var y = thisYear - 2; y <= thisYear + 1; y++) {
+                    var opt = document.createElement('option');
+                    opt.value = String(y);
+                    opt.textContent = y + '년';
+                    if (y === thisYear) opt.selected = true;
+                    yearSel.appendChild(opt);
+                }
+            }
+            if (!_deTabInited) {
+                var monthSel = document.getElementById('deReportMonth');
+                if (monthSel) monthSel.value = String(new Date().getMonth() + 1);
+                setDeSubtab('journal');
+                _deTabInited = true;
+            }
+            loadDeFundOptions().then(function() { loadDoubleEntryReports(); });
+        }
+
+        function loadDeFundOptions() {
+            return api('GET', '/api/funds').then(function(r) {
+                var funds = (r && r.data) || [];
+                _fundsCache = funds; // fundLabel()이 이 캐시를 그대로 재사용
+                var sel = document.getElementById('deReportFund');
+                if (!sel) return;
+                var html = '<option value="">전체</option><option value="F00">일반회계 (F00)</option>';
+                funds.filter(function(f) { return f.active !== false; }).forEach(function(f) {
+                    html += '<option value="' + f.code + '">' + f.name + ' (' + f.code + ')</option>';
+                });
+                sel.innerHTML = html;
+            }).catch(function() {});
+        }
+
+        function setDeSubtab(name) {
+            var map = { journal: 'deSubtabJournal', trial: 'deSubtabTrial', fs: 'deSubtabFs' };
+            Object.keys(map).forEach(function(n) {
+                var el = document.getElementById(map[n]);
+                if (el) el.style.display = (n === name) ? '' : 'none';
+            });
+            document.querySelectorAll('.de-subtab-btn').forEach(function(btn) {
+                var on = btn.getAttribute('data-de') === name;
+                btn.style.background = on ? '#333' : '#fff';
+                btn.style.color = on ? '#fff' : '#555';
+            });
+        }
+
+        function loadDoubleEntryReports() {
+            var year = document.getElementById('deReportYear').value;
+            var month = document.getElementById('deReportMonth').value;
+            var fundCode = document.getElementById('deReportFund').value;
+            var qs = '?year=' + encodeURIComponent(year) + '&month=' + encodeURIComponent(month) + '&fundCode=' + encodeURIComponent(fundCode);
+            showLoading();
+            Promise.all([
+                api('GET', '/api/journal-reports/journal' + qs).catch(function() { return { success: true, data: [] }; }),
+                api('GET', '/api/journal-reports/trial-balance' + qs).catch(function() { return { success: true, data: [] }; }),
+                api('GET', '/api/journal-reports/financial-statements' + qs).catch(function() {
+                    return { success: true, data: {
+                        balanceSheet: { assets: [], liabilities: [], totalAssets: 0, totalLiabilities: 0, netAssets: 0 },
+                        incomeStatement: { revenues: [], expenses: [], totalRevenue: 0, totalExpense: 0, netIncome: 0 },
+                    } };
+                }),
+            ]).then(function(results) {
+                hideLoading();
+                renderDeJournal((results[0] && results[0].data) || []);
+                renderDeTrialBalance((results[1] && results[1].data) || []);
+                renderDeFinancialStatements((results[2] && results[2].data) || {});
+            }).catch(function(e) {
+                hideLoading();
+                showAlert('보고서를 불러오지 못했습니다: ' + friendlyErrorMessage(e), 'error');
+            });
+        }
+
+        function renderDeJournal(entries) {
+            var wrap = document.getElementById('deJournalWrap');
+            if (!wrap) return;
+            if (entries.length === 0) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">해당 조건에 분개 내역이 없습니다.</p>';
+                return;
+            }
+            wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:680px;">' +
+                '<thead><tr style="background:#f5f7fa;">' +
+                ['날짜', '펀드', '차/대변', '계정명', '금액', '적요', '상태'].map(function(h) {
+                    return '<th style="padding:6px 8px;border-bottom:1px solid #eee;text-align:left;">' + h + '</th>';
+                }).join('') +
+                '</tr></thead><tbody>' +
+                entries.map(function(e) {
+                    var statusColor = e.status === '정상' ? '#2e7d32' : '#aaa';
+                    return '<tr>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + e.date + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + fundLabel(e.fundCode) + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + e.side + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + e.accountName + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(e.amount).toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + (e.description || '') + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;color:' + statusColor + ';">' + e.status + '</td>' +
+                        '</tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        function renderDeTrialBalance(rows) {
+            var wrap = document.getElementById('deTrialWrap');
+            if (!wrap) return;
+            if (rows.length === 0) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">해당 조건에 데이터가 없습니다.</p>';
+                return;
+            }
+            var catLabel = { asset: '자산', liability: '부채', revenue: '수익', expense: '비용', other: '기타' };
+            wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px;">' +
+                '<thead><tr style="background:#f5f7fa;">' +
+                ['펀드', '계정명', '구분', '차변합계', '대변합계', '잔액'].map(function(h) {
+                    return '<th style="padding:6px 8px;border-bottom:1px solid #eee;text-align:left;">' + h + '</th>';
+                }).join('') +
+                '</tr></thead><tbody>' +
+                rows.map(function(r) {
+                    return '<tr>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + fundLabel(r.fundCode) + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + r.accountName + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + (catLabel[r.category] || r.category) + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(r.debit).toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(r.credit).toLocaleString() + '</td>' +
+                        '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(r.balance).toLocaleString() + '</td>' +
+                        '</tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        function renderDeFinancialStatements(data) {
+            var wrap = document.getElementById('deFsWrap');
+            if (!wrap) return;
+            var bs = data.balanceSheet || { assets: [], liabilities: [], totalAssets: 0, totalLiabilities: 0, netAssets: 0 };
+            var is = data.incomeStatement || { revenues: [], expenses: [], totalRevenue: 0, totalExpense: 0, netIncome: 0 };
+
+            function rowsHtml(items) {
+                if (items.length === 0) return '<tr><td colspan="2" style="padding:6px 8px;color:#aaa;">없음</td></tr>';
+                return items.map(function(r) {
+                    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #f2f2f2;">' + r.accountName +
+                        ' <span style="color:#aaa;font-size:11px;">(' + fundLabel(r.fundCode) + ')</span></td>' +
+                        '<td style="padding:5px 8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(r.amount).toLocaleString() + '</td></tr>';
+                }).join('');
+            }
+
+            wrap.innerHTML =
+                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+                '<div>' +
+                '<h3 style="font-size:14px;color:#2980b9;margin-bottom:8px;">재무상태표</h3>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px;">' +
+                '<tr style="background:#f5f7fa;"><th colspan="2" style="padding:6px 8px;text-align:left;">자산</th></tr>' +
+                rowsHtml(bs.assets) +
+                '<tr><td style="padding:6px 8px;font-weight:600;">자산 합계</td><td style="padding:6px 8px;text-align:right;font-weight:600;">' + Number(bs.totalAssets).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px;">' +
+                '<tr style="background:#f5f7fa;"><th colspan="2" style="padding:6px 8px;text-align:left;">부채</th></tr>' +
+                rowsHtml(bs.liabilities) +
+                '<tr><td style="padding:6px 8px;font-weight:600;">부채 합계</td><td style="padding:6px 8px;text-align:right;font-weight:600;">' + Number(bs.totalLiabilities).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+                '<tr><td style="padding:6px 8px;font-weight:700;color:#2c3e7a;">순자산 (자산-부채)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#2c3e7a;">' + Number(bs.netAssets).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '</div>' +
+                '<div>' +
+                '<h3 style="font-size:14px;color:#27ae60;margin-bottom:8px;">운영성과표</h3>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px;">' +
+                '<tr style="background:#f5f7fa;"><th colspan="2" style="padding:6px 8px;text-align:left;">수익</th></tr>' +
+                rowsHtml(is.revenues) +
+                '<tr><td style="padding:6px 8px;font-weight:600;">수익 합계</td><td style="padding:6px 8px;text-align:right;font-weight:600;">' + Number(is.totalRevenue).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px;">' +
+                '<tr style="background:#f5f7fa;"><th colspan="2" style="padding:6px 8px;text-align:left;">비용</th></tr>' +
+                rowsHtml(is.expenses) +
+                '<tr><td style="padding:6px 8px;font-weight:600;">비용 합계</td><td style="padding:6px 8px;text-align:right;font-weight:600;">' + Number(is.totalExpense).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+                '<tr><td style="padding:6px 8px;font-weight:700;color:#27ae60;">당기순이익 (수익-비용)</td><td style="padding:6px 8px;text-align:right;font-weight:700;color:#27ae60;">' + Number(is.netIncome).toLocaleString() + '</td></tr>' +
+                '</table>' +
+                '</div>' +
+                '</div>';
         }
 
         function login() {
@@ -9560,6 +9799,8 @@
                 resetCamera();
             } else if (tabName === 'balance') {
                 initBalanceTab();
+            } else if (tabName === 'doubleentry') {
+                initDoubleEntryReportsTab();
             } else if (tabName === 'settings') {
                 loadSettingsTab();
             } else if (tabName === 'batchApproval') {
