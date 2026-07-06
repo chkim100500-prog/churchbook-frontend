@@ -5170,6 +5170,92 @@
                     </div>
                   </div>
 
+                  <!-- 카드 4: 펀드 간 자금이동 (이체 / 대여·상환) -->
+                  <div class="card" style="margin-top:16px;">
+                    <h2 style="margin:0;">🔀 펀드 간 자금이동</h2>
+                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">
+                      회계원장(거래등록)에는 기록되지 않고, 분개장에만 기록됩니다. 실제 통장은 하나뿐이라
+                      펀드 간 이동은 장부상 소속만 바뀌는 것이지 진짜 돈이 계좌 밖으로 나가는 게 아니기 때문입니다.
+                    </p>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                      <button onclick="showFundTransferModal()" style="background:#eef4ff;color:#2980b9;border:1px solid #cfe2ff;border-radius:10px;padding:14px;font-size:13.5px;font-weight:600;cursor:pointer;">
+                        💸 펀드 이체 등록<br><span style="font-weight:400;font-size:11.5px;color:#5a7ba8;">갚을 의무 없는 적립/이체</span>
+                      </button>
+                      <button onclick="showFundLoanModal()" style="background:#fff3e0;color:#b45309;border:1px solid #ffe0b2;border-radius:10px;padding:14px;font-size:13.5px;font-weight:600;cursor:pointer;">
+                        🤝 펀드 대여/상환 등록<br><span style="font-weight:400;font-size:11.5px;color:#a87a3f;">갚을 의무 있는 내부 차입</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 펀드 이체 모달 -->
+                  <div id="fundTransferModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
+                    <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:420px;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                        <h3 style="font-size:16px;font-weight:600;color:#2980b9;">💸 펀드 이체 등록</h3>
+                        <button onclick="closeFundTransferModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">날짜</label>
+                        <input type="date" id="xferDate" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">출발 펀드 (돈이 나가는 쪽)</label>
+                        <select id="xferFrom" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">도착 펀드 (돈이 들어오는 쪽)</label>
+                        <select id="xferTo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">금액</label>
+                        <input type="number" id="xferAmount" min="0" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <div class="form-group" style="margin-bottom:16px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">적요 (선택)</label>
+                        <input type="text" id="xferDesc" placeholder="예: 차량구입충당금 적립" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <button class="btn" onclick="submitFundTransfer()" style="background:#2980b9;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;">등록</button>
+                    </div>
+                  </div>
+
+                  <!-- 펀드 대여/상환 모달 -->
+                  <div id="fundLoanModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
+                    <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:420px;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                        <h3 style="font-size:16px;font-weight:600;color:#b45309;">🤝 펀드 대여/상환 등록</h3>
+                        <button onclick="closeFundLoanModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">구분</label>
+                        <select id="loanDirection" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                          <option value="loan">대여 (빌려줌 → 빌려간 쪽에 부채 발생)</option>
+                          <option value="repay">상환 (갚음 → 부채·대여금 감소)</option>
+                        </select>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">날짜</label>
+                        <input type="date" id="loanDate" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">대여 펀드 (빌려주는 쪽)</label>
+                        <select id="loanLender" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">차입 펀드 (빌리는 쪽)</label>
+                        <select id="loanBorrower" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
+                      </div>
+                      <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">금액</label>
+                        <input type="number" id="loanAmount" min="0" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <div class="form-group" style="margin-bottom:16px;">
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">적요 (선택)</label>
+                        <input type="text" id="loanDesc" placeholder="예: 본당대지 공사비 부족분 충당" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                      </div>
+                      <button class="btn" onclick="submitFundLoan()" style="background:#b45309;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;">등록</button>
+                    </div>
+                  </div>
+
                 </div><!-- /stab-content-funds -->
 
                 <!-- 서브탭: 수정 이력 -->
@@ -8963,6 +9049,69 @@
                 if (existing) { existing.fundCode = fundCode; existing.counterAccount = counterAccount; }
                 else { _mappingCache.push({ itemType: itemType, itemName: itemName, dept: dept || null, fundCode: fundCode, counterAccount: counterAccount }); }
             }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        // ---- 펀드 이체 (갚을 의무 없는 자금이동) ----
+        function showFundTransferModal() {
+            var today = new Date();
+            document.getElementById('xferDate').value = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+            document.getElementById('xferFrom').innerHTML = fundOptionsHtml('F00');
+            document.getElementById('xferTo').innerHTML = fundOptionsHtml(null);
+            document.getElementById('xferAmount').value = '';
+            document.getElementById('xferDesc').value = '';
+            document.getElementById('fundTransferModal').style.display = 'flex';
+        }
+        function closeFundTransferModal() { document.getElementById('fundTransferModal').style.display = 'none'; }
+
+        function submitFundTransfer() {
+            var date = document.getElementById('xferDate').value;
+            var fromFund = document.getElementById('xferFrom').value;
+            var toFund = document.getElementById('xferTo').value;
+            var amount = document.getElementById('xferAmount').value;
+            var description = document.getElementById('xferDesc').value;
+            if (!date || !amount) { showAlert('날짜와 금액을 입력하세요', 'error'); return; }
+            if (fromFund === toFund) { showAlert('출발 펀드와 도착 펀드가 같습니다', 'error'); return; }
+            showLoading();
+            api('POST', '/api/fund-transactions/transfer', { date: date, fromFund: fromFund, toFund: toFund, amount: Number(amount), description: description })
+                .then(function(r) {
+                    hideLoading();
+                    if (!r.success) { showAlert(r.message || '등록 실패', 'error'); return; }
+                    closeFundTransferModal();
+                    showAlert('✅ ' + (r.message || '펀드 이체가 기록되었습니다'), 'success');
+                }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
+        }
+
+        // ---- 펀드 대여 / 상환 (갚을 의무 있는 내부 차입) ----
+        function showFundLoanModal() {
+            var today = new Date();
+            document.getElementById('loanDirection').value = 'loan';
+            document.getElementById('loanDate').value = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+            document.getElementById('loanLender').innerHTML = fundOptionsHtml(null);
+            document.getElementById('loanBorrower').innerHTML = fundOptionsHtml('F00');
+            document.getElementById('loanAmount').value = '';
+            document.getElementById('loanDesc').value = '';
+            document.getElementById('fundLoanModal').style.display = 'flex';
+        }
+        function closeFundLoanModal() { document.getElementById('fundLoanModal').style.display = 'none'; }
+
+        function submitFundLoan() {
+            var direction = document.getElementById('loanDirection').value; // 'loan' | 'repay'
+            var date = document.getElementById('loanDate').value;
+            var lenderFund = document.getElementById('loanLender').value;
+            var borrowerFund = document.getElementById('loanBorrower').value;
+            var amount = document.getElementById('loanAmount').value;
+            var description = document.getElementById('loanDesc').value;
+            if (!date || !amount) { showAlert('날짜와 금액을 입력하세요', 'error'); return; }
+            if (lenderFund === borrowerFund) { showAlert('대여 펀드와 차입 펀드가 같습니다', 'error'); return; }
+            var path = direction === 'repay' ? '/api/fund-transactions/loan-repay' : '/api/fund-transactions/loan';
+            showLoading();
+            api('POST', path, { date: date, lenderFund: lenderFund, borrowerFund: borrowerFund, amount: Number(amount), description: description })
+                .then(function(r) {
+                    hideLoading();
+                    if (!r.success) { showAlert(r.message || '등록 실패', 'error'); return; }
+                    closeFundLoanModal();
+                    showAlert('✅ ' + (r.message || '처리되었습니다'), 'success');
+                }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
         }
 
         function login() {
