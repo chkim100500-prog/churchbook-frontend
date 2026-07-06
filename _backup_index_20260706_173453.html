@@ -8682,7 +8682,7 @@
                 updateFundsTabVisibility();
                 renderDoubleEntryToggle();
                 showAlert(r.message || '변경되었습니다', 'success');
-            }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
+            }).catch(function(e) { hideLoading(); showAlert('변경 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
 
         function loadFundsTab() {
