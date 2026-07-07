@@ -4573,11 +4573,11 @@
                     <table class="table" id="enrollmentsTable">
                       <thead>
                         <tr>
-                          <th>회원명</th><th>연락처</th><th>결제금액</th><th>결제회차</th><th>환불여부</th><th>환불전 수강회차</th><th>관리</th>
+                          <th>회원명</th><th>연락처</th><th>결제금액</th><th>결제회차</th><th>환불여부</th><th>환불전 수강회차</th><th>이력메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="enrollmentsTableBody">
-                        <tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
+                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -4618,6 +4618,9 @@
                   </label>
                   <label id="enrollmentAttendedWrap" style="font-size:12.5px;color:#555;display:none;">환불 전 실제 수강 회차
                     <input id="enrollmentAttendedSessions" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                  </label>
+                  <label style="font-size:12.5px;color:#555;">이력 메모 (예: 49기 생활일본어)
+                    <input id="enrollmentExistingMemberNote" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
@@ -9363,14 +9366,14 @@
                 renderEnrollmentsTable();
             }).catch(function() {
                 document.getElementById('enrollmentsTableBody').innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
         }
 
         function renderEnrollmentsTable() {
             var body = document.getElementById('enrollmentsTableBody');
             if (!_enrollmentsCache.length) {
-                body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">등록된 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">등록된 회원이 없습니다.</td></tr>';
                 return;
             }
             body.innerHTML = _enrollmentsCache.map(function(e) {
@@ -9385,6 +9388,7 @@
                     '<td>' + (e.paid_sessions ?? '-') + '회</td>' +
                     '<td>' + refundBadge + '</td>' +
                     '<td>' + (e.is_refunded ? ((e.attended_sessions_before_refund ?? '-') + '회') : '-') + '</td>' +
+                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;">' + (e.existing_member_note ? escapeHtml(e.existing_member_note) : '-') + '</td>' +
                     '<td>' +
                       '<button onclick="openEnrollmentModal(' + e.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       '<button onclick="deleteEnrollment(' + e.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
@@ -9413,9 +9417,10 @@
                 document.getElementById('enrollmentPaidSessions').value = e ? e.paid_sessions : (course ? course.session_total : 12);
                 document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
                 document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
+                document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
             } else {
                 document.getElementById('enrollmentModalTitle').textContent = '회원 등록';
-                ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions'].forEach(function(elId) {
+                ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote'].forEach(function(elId) {
                     document.getElementById(elId).value = '';
                 });
                 document.getElementById('enrollmentPaidSessions').value = course ? course.session_total : 12;
@@ -9445,6 +9450,7 @@
                 paid_sessions: parseInt(document.getElementById('enrollmentPaidSessions').value, 10),
                 is_refunded: document.getElementById('enrollmentIsRefunded').checked,
                 attended_sessions_before_refund: document.getElementById('enrollmentAttendedSessions').value ? parseInt(document.getElementById('enrollmentAttendedSessions').value, 10) : null,
+                existing_member_note: document.getElementById('enrollmentExistingMemberNote').value.trim(),
             };
 
             var req = id ? api('PUT', '/api/enrollments/' + id, payload) : api('POST', '/api/enrollments', payload);
