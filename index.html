@@ -9172,12 +9172,25 @@
 
         // ===== 강사정산 모듈: 강사/강좌 관리 =====
         var _instructorsCache = [];
+        var _instructorCohortDefaulted = false;
+        var _courseCohortDefaulted = false;
+
+        function getLatestCohort(cohorts) {
+            var best = null, bestNum = -1;
+            (cohorts || []).forEach(function(c) {
+                var m = String(c).match(/(\d+)/);
+                var n = m ? parseInt(m[1], 10) : -1;
+                if (n > bestNum) { bestNum = n; best = c; }
+            });
+            return best;
+        }
 
         function initInstructorSettlementTab() {
             closeCourseDetail();
-            loadInstructors();
-            loadCohorts();
-            loadCourses();
+            loadCohorts().then(function() {
+                loadInstructors();
+                loadCourses();
+            });
         }
 
         function loadInstructors() {
@@ -9380,12 +9393,18 @@
         function loadCohorts() {
             return api('GET', '/api/courses/cohorts').then(function(r) {
                 var cohorts = (r && r.cohorts) || [];
+                var latest = getLatestCohort(cohorts);
 
                 var sel = document.getElementById('courseCohortFilter');
                 var current = sel.value;
                 sel.innerHTML = '<option value="">전체 차수</option>' +
                     cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
-                sel.value = current;
+                if (!_courseCohortDefaulted) {
+                    sel.value = latest || '';
+                    _courseCohortDefaulted = true;
+                } else {
+                    sel.value = current;
+                }
 
                 var reportSel = document.getElementById('reportCohortSelect');
                 var reportCurrent = reportSel.value;
@@ -9397,7 +9416,12 @@
                 var instCurrent = instSel.value;
                 instSel.innerHTML = '<option value="">전체 강사</option>' +
                     cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
-                instSel.value = instCurrent;
+                if (!_instructorCohortDefaulted) {
+                    instSel.value = latest || '';
+                    _instructorCohortDefaulted = true;
+                } else {
+                    instSel.value = instCurrent;
+                }
 
                 var memberSel = document.getElementById('memberCohortFilter');
                 var memberCurrent = memberSel.value;
