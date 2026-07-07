@@ -4769,10 +4769,33 @@
                   </div>
                 </div>
 
+                <!-- 인사이트: 거주지/성별/연령대 통계 (현재 조회 필터 기준) -->
+                <div class="card" style="margin-bottom:16px;">
+                  <h3 style="margin:0 0 4px;font-size:14.5px;">📊 회원 통계 <span id="memberStatsTotal" style="color:#999;font-weight:400;font-size:12px;"></span></h3>
+                  <p style="color:#999;font-size:11.5px;margin:0 0 12px;">전화번호 기준으로 중복을 제거한 인원입니다. 검색/차수 필터가 적용됩니다.</p>
+                  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:180px;max-width:240px;">
+                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">성별</div>
+                      <canvas id="memberGenderChart" height="160"></canvas>
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">거주지</div>
+                      <canvas id="memberRegionChart" height="160"></canvas>
+                    </div>
+                    <div style="flex:1;min-width:220px;">
+                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">연령대</div>
+                      <canvas id="memberAgeChart" height="160"></canvas>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="card">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">👥 회원관리</h2>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <select id="memberCohortFilter" onchange="loadMembers()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체 차수</option>
+                      </select>
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
                       <button onclick="exportMembersExcel()" style="padding:8px 16px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 다운로드</button>
@@ -9364,6 +9387,12 @@
                 instSel.innerHTML = '<option value="">전체 강사</option>' +
                     cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
                 instSel.value = instCurrent;
+
+                var memberSel = document.getElementById('memberCohortFilter');
+                var memberCurrent = memberSel.value;
+                memberSel.innerHTML = '<option value="">전체 차수</option>' +
+                    cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+                memberSel.value = memberCurrent;
             }).catch(function() {});
         }
 
@@ -10122,16 +10151,79 @@
 
         function loadMembers() {
             var search = document.getElementById('memberSearchInput').value.trim();
-            var qs = search ? ('?search=' + encodeURIComponent(search)) : '';
+            var cohort = document.getElementById('memberCohortFilter').value;
+            var params = [];
+            if (search) params.push('search=' + encodeURIComponent(search));
+            if (cohort) params.push('cohort=' + encodeURIComponent(cohort));
+            var qs = params.length ? ('?' + params.join('&')) : '';
+
             document.getElementById('membersTableBody').innerHTML =
                 '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
-            return api('GET', '/api/members' + qs).then(function(r) {
+            var listPromise = api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
                 renderMembersTable();
             }).catch(function() {
                 document.getElementById('membersTableBody').innerHTML =
                     '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
+            loadMemberStats(qs);
+            return listPromise;
+        }
+
+        // ----- 거주지/성별/연령대 통계 차트 -----
+        var _memberGenderChart = null;
+        var _memberRegionChart = null;
+        var _memberAgeChart = null;
+
+        function loadMemberStats(qs) {
+            api('GET', '/api/members/stats' + (qs || '')).then(function(r) {
+                if (!r || !r.success) return;
+
+                document.getElementById('memberStatsTotal').textContent = '(전화번호 등록된 회원 ' + r.total + '명 기준)';
+
+                var palette = ['#2980b9', '#27ae60', '#e67e22', '#8e44ad', '#e74c3c', '#16a085', '#7f8c8d', '#f39c12'];
+
+                if (_memberGenderChart) _memberGenderChart.destroy();
+                _memberGenderChart = new Chart(document.getElementById('memberGenderChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: r.gender.map(function(g) { return g.name; }),
+                        datasets: [{ data: r.gender.map(function(g) { return g.count; }), backgroundColor: palette, borderWidth: 0 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+                });
+
+                var regionTop = r.region.slice(0, 8);
+                if (_memberRegionChart) _memberRegionChart.destroy();
+                _memberRegionChart = new Chart(document.getElementById('memberRegionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: regionTop.map(function(g) { return g.name; }),
+                        datasets: [{ data: regionTop.map(function(g) { return g.count; }), backgroundColor: '#2980b9', borderRadius: 4 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                        plugins: { legend: { display: false } },
+                        scales: { x: { ticks: { stepSize: 1 } } }
+                    }
+                });
+
+                var ageOrder = ['10대 이하', '20대', '30대', '40대', '50대', '60대 이상', '미상'];
+                var ageSorted = r.ageBracket.slice().sort(function(a, b) { return ageOrder.indexOf(a.name) - ageOrder.indexOf(b.name); });
+                if (_memberAgeChart) _memberAgeChart.destroy();
+                _memberAgeChart = new Chart(document.getElementById('memberAgeChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ageSorted.map(function(g) { return g.name; }),
+                        datasets: [{ data: ageSorted.map(function(g) { return g.count; }), backgroundColor: '#e67e22', borderRadius: 4 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { ticks: { stepSize: 1 } } }
+                    }
+                });
+            }).catch(function() {});
         }
 
         function renderMembersTable() {
@@ -11461,6 +11553,7 @@
             } else if (tabName === 'instructorsettlement') {
                 initInstructorSettlementTab();
             } else if (tabName === 'membermanagement') {
+                loadCohorts();
                 loadMembers();
                 loadBirthdays();
                 loadDropoutRisk();
