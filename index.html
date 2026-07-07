@@ -4769,32 +4769,6 @@
                   </div>
                 </div>
 
-                <!-- 인사이트: 거주지/성별/연령대 통계 (현재 조회 필터 기준) -->
-                <div class="card" style="margin-bottom:16px;">
-                  <h3 style="margin:0 0 4px;font-size:14.5px;">📊 회원 통계 <span id="memberStatsTotal" style="color:#999;font-weight:400;font-size:12px;"></span></h3>
-                  <p style="color:#999;font-size:11.5px;margin:0 0 12px;">전화번호 기준으로 중복을 제거한 인원입니다. 검색/차수 필터가 적용됩니다.</p>
-                  <div style="display:flex;gap:16px;flex-wrap:wrap;">
-                    <div style="flex:1;min-width:180px;max-width:240px;">
-                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">성별</div>
-                      <div style="position:relative;height:160px;">
-                        <canvas id="memberGenderChart"></canvas>
-                      </div>
-                    </div>
-                    <div style="flex:1;min-width:220px;">
-                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">거주지</div>
-                      <div style="position:relative;height:160px;">
-                        <canvas id="memberRegionChart"></canvas>
-                      </div>
-                    </div>
-                    <div style="flex:1;min-width:220px;">
-                      <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">연령대</div>
-                      <div style="position:relative;height:160px;">
-                        <canvas id="memberAgeChart"></canvas>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div class="card">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">👥 회원관리</h2>
@@ -4820,6 +4794,37 @@
                         <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                <!-- 인사이트: 거주지/성별/연령대 통계 (사용빈도가 낮아 버튼 클릭 시에만 조회 -> API 호출 절약) -->
+                <div class="card" style="margin-top:16px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                    <h3 style="margin:0;font-size:14.5px;">📊 회원 통계 <span id="memberStatsTotal" style="color:#999;font-weight:400;font-size:12px;"></span></h3>
+                    <button id="memberStatsToggleBtn" onclick="toggleMemberStats()" style="padding:6px 14px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12.5px;font-weight:600;cursor:pointer;">📊 통계 보기</button>
+                  </div>
+                  <p style="color:#999;font-size:11.5px;margin:6px 0 0;">전화번호 기준으로 중복을 제거한 인원입니다. 현재 조회된 검색/차수 필터가 적용됩니다.</p>
+                  <div id="memberStatsBody" style="display:none;margin-top:12px;">
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                      <div style="flex:1;min-width:180px;max-width:240px;">
+                        <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">성별</div>
+                        <div style="position:relative;height:160px;">
+                          <canvas id="memberGenderChart"></canvas>
+                        </div>
+                      </div>
+                      <div style="flex:1;min-width:220px;">
+                        <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">거주지</div>
+                        <div style="position:relative;height:160px;">
+                          <canvas id="memberRegionChart"></canvas>
+                        </div>
+                      </div>
+                      <div style="flex:1;min-width:220px;">
+                        <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">연령대</div>
+                        <div style="position:relative;height:160px;">
+                          <canvas id="memberAgeChart"></canvas>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -10154,6 +10159,7 @@
 
         // ===== 회원관리 탭 (전체 강좌 횡단 조회) =====
         var _membersCache = [];
+        var _lastMembersQs = '';
 
         function loadMembers() {
             var search = document.getElementById('memberSearchInput').value.trim();
@@ -10162,6 +10168,7 @@
             if (search) params.push('search=' + encodeURIComponent(search));
             if (cohort) params.push('cohort=' + encodeURIComponent(cohort));
             var qs = params.length ? ('?' + params.join('&')) : '';
+            _lastMembersQs = qs;
 
             document.getElementById('membersTableBody').innerHTML =
                 '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
@@ -10172,16 +10179,37 @@
                 document.getElementById('membersTableBody').innerHTML =
                     '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
-            loadMemberStats(qs);
+            // 통계는 API 호출 절약을 위해 자동으로 불러오지 않습니다.
+            // 검색조건이 바뀌었으므로 캐시를 무효화하고, 이미 열려있는 경우에만 바로 갱신합니다.
+            // (닫혀있으면 다음에 "통계 보기"를 누를 때 최신 조건으로 조회됩니다.)
+            _memberStatsLoaded = false;
+            if (_memberStatsOpen) loadMemberStats(qs);
             return listPromise;
         }
 
-        // ----- 거주지/성별/연령대 통계 차트 -----
+        // ----- 거주지/성별/연령대 통계 차트 (버튼 클릭 시에만 조회) -----
         var _memberGenderChart = null;
         var _memberRegionChart = null;
         var _memberAgeChart = null;
+        var _memberStatsOpen = false;
+        var _memberStatsLoaded = false;
+
+        function toggleMemberStats() {
+            _memberStatsOpen = !_memberStatsOpen;
+            var body = document.getElementById('memberStatsBody');
+            var btn = document.getElementById('memberStatsToggleBtn');
+            if (_memberStatsOpen) {
+                body.style.display = 'block';
+                btn.textContent = '📊 통계 숨기기';
+                if (!_memberStatsLoaded) loadMemberStats(_lastMembersQs);
+            } else {
+                body.style.display = 'none';
+                btn.textContent = '📊 통계 보기';
+            }
+        }
 
         function loadMemberStats(qs) {
+            _memberStatsLoaded = true;
             api('GET', '/api/members/stats' + (qs || '')).then(function(r) {
                 if (!r || !r.success) return;
 
