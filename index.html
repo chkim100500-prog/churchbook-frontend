@@ -4505,13 +4505,19 @@
                 <div class="card" style="margin-bottom:16px;">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">🎤 강사 관리</h2>
-                    <button class="btn" onclick="openInstructorModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강사 등록</button>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                      <select id="instructorCohortFilter" onchange="loadInstructors()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체 강사</option>
+                      </select>
+                      <button class="btn" onclick="openInstructorModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강사 등록</button>
+                    </div>
                   </div>
+                  <p style="color:#666;font-size:12.5px;margin:0 0 12px;">차수를 선택하면 그 차수에 실제로 강좌가 있는 강사만 걸러서 보여줍니다.</p>
                   <div class="table-container" style="overflow-x:auto;">
                     <table class="table" id="instructorsTable">
                       <thead>
                         <tr>
-                          <th>강사명</th><th>기본요율</th><th>초과분요율</th><th>은행</th><th>계좌</th><th>예금주</th><th>상태</th><th>관리</th>
+                          <th>강사명</th><th>전화번호</th><th>기본요율</th><th>초과분요율</th><th>담당강좌</th><th>수강생</th><th>상태</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="instructorsTableBody">
@@ -4561,7 +4567,7 @@
                       <button onclick="downloadEnrollmentTemplate()" style="padding:8px 14px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">📄 엑셀 템플릿</button>
                       <button onclick="document.getElementById('enrollmentUploadInput').click()" style="padding:8px 14px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 업로드</button>
                       <input type="file" id="enrollmentUploadInput" accept=".xlsx,.xls" style="display:none;" onchange="handleEnrollmentUpload(event)">
-                      <button onclick="printAttendanceSheet()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">🖨️ 출석표 인쇄</button>
+                      <button onclick="printAttendanceSheet()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">🖨️ 출석부 인쇄</button>
                       <button class="btn" onclick="openEnrollmentModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 회원 등록</button>
                     </div>
                   </div>
@@ -4642,6 +4648,7 @@
                 <input type="hidden" id="instructorId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">강사명 *<input id="instructorName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">전화번호<input id="instructorPhone" placeholder="010-1234-5678" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">기본 요율 (%) *<input id="instructorBaseRate" type="number" step="1" placeholder="60" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">정원초과분 요율 (%) - 없으면 비워두세요<input id="instructorBonusRate" type="number" step="1" placeholder="70" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">은행명<input id="instructorBankName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
@@ -4652,6 +4659,20 @@
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeInstructorModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
                   <button onclick="saveInstructor()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 강사 상세보기 모달 -->
+            <div id="instructorDetailModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:560px;max-height:88vh;overflow-y:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+                  <h3 id="instructorDetailTitle" style="margin:0;">강사 상세정보</h3>
+                  <button onclick="closeInstructorDetailModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
+                </div>
+                <div id="instructorDetailBody" style="font-size:13px;color:#333;">불러오는 중...</div>
+                <div style="margin-top:20px;">
+                  <button onclick="closeInstructorDetailModal()" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
                 </div>
               </div>
             </div>
@@ -4672,7 +4693,7 @@
                   <label style="font-size:12.5px;color:#555;">강의시간<input id="courseClassTime" placeholder="화 10:00~10:50(50분)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">회원비 (전체 회차 기준) *<input id="courseFee" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">총 회차<input id="courseSessionTotal" type="number" value="12" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
-                  <label style="font-size:12.5px;color:#555;">개강일 (출석표 인쇄에 필요)<input id="courseStartDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">개강일 (출석부 인쇄에 필요)<input id="courseStartDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">정원<input id="courseCapacity" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;display:flex;align-items:center;gap:8px;">
                     <input id="courseIsNew" type="checkbox"> 이번 차수 신설 강좌입니다 (정산보고서에 표시됨)
@@ -9068,7 +9089,9 @@
         }
 
         function loadInstructors() {
-            return api('GET', '/api/instructors')
+            var cohort = document.getElementById('instructorCohortFilter').value;
+            var qs = cohort ? ('?cohort=' + encodeURIComponent(cohort)) : '';
+            return api('GET', '/api/instructors' + qs)
                 .then(function(r) {
                     _instructorsCache = (r && r.instructors) || [];
                     renderInstructorsTable();
@@ -9093,20 +9116,87 @@
                     : '<span style="color:#999;">비활성</span>';
                 return (
                     '<tr>' +
-                    '<td>' + escapeHtml(ins.name) + '</td>' +
+                    '<td><a href="javascript:void(0)" onclick="openInstructorDetail(' + ins.id + ')" style="color:#2980b9;text-decoration:underline;">' + escapeHtml(ins.name) + '</a></td>' +
+                    '<td>' + escapeHtml(ins.phone || '-') + '</td>' +
                     '<td>' + Math.round(ins.base_rate * 100) + '%</td>' +
                     '<td>' + bonus + '</td>' +
-                    '<td>' + escapeHtml(ins.bank_name || '-') + '</td>' +
-                    '<td>' + escapeHtml(ins.bank_account || '-') + '</td>' +
-                    '<td>' + escapeHtml(ins.account_holder || '-') + '</td>' +
+                    '<td>' + (ins.course_count ?? 0) + '개</td>' +
+                    '<td>' + (ins.student_count ?? 0) + '명</td>' +
                     '<td>' + statusBadge + '</td>' +
                     '<td>' +
+                      '<button onclick="openInstructorDetail(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12px;cursor:pointer;margin-right:4px;">상세보기</button>' +
                       '<button onclick="openInstructorModal(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       (ins.is_active ? '<button onclick="deleteInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">비활성화</button>' : '') +
                     '</td>' +
                     '</tr>'
                 );
             }).join('');
+        }
+
+        function openInstructorDetail(id) {
+            var modal = document.getElementById('instructorDetailModal');
+            var body = document.getElementById('instructorDetailBody');
+            body.innerHTML = '불러오는 중...';
+            modal.style.display = 'flex';
+
+            api('GET', '/api/instructors/' + id + '/detail').then(function(r) {
+                if (!r || !r.success) {
+                    body.innerHTML = '<span style="color:#e74c3c;">정보를 불러오지 못했습니다.</span>';
+                    return;
+                }
+                var ins = r.instructor;
+                var summary = r.summary;
+                var courses = r.courses;
+
+                document.getElementById('instructorDetailTitle').textContent = ins.name + ' 강사';
+
+                var infoRows = [
+                    ['전화번호', ins.phone || '-'],
+                    ['기본 요율', Math.round(ins.base_rate * 100) + '%'],
+                    ['정원초과분 요율', ins.over_capacity_bonus_rate ? Math.round(ins.over_capacity_bonus_rate * 100) + '%' : '-'],
+                    ['은행/계좌', (ins.bank_name || '-') + ' / ' + (ins.bank_account || '-') + ' (' + (ins.account_holder || '-') + ')'],
+                ];
+                var infoHtml = '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">' +
+                    infoRows.map(function(r2) {
+                        return '<tr><td style="padding:4px 8px 4px 0;color:#777;width:110px;">' + r2[0] + '</td><td style="padding:4px 0;font-weight:600;">' + escapeHtml(String(r2[1])) + '</td></tr>';
+                    }).join('') + '</table>';
+
+                var summaryHtml = '<div style="background:#f0f7ff;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;">' +
+                    '<div><div style="font-size:11px;color:#777;">담당 강좌</div><div style="font-size:18px;font-weight:700;color:#2980b9;">' + summary.courseCount + '개</div></div>' +
+                    '<div><div style="font-size:11px;color:#777;">커버 수강생</div><div style="font-size:18px;font-weight:700;color:#2980b9;">' + summary.totalStudents + '명</div></div>' +
+                    '<div><div style="font-size:11px;color:#777;">전체 대비 비중</div><div style="font-size:18px;font-weight:700;color:#2980b9;">' + summary.coveragePercent + '%</div></div>' +
+                    '</div>';
+
+                var coursesHtml = '<h4 style="margin:0 0 8px;font-size:13.5px;">담당 과목 목록</h4>';
+                if (!courses.length) {
+                    coursesHtml += '<p style="color:#aaa;">담당 중인 강좌가 없습니다.</p>';
+                } else {
+                    coursesHtml += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+                        '<thead><tr style="border-bottom:1px solid #ddd;text-align:left;color:#777;">' +
+                          '<th style="padding:6px 4px;">차수</th><th style="padding:6px 4px;">강좌명</th><th style="padding:6px 4px;">수강생</th><th style="padding:6px 4px;">상태</th>' +
+                        '</tr></thead><tbody>' +
+                        courses.map(function(c) {
+                            var status = c.is_closed
+                                ? '<span style="color:#999;">폐강</span>'
+                                : '<span style="color:#27ae60;">진행중</span>';
+                            return '<tr style="border-bottom:1px solid #f0f0f0;">' +
+                                '<td style="padding:6px 4px;">' + escapeHtml(c.cohort) + '</td>' +
+                                '<td style="padding:6px 4px;">' + escapeHtml(c.course_name) + '</td>' +
+                                '<td style="padding:6px 4px;">' + c.enrolled_count + (c.capacity ? '/' + c.capacity : '') + '명</td>' +
+                                '<td style="padding:6px 4px;">' + status + '</td>' +
+                                '</tr>';
+                        }).join('') +
+                        '</tbody></table>';
+                }
+
+                body.innerHTML = infoHtml + summaryHtml + coursesHtml;
+            }).catch(function() {
+                body.innerHTML = '<span style="color:#e74c3c;">정보를 불러오는 중 오류가 발생했습니다.</span>';
+            });
+        }
+
+        function closeInstructorDetailModal() {
+            document.getElementById('instructorDetailModal').style.display = 'none';
         }
 
         function populateCourseInstructorSelect() {
@@ -9126,6 +9216,7 @@
                 var ins = _instructorsCache.find(function(i) { return i.id === id; });
                 document.getElementById('instructorModalTitle').textContent = '강사 수정';
                 document.getElementById('instructorName').value = ins ? ins.name : '';
+                document.getElementById('instructorPhone').value = ins ? (ins.phone || '') : '';
                 document.getElementById('instructorBaseRate').value = ins ? Math.round(ins.base_rate * 100) : '';
                 document.getElementById('instructorBonusRate').value = (ins && ins.over_capacity_bonus_rate) ? Math.round(ins.over_capacity_bonus_rate * 100) : '';
                 document.getElementById('instructorBankName').value = ins ? (ins.bank_name || '') : '';
@@ -9134,7 +9225,7 @@
                 document.getElementById('instructorRRN').value = ins ? (ins.resident_registration_number || '') : '';
             } else {
                 document.getElementById('instructorModalTitle').textContent = '강사 등록';
-                ['instructorName','instructorBaseRate','instructorBonusRate','instructorBankName','instructorBankAccount','instructorAccountHolder','instructorRRN'].forEach(function(elId) {
+                ['instructorName','instructorPhone','instructorBaseRate','instructorBonusRate','instructorBankName','instructorBankAccount','instructorAccountHolder','instructorRRN'].forEach(function(elId) {
                     document.getElementById(elId).value = '';
                 });
             }
@@ -9158,6 +9249,7 @@
 
             var payload = {
                 name: name,
+                phone: document.getElementById('instructorPhone').value.trim(),
                 base_rate: baseRatePct / 100,
                 over_capacity_bonus_rate: bonusRatePct ? (parseFloat(bonusRatePct) / 100) : null,
                 bank_name: document.getElementById('instructorBankName').value.trim(),
@@ -9208,6 +9300,12 @@
                 reportSel.innerHTML = '<option value="">선택</option>' +
                     cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
                 reportSel.value = reportCurrent;
+
+                var instSel = document.getElementById('instructorCohortFilter');
+                var instCurrent = instSel.value;
+                instSel.innerHTML = '<option value="">전체 강사</option>' +
+                    cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+                instSel.value = instCurrent;
             }).catch(function() {});
         }
 
@@ -9688,13 +9786,13 @@
             reader.readAsArrayBuffer(file);
         }
 
-        // ----- 출석표 인쇄 -----
+        // ----- 출석부 인쇄 -----
         function printAttendanceSheet() {
             if (!_currentCourseDetailId) return;
 
             api('GET', '/api/courses/' + _currentCourseDetailId + '/attendance-sheet').then(function(r) {
                 if (!r || !r.success) {
-                    showAlert((r && r.message) || '출석표 데이터를 불러오지 못했습니다.', 'error');
+                    showAlert((r && r.message) || '출석부 데이터를 불러오지 못했습니다.', 'error');
                     return;
                 }
 
@@ -9703,7 +9801,7 @@
                 var members = r.members;
 
                 if (!members.length) {
-                    showAlert('등록된 회원이 없어 출석표를 만들 수 없습니다.', 'error');
+                    showAlert('등록된 회원이 없어 출석부를 만들 수 없습니다.', 'error');
                     return;
                 }
 
@@ -9743,7 +9841,7 @@
 
                 mobilePrint(html);
             }).catch(function(e) {
-                showAlert('출석표 생성 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+                showAlert('출석부 생성 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
             });
         }
 
