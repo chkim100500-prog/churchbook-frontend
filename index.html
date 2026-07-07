@@ -4607,6 +4607,11 @@
                 <h3 id="enrollmentModalTitle" style="margin:0 0 16px;">회원 등록</h3>
                 <input type="hidden" id="enrollmentId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
+                  <label id="enrollmentCourseSelectWrap" style="font-size:12.5px;color:#555;display:none;">강좌 *
+                    <select id="enrollmentCourseSelect" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                      <option value="">선택</option>
+                    </select>
+                  </label>
                   <label style="font-size:12.5px;color:#555;">회원명 *<input id="enrollmentMemberName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">연락처<input id="enrollmentPhone" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">결제금액<input id="enrollmentPaymentAmount" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
@@ -4703,9 +4708,10 @@
                 <div class="card">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">👥 회원관리</h2>
-                    <div style="display:flex;gap:8px;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
+                      <button class="btn" onclick="openMemberModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 회원 등록</button>
                     </div>
                   </div>
                   <p style="color:#666;font-size:12.5px;margin:0 0 14px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다.</p>
@@ -4713,11 +4719,11 @@
                     <table class="table" id="membersTable">
                       <thead>
                         <tr>
-                          <th>이름</th><th>연락처</th><th>강좌</th><th>차수</th><th>결제일</th><th>구분</th><th>이력 메모</th>
+                          <th>이름</th><th>연락처</th><th>강좌</th><th>차수</th><th>결제일</th><th>구분</th><th>이력 메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="membersTableBody">
-                        <tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
+                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -9403,7 +9409,33 @@
             document.getElementById('enrollmentAttendedWrap').style.display = checked ? 'block' : 'none';
         }
 
+        // 모달이 "강좌 상세"에서 열렸는지, "회원관리" 탭에서 열렸는지 구분 (같은 모달을 재사용하기 위함)
+        var _enrollmentModalContext = 'course';
+        var _allCoursesForSelect = [];
+
+        function loadAllCoursesForSelect() {
+            return api('GET', '/api/courses').then(function(r) {
+                _allCoursesForSelect = (r && r.courses) || [];
+                var sel = document.getElementById('enrollmentCourseSelect');
+                sel.innerHTML = '<option value="">선택</option>' +
+                    _allCoursesForSelect.map(function(c) {
+                        return '<option value="' + c.id + '">' + escapeHtml(c.cohort) + ' - ' + escapeHtml(c.course_name) + '</option>';
+                    }).join('');
+            }).catch(function() {});
+        }
+
+        function _resetEnrollmentFields() {
+            ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote'].forEach(function(elId) {
+                document.getElementById(elId).value = '';
+            });
+            document.getElementById('enrollmentIsRefunded').checked = false;
+        }
+
+        // 강좌 상세화면(회원/정산)에서 "+ 회원 등록"/"수정" 클릭 시
         function openEnrollmentModal(id) {
+            _enrollmentModalContext = 'course';
+            document.getElementById('enrollmentCourseSelectWrap').style.display = 'none';
+
             var modal = document.getElementById('enrollmentModal');
             document.getElementById('enrollmentId').value = id || '';
             var course = _coursesCache.find(function(c) { return c.id === _currentCourseDetailId; });
@@ -9420,13 +9452,50 @@
                 document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
             } else {
                 document.getElementById('enrollmentModalTitle').textContent = '회원 등록';
-                ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote'].forEach(function(elId) {
-                    document.getElementById(elId).value = '';
-                });
+                _resetEnrollmentFields();
                 document.getElementById('enrollmentPaidSessions').value = course ? course.session_total : 12;
-                document.getElementById('enrollmentIsRefunded').checked = false;
             }
             toggleRefundField();
+            modal.style.display = 'flex';
+        }
+
+        // 회원관리 탭에서 "+ 회원 등록"/"수정" 클릭 시 (강좌를 직접 선택해야 함)
+        function openMemberModal(id) {
+            _enrollmentModalContext = 'members';
+            var modal = document.getElementById('enrollmentModal');
+            var selectWrap = document.getElementById('enrollmentCourseSelectWrap');
+            selectWrap.style.display = 'block';
+            document.getElementById('enrollmentId').value = id || '';
+
+            loadAllCoursesForSelect().then(function() {
+                var sel = document.getElementById('enrollmentCourseSelect');
+                if (id) {
+                    document.getElementById('enrollmentModalTitle').textContent = '회원 수정';
+                    api('GET', '/api/enrollments/' + id).then(function(r) {
+                        var e = r && r.enrollment;
+                        sel.value = e ? e.course_id : '';
+                        sel.disabled = true; // 수정 시 강좌 이동은 안 됨 (삭제 후 재등록 원칙)
+                        document.getElementById('enrollmentMemberName').value = e ? e.member_name : '';
+                        document.getElementById('enrollmentPhone').value = e ? (e.phone || '') : '';
+                        document.getElementById('enrollmentPaymentAmount').value = e ? (e.payment_amount || '') : '';
+                        document.getElementById('enrollmentPaidSessions').value = e ? e.paid_sessions : 12;
+                        document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
+                        document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
+                        document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
+                        toggleRefundField();
+                    }).catch(function() {
+                        showAlert('회원 정보를 불러오지 못했습니다.', 'error');
+                    });
+                } else {
+                    document.getElementById('enrollmentModalTitle').textContent = '회원 등록';
+                    sel.disabled = false;
+                    sel.value = '';
+                    _resetEnrollmentFields();
+                    document.getElementById('enrollmentPaidSessions').value = 12;
+                    toggleRefundField();
+                }
+            });
+
             modal.style.display = 'flex';
         }
 
@@ -9442,8 +9511,17 @@
                 return;
             }
 
+            var courseId = (_enrollmentModalContext === 'members')
+                ? document.getElementById('enrollmentCourseSelect').value
+                : _currentCourseDetailId;
+
+            if (!courseId) {
+                showAlert('강좌를 선택해주세요.', 'error');
+                return;
+            }
+
             var payload = {
-                course_id: _currentCourseDetailId,
+                course_id: courseId,
                 member_name: memberName,
                 phone: document.getElementById('enrollmentPhone').value.trim(),
                 payment_amount: document.getElementById('enrollmentPaymentAmount').value ? parseInt(document.getElementById('enrollmentPaymentAmount').value, 10) : null,
@@ -9458,7 +9536,11 @@
                 if (r && r.success) {
                     showAlert(r.message || '저장되었습니다.', 'success');
                     closeEnrollmentModal();
-                    loadEnrollments();
+                    if (_enrollmentModalContext === 'members') {
+                        loadMembers();
+                    } else {
+                        loadEnrollments();
+                    }
                 } else {
                     showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
                 }
@@ -9471,7 +9553,12 @@
             if (!confirm('이 회원 내역을 삭제하시겠습니까?')) return;
             api('DELETE', '/api/enrollments/' + id).then(function(r) {
                 showAlert((r && r.message) || '삭제되었습니다.', 'success');
-                loadEnrollments();
+                var memberTab = document.getElementById('membermanagement');
+                if (memberTab && memberTab.classList.contains('active')) {
+                    loadMembers();
+                } else if (_currentCourseDetailId) {
+                    loadEnrollments();
+                }
             }).catch(function() {
                 showAlert('삭제 중 오류가 발생했습니다.', 'error');
             });
@@ -9777,20 +9864,20 @@
             var search = document.getElementById('memberSearchInput').value.trim();
             var qs = search ? ('?search=' + encodeURIComponent(search)) : '';
             document.getElementById('membersTableBody').innerHTML =
-                '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+                '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
             return api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
                 renderMembersTable();
             }).catch(function() {
                 document.getElementById('membersTableBody').innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
         }
 
         function renderMembersTable() {
             var body = document.getElementById('membersTableBody');
             if (!_membersCache.length) {
-                body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
                 return;
             }
             body.innerHTML = _membersCache.map(function(m) {
@@ -9811,6 +9898,10 @@
                         '<input id="memberNote_' + m.id + '" value="' + escapeHtml(m.existing_member_note || '') + '" placeholder="예: 49기 생활일본어" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">' +
                         '<button onclick="saveMemberNote(' + m.id + ')" style="padding:5px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12px;cursor:pointer;white-space:nowrap;">저장</button>' +
                       '</div>' +
+                    '</td>' +
+                    '<td>' +
+                      '<button onclick="openMemberModal(' + m.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
+                      '<button onclick="deleteEnrollment(' + m.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
                     '</td>' +
                     '</tr>'
                 );
