@@ -4536,11 +4536,11 @@
                     <table class="table" id="coursesTable">
                       <thead>
                         <tr>
-                          <th>차수</th><th>강좌명</th><th>강사</th><th>회원비</th><th>정원</th><th>회차</th><th>관리</th>
+                          <th>차수</th><th>강좌명</th><th>강사</th><th>회원비</th><th>정원</th><th>등록인원</th><th>회차</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="coursesTableBody">
-                        <tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
+                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -9219,33 +9219,70 @@
                 renderCoursesTable();
             }).catch(function() {
                 document.getElementById('coursesTableBody').innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;color:#e74c3c;padding:20px;">강좌 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">강좌 목록을 불러오지 못했습니다.</td></tr>';
             });
         }
 
         function renderCoursesTable() {
             var body = document.getElementById('coursesTableBody');
             if (!_coursesCache.length) {
-                body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">등록된 강좌가 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">등록된 강좌가 없습니다.</td></tr>';
                 return;
             }
             body.innerHTML = _coursesCache.map(function(c) {
+                var closedBadge = c.is_closed
+                    ? ' <span style="color:#fff;background:#999;font-size:11px;padding:2px 6px;border-radius:4px;">폐강</span>'
+                    : '';
+                var nameCell = escapeHtml(c.course_name) + closedBadge +
+                    (c.is_closed && c.closed_reason ? '<div style="color:#999;font-size:11px;margin-top:2px;">사유: ' + escapeHtml(c.closed_reason) + '</div>' : '');
+
+                var enrolledCount = c.enrolled_count ?? 0;
+                var overCapacity = c.capacity && enrolledCount > c.capacity;
+                var enrolledCell = '<span' + (overCapacity ? ' style="color:#e67e22;font-weight:600;"' : '') + '>' + enrolledCount + '명</span>';
+
+                var closeBtn = c.is_closed
+                    ? '<button onclick="reopenCourse(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:12px;cursor:pointer;margin-right:4px;">폐강취소</button>'
+                    : '<button onclick="closeCourse(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #999;background:#fff;color:#666;font-size:12px;cursor:pointer;margin-right:4px;">폐강처리</button>';
+
                 return (
-                    '<tr>' +
+                    '<tr' + (c.is_closed ? ' style="opacity:0.6;"' : '') + '>' +
                     '<td>' + escapeHtml(c.cohort) + '</td>' +
-                    '<td>' + escapeHtml(c.course_name) + '</td>' +
+                    '<td>' + nameCell + '</td>' +
                     '<td>' + escapeHtml(c.instructor_name || '-') + '</td>' +
                     '<td>' + Number(c.fee_per_student).toLocaleString() + '원</td>' +
                     '<td>' + (c.capacity ?? '-') + '</td>' +
+                    '<td>' + enrolledCell + '</td>' +
                     '<td>' + c.session_total + '회</td>' +
                     '<td>' +
                       '<button onclick="openCourseDetail(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#2980b9;color:#fff;font-size:12px;cursor:pointer;margin-right:4px;">회원/정산</button>' +
                       '<button onclick="openCourseModal(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
+                      closeBtn +
                       '<button onclick="deleteCourse(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
                     '</td>' +
                     '</tr>'
                 );
             }).join('');
+        }
+
+        function closeCourse(id) {
+            var reason = prompt('폐강 사유를 입력해주세요 (선택 - 비워두고 확인해도 됩니다)', '');
+            if (reason === null) return; // 취소 누름
+            api('PATCH', '/api/courses/' + id + '/close', { reason: reason.trim() }).then(function(r) {
+                showAlert((r && r.message) || '폐강 처리되었습니다.', 'success');
+                loadCourses();
+            }).catch(function(e) {
+                showAlert('폐강 처리 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        function reopenCourse(id) {
+            if (!confirm('폐강을 취소하고 다시 진행 중 상태로 되돌리시겠습니까?')) return;
+            api('PATCH', '/api/courses/' + id + '/reopen').then(function(r) {
+                showAlert((r && r.message) || '폐강이 취소되었습니다.', 'success');
+                loadCourses();
+            }).catch(function(e) {
+                showAlert('처리 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
         }
 
         function openCourseModal(id) {
