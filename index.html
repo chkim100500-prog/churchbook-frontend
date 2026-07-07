@@ -4535,6 +4535,7 @@
                       <select id="courseCohortFilter" onchange="loadCourses()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                         <option value="">전체 차수</option>
                       </select>
+                      <button onclick="runBatchSettlement()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">📊 선택 차수 일괄 정산</button>
                       <button class="btn" onclick="openCourseModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강좌 등록</button>
                     </div>
                   </div>
@@ -4721,6 +4722,17 @@
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeCourseModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
                   <button onclick="saveCourse()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 일괄 정산 결과 모달 -->
+            <div id="batchSettlementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
+                <h3 style="margin:0 0 16px;">📊 일괄 정산 결과</h3>
+                <div id="batchSettlementBody" style="font-size:13px;color:#333;"></div>
+                <div style="margin-top:20px;">
+                  <button onclick="document.getElementById('batchSettlementModal').style.display='none'" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
                 </div>
               </div>
             </div>
@@ -9511,6 +9523,53 @@
                 }
             }).catch(function(e) {
                 showAlert('삭제 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        // ----- 차수 일괄 정산 -----
+        function runBatchSettlement() {
+            var cohort = document.getElementById('courseCohortFilter').value;
+            if (!cohort) {
+                showAlert('먼저 상단에서 차수를 선택해주세요 ("전체 차수"로는 일괄 정산할 수 없습니다).', 'error');
+                return;
+            }
+
+            var now = new Date();
+            var defaultMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            var month = prompt(cohort + '의 모든 강좌를 일괄 정산합니다.\n정산월을 입력해주세요 (예: ' + defaultMonth + ')', defaultMonth);
+            if (!month) return;
+
+            if (!confirm(cohort + '의 강좌 전체를 "' + month + '"로 정산 계산 및 저장하시겠습니까?\n\n이미 회계원장 전표가 생성된 강좌와 회원이 없는 강좌는 자동으로 제외됩니다.')) return;
+
+            api('POST', '/api/settlements/batch', { cohort: cohort, settlement_month: month }).then(function(r) {
+                if (!r || !r.success) {
+                    showAlert((r && r.message) || '일괄 정산에 실패했습니다.', 'error');
+                    return;
+                }
+
+                var body = document.getElementById('batchSettlementBody');
+                var html = '<p style="color:#27ae60;font-weight:600;">' + r.message + '</p>';
+
+                if (r.processed.length) {
+                    html += '<h4 style="margin:16px 0 6px;font-size:13.5px;">✅ 정산 완료 (' + r.processed.length + '개)</h4>' +
+                        '<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:12px;">' +
+                        '<thead><tr style="border-bottom:1px solid #ddd;text-align:left;color:#777;"><th style="padding:4px;">강좌명</th><th style="padding:4px;">강사료</th><th style="padding:4px;">차인지급액</th></tr></thead><tbody>' +
+                        r.processed.map(function(p) {
+                            return '<tr><td style="padding:4px;">' + escapeHtml(p.courseName) + '</td><td style="padding:4px;">' + Number(p.instructorFee).toLocaleString() + '원</td><td style="padding:4px;">' + Number(p.netPayment).toLocaleString() + '원</td></tr>';
+                        }).join('') + '</tbody></table>';
+                }
+
+                if (r.skipped.length) {
+                    html += '<h4 style="margin:16px 0 6px;font-size:13.5px;color:#999;">⏭️ 제외됨 (' + r.skipped.length + '개)</h4>' +
+                        '<ul style="margin:0;padding-left:18px;color:#999;font-size:12.5px;">' +
+                        r.skipped.map(function(s) { return '<li>' + escapeHtml(s.courseName) + ' — ' + escapeHtml(s.reason) + '</li>'; }).join('') +
+                        '</ul>';
+                }
+
+                body.innerHTML = html;
+                document.getElementById('batchSettlementModal').style.display = 'flex';
+            }).catch(function(e) {
+                showAlert('일괄 정산 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
             });
         }
 
