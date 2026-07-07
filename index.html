@@ -4621,6 +4621,7 @@
                   <label style="font-size:12.5px;color:#555;">회원명 *<input id="enrollmentMemberName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">연락처<input id="enrollmentPhone" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">결제금액<input id="enrollmentPaymentAmount" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">결제일<input id="enrollmentPaymentDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">결제 회차 (전체 회차 중 몇 회분 결제했는지 — 정상은 전체 회차와 동일)
                     <input id="enrollmentPaidSessions" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
@@ -4629,6 +4630,9 @@
                   </label>
                   <label id="enrollmentAttendedWrap" style="font-size:12.5px;color:#555;display:none;">환불 전 실제 수강 회차
                     <input id="enrollmentAttendedSessions" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                  </label>
+                  <label id="enrollmentRefundDateWrap" style="font-size:12.5px;color:#555;display:none;">환불일
+                    <input id="enrollmentRefundDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
                   <label style="font-size:12.5px;color:#555;">이력 메모 (예: 49기 생활일본어)
                     <input id="enrollmentExistingMemberNote" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
@@ -9584,6 +9588,7 @@
         function toggleRefundField() {
             var checked = document.getElementById('enrollmentIsRefunded').checked;
             document.getElementById('enrollmentAttendedWrap').style.display = checked ? 'block' : 'none';
+            document.getElementById('enrollmentRefundDateWrap').style.display = checked ? 'block' : 'none';
         }
 
         // 모달이 "강좌 상세"에서 열렸는지, "회원관리" 탭에서 열렸는지 구분 (같은 모달을 재사용하기 위함)
@@ -9602,7 +9607,7 @@
         }
 
         function _resetEnrollmentFields() {
-            ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote','enrollmentBirthDate','enrollmentRegion'].forEach(function(elId) {
+            ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentPaymentDate','enrollmentAttendedSessions','enrollmentRefundDate','enrollmentExistingMemberNote','enrollmentBirthDate','enrollmentRegion'].forEach(function(elId) {
                 document.getElementById(elId).value = '';
             });
             document.getElementById('enrollmentGender').value = '';
@@ -9624,9 +9629,11 @@
                 document.getElementById('enrollmentMemberName').value = e ? e.member_name : '';
                 document.getElementById('enrollmentPhone').value = e ? (e.phone || '') : '';
                 document.getElementById('enrollmentPaymentAmount').value = e ? (e.payment_amount || '') : '';
+                document.getElementById('enrollmentPaymentDate').value = e && e.payment_date ? String(e.payment_date).slice(0, 10) : '';
                 document.getElementById('enrollmentPaidSessions').value = e ? e.paid_sessions : (course ? course.session_total : 12);
                 document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
                 document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
+                document.getElementById('enrollmentRefundDate').value = e && e.refund_date ? String(e.refund_date).slice(0, 10) : '';
                 document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
                 document.getElementById('enrollmentBirthDate').value = e && e.birth_date ? String(e.birth_date).slice(0, 10) : '';
                 document.getElementById('enrollmentGender').value = e ? (e.gender || '') : '';
@@ -9659,9 +9666,11 @@
                         document.getElementById('enrollmentMemberName').value = e ? e.member_name : '';
                         document.getElementById('enrollmentPhone').value = e ? (e.phone || '') : '';
                         document.getElementById('enrollmentPaymentAmount').value = e ? (e.payment_amount || '') : '';
+                        document.getElementById('enrollmentPaymentDate').value = e && e.payment_date ? String(e.payment_date).slice(0, 10) : '';
                         document.getElementById('enrollmentPaidSessions').value = e ? e.paid_sessions : 12;
                         document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
                         document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
+                        document.getElementById('enrollmentRefundDate').value = e && e.refund_date ? String(e.refund_date).slice(0, 10) : '';
                         document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
                         document.getElementById('enrollmentBirthDate').value = e && e.birth_date ? String(e.birth_date).slice(0, 10) : '';
                         document.getElementById('enrollmentGender').value = e ? (e.gender || '') : '';
@@ -9709,9 +9718,11 @@
                 member_name: memberName,
                 phone: document.getElementById('enrollmentPhone').value.trim(),
                 payment_amount: document.getElementById('enrollmentPaymentAmount').value ? parseInt(document.getElementById('enrollmentPaymentAmount').value, 10) : null,
+                payment_date: document.getElementById('enrollmentPaymentDate').value || null,
                 paid_sessions: parseInt(document.getElementById('enrollmentPaidSessions').value, 10),
                 is_refunded: document.getElementById('enrollmentIsRefunded').checked,
                 attended_sessions_before_refund: document.getElementById('enrollmentAttendedSessions').value ? parseInt(document.getElementById('enrollmentAttendedSessions').value, 10) : null,
+                refund_date: document.getElementById('enrollmentRefundDate').value || null,
                 existing_member_note: document.getElementById('enrollmentExistingMemberNote').value.trim(),
                 birth_date: document.getElementById('enrollmentBirthDate').value || null,
                 gender: document.getElementById('enrollmentGender').value || null,
