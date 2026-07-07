@@ -4633,6 +4633,21 @@
                   <label style="font-size:12.5px;color:#555;">이력 메모 (예: 49기 생활일본어)
                     <input id="enrollmentExistingMemberNote" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
+                  <div style="display:flex;gap:8px;">
+                    <label style="font-size:12.5px;color:#555;flex:1;">생년월일
+                      <input id="enrollmentBirthDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                    </label>
+                    <label style="font-size:12.5px;color:#555;width:90px;">성별
+                      <select id="enrollmentGender" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                        <option value="">-</option>
+                        <option value="여">여</option>
+                        <option value="남">남</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label style="font-size:12.5px;color:#555;">거주지 (예: 동작구)
+                    <input id="enrollmentRegion" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                  </label>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeEnrollmentModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
@@ -4726,16 +4741,29 @@
                   </div>
                 </div>
 
+                <!-- 인사이트: 이번달 생일자 + 이탈위험 회원 -->
+                <div class="card" style="margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;">
+                  <div style="flex:1;min-width:260px;">
+                    <h3 style="margin:0 0 8px;font-size:14.5px;">🎂 이번 달 생일 회원</h3>
+                    <div id="birthdayListWrap" style="font-size:13px;color:#aaa;">불러오는 중...</div>
+                  </div>
+                  <div style="flex:1;min-width:260px;border-left:1px solid #eee;padding-left:16px;">
+                    <h3 style="margin:0 0 8px;font-size:14.5px;">⚠️ 재등록 유도 대상 (이탈위험)</h3>
+                    <div id="dropoutRiskWrap" style="font-size:13px;color:#aaa;">불러오는 중...</div>
+                  </div>
+                </div>
+
                 <div class="card">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">👥 회원관리</h2>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
+                      <button onclick="exportMembersExcel()" style="padding:8px 16px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 다운로드</button>
                       <button class="btn" onclick="openMemberModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 회원 등록</button>
                     </div>
                   </div>
-                  <p style="color:#666;font-size:12.5px;margin:0 0 14px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다.</p>
+                  <p style="color:#666;font-size:12.5px;margin:0 0 14px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다. 이름을 클릭하면 이 회원의 전체 수강 이력을 볼 수 있습니다.</p>
                   <div class="table-container" style="overflow-x:auto;">
                     <table class="table" id="membersTable">
                       <thead>
@@ -4752,6 +4780,20 @@
               </div>
             </div>
             <!-- ========== /회원관리 탭 ========== -->
+
+            <!-- 회원 통합 프로필 모달 -->
+            <div id="memberProfileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:560px;max-height:88vh;overflow-y:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+                  <h3 id="memberProfileTitle" style="margin:0;">회원 프로필</h3>
+                  <button onclick="closeMemberProfileModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
+                </div>
+                <div id="memberProfileBody" style="font-size:13px;color:#333;">불러오는 중...</div>
+                <div style="margin-top:20px;">
+                  <button onclick="closeMemberProfileModal()" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
+                </div>
+              </div>
+            </div>
 
             <div class="tab-content" id="settings">
                 <!-- 설정 서브탭 네비게이션 -->
@@ -9560,9 +9602,10 @@
         }
 
         function _resetEnrollmentFields() {
-            ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote'].forEach(function(elId) {
+            ['enrollmentMemberName','enrollmentPhone','enrollmentPaymentAmount','enrollmentAttendedSessions','enrollmentExistingMemberNote','enrollmentBirthDate','enrollmentRegion'].forEach(function(elId) {
                 document.getElementById(elId).value = '';
             });
+            document.getElementById('enrollmentGender').value = '';
             document.getElementById('enrollmentIsRefunded').checked = false;
         }
 
@@ -9585,6 +9628,9 @@
                 document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
                 document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
                 document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
+                document.getElementById('enrollmentBirthDate').value = e && e.birth_date ? String(e.birth_date).slice(0, 10) : '';
+                document.getElementById('enrollmentGender').value = e ? (e.gender || '') : '';
+                document.getElementById('enrollmentRegion').value = e ? (e.region || '') : '';
             } else {
                 document.getElementById('enrollmentModalTitle').textContent = '회원 등록';
                 _resetEnrollmentFields();
@@ -9617,6 +9663,9 @@
                         document.getElementById('enrollmentIsRefunded').checked = e ? !!e.is_refunded : false;
                         document.getElementById('enrollmentAttendedSessions').value = e ? (e.attended_sessions_before_refund ?? '') : '';
                         document.getElementById('enrollmentExistingMemberNote').value = e ? (e.existing_member_note || '') : '';
+                        document.getElementById('enrollmentBirthDate').value = e && e.birth_date ? String(e.birth_date).slice(0, 10) : '';
+                        document.getElementById('enrollmentGender').value = e ? (e.gender || '') : '';
+                        document.getElementById('enrollmentRegion').value = e ? (e.region || '') : '';
                         toggleRefundField();
                     }).catch(function() {
                         showAlert('회원 정보를 불러오지 못했습니다.', 'error');
@@ -9664,6 +9713,9 @@
                 is_refunded: document.getElementById('enrollmentIsRefunded').checked,
                 attended_sessions_before_refund: document.getElementById('enrollmentAttendedSessions').value ? parseInt(document.getElementById('enrollmentAttendedSessions').value, 10) : null,
                 existing_member_note: document.getElementById('enrollmentExistingMemberNote').value.trim(),
+                birth_date: document.getElementById('enrollmentBirthDate').value || null,
+                gender: document.getElementById('enrollmentGender').value || null,
+                region: document.getElementById('enrollmentRegion').value.trim(),
             };
 
             var req = id ? api('PUT', '/api/enrollments/' + id, payload) : api('POST', '/api/enrollments', payload);
@@ -9705,13 +9757,13 @@
             var sessionTotal = course ? course.session_total : 12;
 
             var aoa = [
-                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모'],
-                ['홍길동', '010-1234-5678', 90000, sessionTotal, 'N', '', ''],
-                ['김철수', '010-2345-6789', 82500, sessionTotal - 1, 'N', '', '49기 생활일본어'],
-                ['이영희', '010-3456-7890', 0, sessionTotal, 'Y', 4, ''],
+                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '거주지'],
+                ['홍길동', '010-1234-5678', 90000, sessionTotal, 'N', '', '', '1980-05-12', '남', '동작구'],
+                ['김철수', '010-2345-6789', 82500, sessionTotal - 1, 'N', '', '49기 생활일본어', '', '', ''],
+                ['이영희', '010-3456-7890', 0, sessionTotal, 'Y', 4, '', '', '', ''],
             ];
             var ws = XLSX.utils.aoa_to_sheet(aoa);
-            ws['!cols'] = [{wch:12}, {wch:16}, {wch:10}, {wch:10}, {wch:14}, {wch:14}, {wch:20}];
+            ws['!cols'] = [{wch:12}, {wch:16}, {wch:10}, {wch:10}, {wch:14}, {wch:14}, {wch:20}, {wch:12}, {wch:8}, {wch:12}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회원목록');
             XLSX.writeFile(wb, '회원등록_템플릿.xlsx');
@@ -9750,6 +9802,9 @@
                             is_refunded: isRefunded,
                             attended_sessions_before_refund: (isRefunded && row['환불전수강회차'] !== '') ? parseInt(row['환불전수강회차'], 10) : null,
                             existing_member_note: String(row['이력메모'] || '').trim() || null,
+                            birth_date: String(row['생년월일'] || '').trim() || null,
+                            gender: String(row['성별'] || '').trim() || null,
+                            region: String(row['거주지'] || '').trim() || null,
                         });
                     });
 
@@ -10022,7 +10077,7 @@
                 var payDate = m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '-';
                 return (
                     '<tr>' +
-                    '<td>' + escapeHtml(m.member_name) + '</td>' +
+                    '<td><a href="javascript:void(0)" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')" style="color:#2980b9;text-decoration:underline;">' + escapeHtml(m.member_name) + '</a></td>' +
                     '<td>' + escapeHtml(m.phone || '-') + '</td>' +
                     '<td>' + escapeHtml(m.course_name) + '</td>' +
                     '<td>' + escapeHtml(m.cohort) + '</td>' +
@@ -10058,16 +10113,157 @@
             });
         }
 
+        // ----- 회원 통합 프로필 -----
+        function openMemberProfile(phone) {
+            if (!phone) {
+                showAlert('연락처가 없어 통합 프로필을 볼 수 없습니다.', 'error');
+                return;
+            }
+            var modal = document.getElementById('memberProfileModal');
+            var body = document.getElementById('memberProfileBody');
+            body.innerHTML = '불러오는 중...';
+            modal.style.display = 'flex';
+
+            api('GET', '/api/members/profile?phone=' + encodeURIComponent(phone)).then(function(r) {
+                if (!r || !r.success) {
+                    body.innerHTML = '<span style="color:#e74c3c;">' + ((r && r.message) || '프로필을 불러오지 못했습니다.') + '</span>';
+                    return;
+                }
+                var p = r.profile;
+                var s = r.summary;
+                var list = r.enrollments;
+
+                document.getElementById('memberProfileTitle').textContent = p.memberName + ' 회원 프로필';
+
+                var infoRows = [
+                    ['연락처', p.phone || '-'],
+                    ['생년월일', p.birthDate ? String(p.birthDate).slice(0, 10) : '-'],
+                    ['성별', p.gender || '-'],
+                    ['거주지', p.region || '-'],
+                ];
+                var infoHtml = '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">' +
+                    infoRows.map(function(row) {
+                        return '<tr><td style="padding:4px 8px 4px 0;color:#777;width:80px;">' + row[0] + '</td><td style="padding:4px 0;font-weight:600;">' + escapeHtml(String(row[1])) + '</td></tr>';
+                    }).join('') + '</table>';
+
+                var summaryHtml = '<div style="background:#f0f7ff;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;">' +
+                    '<div><div style="font-size:11px;color:#777;">총 수강 횟수</div><div style="font-size:18px;font-weight:700;color:#2980b9;">' + s.enrollmentCount + '회</div></div>' +
+                    '<div><div style="font-size:11px;color:#777;">누적 결제액</div><div style="font-size:18px;font-weight:700;color:#2980b9;">' + Number(s.totalPayment).toLocaleString() + '원</div></div>' +
+                    '<div><div style="font-size:11px;color:#777;">최근 수강일</div><div style="font-size:15px;font-weight:700;color:#2980b9;">' + new Date(s.lastEnrolledAt).toLocaleDateString('ko-KR') + '</div></div>' +
+                    '</div>';
+
+                var listHtml = '<h4 style="margin:0 0 8px;font-size:13.5px;">수강 이력</h4>' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+                    '<thead><tr style="border-bottom:1px solid #ddd;text-align:left;color:#777;">' +
+                      '<th style="padding:6px 4px;">차수</th><th style="padding:6px 4px;">강좌명</th><th style="padding:6px 4px;">결제금액</th><th style="padding:6px 4px;">상태</th><th style="padding:6px 4px;">이력메모</th>' +
+                    '</tr></thead><tbody>' +
+                    list.map(function(row) {
+                        var status = row.is_refunded ? '<span style="color:#e67e22;">환불</span>' : '<span style="color:#27ae60;">정상</span>';
+                        return '<tr style="border-bottom:1px solid #f0f0f0;">' +
+                            '<td style="padding:6px 4px;">' + escapeHtml(row.cohort) + '</td>' +
+                            '<td style="padding:6px 4px;">' + escapeHtml(row.course_name) + '</td>' +
+                            '<td style="padding:6px 4px;">' + (row.payment_amount ? Number(row.payment_amount).toLocaleString() + '원' : '-') + '</td>' +
+                            '<td style="padding:6px 4px;">' + status + '</td>' +
+                            '<td style="padding:6px 4px;color:#777;">' + escapeHtml(row.existing_member_note || '-') + '</td>' +
+                            '</tr>';
+                    }).join('') +
+                    '</tbody></table>';
+
+                body.innerHTML = infoHtml + summaryHtml + listHtml;
+            }).catch(function() {
+                body.innerHTML = '<span style="color:#e74c3c;">프로필을 불러오는 중 오류가 발생했습니다.</span>';
+            });
+        }
+
+        function closeMemberProfileModal() {
+            document.getElementById('memberProfileModal').style.display = 'none';
+        }
+
+        // ----- 이번 달 생일 회원 -----
+        function loadBirthdays() {
+            var wrap = document.getElementById('birthdayListWrap');
+            wrap.textContent = '불러오는 중...';
+            api('GET', '/api/members/birthdays-this-month').then(function(r) {
+                var list = (r && r.birthdays) || [];
+                if (!list.length) {
+                    wrap.innerHTML = '<span style="color:#aaa;">이번 달 생일인 회원이 없습니다.</span>';
+                    return;
+                }
+                wrap.innerHTML = list.map(function(b) {
+                    var day = b.birth_date ? new Date(b.birth_date).getDate() : '-';
+                    return '<div style="padding:4px 0;">🎂 ' + escapeHtml(b.member_name) + ' <span style="color:#999;">(' + day + '일 · ' + escapeHtml(b.phone || '-') + ')</span></div>';
+                }).join('');
+            }).catch(function() {
+                wrap.innerHTML = '<span style="color:#e74c3c;">불러오지 못했습니다.</span>';
+            });
+        }
+
+        // ----- 이탈위험 회원 (직전 차수엔 있었는데 최신 차수엔 없음) -----
+        function loadDropoutRisk() {
+            var wrap = document.getElementById('dropoutRiskWrap');
+            wrap.textContent = '불러오는 중...';
+            api('GET', '/api/members/dropout-risk').then(function(r) {
+                if (!r || !r.success) {
+                    wrap.innerHTML = '<span style="color:#e74c3c;">불러오지 못했습니다.</span>';
+                    return;
+                }
+                if (!r.previousCohort) {
+                    wrap.innerHTML = '<span style="color:#aaa;">비교할 이전 차수가 아직 없습니다.</span>';
+                    return;
+                }
+                var list = r.atRisk || [];
+                var header = '<div style="color:#999;font-size:11.5px;margin-bottom:6px;">' + escapeHtml(r.previousCohort) + ' → ' + escapeHtml(r.latestCohort) + ' 미등록</div>';
+                if (!list.length) {
+                    wrap.innerHTML = header + '<span style="color:#aaa;">이탈 위험 회원이 없습니다. 재등록률이 좋네요!</span>';
+                    return;
+                }
+                wrap.innerHTML = header + list.map(function(m) {
+                    return '<div style="padding:4px 0;">⚠️ ' + escapeHtml(m.member_name) + ' <span style="color:#999;">(' + escapeHtml(m.phone || '-') + ' · ' + escapeHtml(m.course_name) + ')</span></div>';
+                }).join('');
+            }).catch(function() {
+                wrap.innerHTML = '<span style="color:#e74c3c;">불러오지 못했습니다.</span>';
+            });
+        }
+
+        // ----- 회원 목록 엑셀 다운로드 (현재 화면에 조회된 목록 기준) -----
+        function exportMembersExcel() {
+            if (!_membersCache.length) {
+                showAlert('내보낼 회원이 없습니다. 먼저 조회해주세요.', 'error');
+                return;
+            }
+            var aoa = [
+                ['이름', '연락처', '강좌', '차수', '결제일', '결제금액', '구분', '이력메모'],
+            ];
+            _membersCache.forEach(function(m) {
+                aoa.push([
+                    m.member_name,
+                    m.phone || '',
+                    m.course_name,
+                    m.cohort,
+                    m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '',
+                    m.payment_amount || 0,
+                    m.is_existing_member ? '기존회원' : '신규',
+                    m.existing_member_note || '',
+                ]);
+            });
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:12},{wch:10},{wch:24}];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '회원목록');
+            XLSX.writeFile(wb, '회원목록_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            showAlert('회원 목록을 다운로드했습니다.', 'success');
+        }
+
         // ----- 과거 차수 회원 일괄 이관 (일시적 기능) -----
         function downloadMemberImportTemplate() {
             var aoa = [
-                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모'],
-                ['49기', '생활 일본어', '임지영', '박미선', '010-1234-5678', 90000, 12, 'N', '', ''],
-                ['50기', '다시 배우는 영어(초급)', '이미혜', '홍소라', '010-2345-6789', 90000, 12, 'N', '', ''],
-                ['50기', '다시 배우는 영어(초급)', '이미혜', '김찬호', '010-3456-7890', 90000, 11, 'Y', 4, ''],
+                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '거주지'],
+                ['49기', '생활 일본어', '임지영', '박미선', '010-1234-5678', 90000, 12, 'N', '', '', '1978-06-25', '여', '용산구'],
+                ['50기', '다시 배우는 영어(초급)', '이미혜', '홍소라', '010-2345-6789', 90000, 12, 'N', '', '', '', '', ''],
+                ['50기', '다시 배우는 영어(초급)', '이미혜', '김찬호', '010-3456-7890', 90000, 11, 'Y', 4, '', '', '', ''],
             ];
             var ws = XLSX.utils.aoa_to_sheet(aoa);
-            ws['!cols'] = [{wch:8}, {wch:24}, {wch:12}, {wch:12}, {wch:16}, {wch:10}, {wch:10}, {wch:14}, {wch:14}, {wch:20}];
+            ws['!cols'] = [{wch:8}, {wch:24}, {wch:12}, {wch:12}, {wch:16}, {wch:10}, {wch:10}, {wch:14}, {wch:14}, {wch:20}, {wch:12}, {wch:8}, {wch:12}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '과거회원이관');
             XLSX.writeFile(wb, '과거회원_이관_템플릿.xlsx');
@@ -10108,6 +10304,9 @@
                             is_refunded: isRefunded,
                             attended_sessions_before_refund: (isRefunded && row['환불전수강회차'] !== '') ? parseInt(row['환불전수강회차'], 10) : null,
                             existing_member_note: String(row['이력메모'] || '').trim() || null,
+                            birth_date: String(row['생년월일'] || '').trim() || null,
+                            gender: String(row['성별'] || '').trim() || null,
+                            region: String(row['거주지'] || '').trim() || null,
                         });
                     });
 
@@ -11190,6 +11389,8 @@
                 initInstructorSettlementTab();
             } else if (tabName === 'membermanagement') {
                 loadMembers();
+                loadBirthdays();
+                loadDropoutRisk();
             } else if (tabName === 'approval') {
                 // 전자결재 탭 - 즉시 섹션 표시
                 document.querySelectorAll('.approval-section').forEach(function(s) {
