@@ -2672,6 +2672,8 @@
                 <button class="tab-btn" onclick="showTab('receipt')" style="display:none;">영수증</button>
                 <button class="tab-btn" onclick="showTab('balance')">💰잔고확인</button>
                 <button class="tab-btn" id="doubleEntryTabBtn" onclick="showTab('doubleentry')" style="display:none;">🧮복식부기</button>
+                <button class="tab-btn" data-module="instructor_settlement" onclick="showTab('instructorsettlement')" style="display:none;">🎤강사정산</button>
+                <button class="tab-btn" data-module="member_management" onclick="showTab('membermanagement')" style="display:none;">👥회원관리</button>
                 <button class="tab-btn" onclick="showTab('settings')">⚙️설정</button>
             </div>
 
@@ -4474,6 +4476,117 @@
               </div>
             </div>
             <!-- ========== /복식부기 보고서 탭 ========== -->
+
+            <!-- ========== 강사정산 탭 (모듈 플래그 켜진 조직만 버튼이 보임) ========== -->
+            <div class="tab-content" id="instructorsettlement">
+              <div class="container">
+
+                <!-- 강사 관리 -->
+                <div class="card" style="margin-bottom:16px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                    <h2 style="margin:0;">🎤 강사 관리</h2>
+                    <button class="btn" onclick="openInstructorModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강사 등록</button>
+                  </div>
+                  <div class="table-container" style="overflow-x:auto;">
+                    <table class="table" id="instructorsTable">
+                      <thead>
+                        <tr>
+                          <th>강사명</th><th>기본요율</th><th>초과분요율</th><th>은행</th><th>계좌</th><th>예금주</th><th>상태</th><th>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody id="instructorsTableBody">
+                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <!-- 강좌 관리 -->
+                <div class="card">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                    <h2 style="margin:0;">📚 강좌 관리</h2>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                      <select id="courseCohortFilter" onchange="loadCourses()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">전체 차수</option>
+                      </select>
+                      <button class="btn" onclick="openCourseModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강좌 등록</button>
+                    </div>
+                  </div>
+                  <div class="table-container" style="overflow-x:auto;">
+                    <table class="table" id="coursesTable">
+                      <thead>
+                        <tr>
+                          <th>차수</th><th>강좌코드</th><th>강좌명</th><th>강사</th><th>회원비</th><th>정원</th><th>회차</th><th>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody id="coursesTableBody">
+                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- 강사 등록/수정 모달 -->
+            <div id="instructorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:420px;max-height:88vh;overflow-y:auto;">
+                <h3 id="instructorModalTitle" style="margin:0 0 16px;">강사 등록</h3>
+                <input type="hidden" id="instructorId">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <label style="font-size:12.5px;color:#555;">강사명 *<input id="instructorName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">기본 요율 (%) *<input id="instructorBaseRate" type="number" step="1" placeholder="60" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">정원초과분 요율 (%) - 없으면 비워두세요<input id="instructorBonusRate" type="number" step="1" placeholder="70" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">은행명<input id="instructorBankName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">계좌번호<input id="instructorBankAccount" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">예금주<input id="instructorAccountHolder" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:20px;">
+                  <button onclick="closeInstructorModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
+                  <button onclick="saveInstructor()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 강좌 등록/수정 모달 -->
+            <div id="courseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:420px;max-height:88vh;overflow-y:auto;">
+                <h3 id="courseModalTitle" style="margin:0 0 16px;">강좌 등록</h3>
+                <input type="hidden" id="courseId">
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <label style="font-size:12.5px;color:#555;">차수 * (예: 50기)<input id="courseCohort" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">강좌코드 * (예: 2502)<input id="courseCode" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">수강코드 (예: 50M2502)<input id="courseEnrollmentCode" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">강좌명 *<input id="courseName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">담당 강사
+                    <select id="courseInstructorId" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                      <option value="">선택 안 함</option>
+                    </select>
+                  </label>
+                  <label style="font-size:12.5px;color:#555;">강의시간<input id="courseClassTime" placeholder="화 10:00~10:50(50분)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">회원비 (전체 회차 기준) *<input id="courseFee" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">총 회차<input id="courseSessionTotal" type="number" value="12" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">정원<input id="courseCapacity" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:20px;">
+                  <button onclick="closeCourseModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
+                  <button onclick="saveCourse()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                </div>
+              </div>
+            </div>
+            <!-- ========== /강사정산 탭 ========== -->
+
+            <!-- ========== 회원관리 탭 (모듈 플래그 켜진 조직만 버튼이 보임) ========== -->
+            <div class="tab-content" id="membermanagement">
+              <div class="container">
+                <div class="card">
+                  <h2 style="margin:0;">👥 회원관리</h2>
+                  <p style="color:#666;font-size:13px;margin:6px 0 16px;">준비 중입니다. 곧 회원별 결제/출석 내역 관리 기능이 추가됩니다.</p>
+                </div>
+              </div>
+            </div>
+            <!-- ========== /회원관리 탭 ========== -->
 
             <div class="tab-content" id="settings">
                 <!-- 설정 서브탭 네비게이션 -->
@@ -8766,6 +8879,307 @@
                 });
         }
 
+        // ===== 모듈형 기능 플래그 (조직별로 켜고 끌 수 있는 특수 기능) =====
+        // 노량진문화원의 강사정산/회원관리처럼 "일부 조직에만 필요한 기능"을
+        // 하드코딩하지 않고, 서버가 내려주는 enabledModules 목록으로 탭 노출을 제어합니다.
+        var _enabledModules = []; // 예: ['instructor_settlement', 'member_management']
+
+        function loadModuleConfig() {
+            return api('GET', '/api/church/config')
+                .then(function(r) { _enabledModules = (r && r.enabledModules) || []; })
+                .catch(function() { _enabledModules = []; })
+                .then(function() { updateModuleTabsVisibility(); });
+        }
+
+        function isModuleEnabled(moduleName) {
+            return _enabledModules.indexOf(moduleName) !== -1;
+        }
+
+        // data-module 속성이 붙은 모든 탭 버튼을 스캔해서 켜져 있으면 보이고, 꺼져 있으면 숨깁니다.
+        // 숨겨야 하는데 마침 그 탭이 열려 있던 상태라면 거래등록 탭으로 안전하게 이동시킵니다.
+        function updateModuleTabsVisibility() {
+            document.querySelectorAll('.tab-btn[data-module]').forEach(function(btn) {
+                var moduleName = btn.getAttribute('data-module');
+                var enabled = isModuleEnabled(moduleName);
+                btn.style.display = enabled ? '' : 'none';
+                if (!enabled) {
+                    var match = btn.getAttribute('onclick').match(/showTab\('([^']+)'\)/);
+                    var tabId = match && match[1];
+                    var tabContent = tabId && document.getElementById(tabId);
+                    if (tabContent && tabContent.classList.contains('active')) {
+                        document.querySelector(".tab-btn[onclick*=\"showTab('dashboard')\"]")?.click();
+                    }
+                }
+            });
+        }
+
+        // ===== 강사정산 모듈: 강사/강좌 관리 =====
+        var _instructorsCache = [];
+
+        function initInstructorSettlementTab() {
+            loadInstructors();
+            loadCohorts();
+            loadCourses();
+        }
+
+        function loadInstructors() {
+            return api('GET', '/api/instructors')
+                .then(function(r) {
+                    _instructorsCache = (r && r.instructors) || [];
+                    renderInstructorsTable();
+                    populateCourseInstructorSelect();
+                })
+                .catch(function() {
+                    document.getElementById('instructorsTableBody').innerHTML =
+                        '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">강사 목록을 불러오지 못했습니다.</td></tr>';
+                });
+        }
+
+        function renderInstructorsTable() {
+            var body = document.getElementById('instructorsTableBody');
+            if (!_instructorsCache.length) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">등록된 강사가 없습니다.</td></tr>';
+                return;
+            }
+            body.innerHTML = _instructorsCache.map(function(ins) {
+                var bonus = ins.over_capacity_bonus_rate ? Math.round(ins.over_capacity_bonus_rate * 100) + '%' : '-';
+                var statusBadge = ins.is_active
+                    ? '<span style="color:#27ae60;font-weight:600;">활성</span>'
+                    : '<span style="color:#999;">비활성</span>';
+                return (
+                    '<tr>' +
+                    '<td>' + escapeHtml(ins.name) + '</td>' +
+                    '<td>' + Math.round(ins.base_rate * 100) + '%</td>' +
+                    '<td>' + bonus + '</td>' +
+                    '<td>' + escapeHtml(ins.bank_name || '-') + '</td>' +
+                    '<td>' + escapeHtml(ins.bank_account || '-') + '</td>' +
+                    '<td>' + escapeHtml(ins.account_holder || '-') + '</td>' +
+                    '<td>' + statusBadge + '</td>' +
+                    '<td>' +
+                      '<button onclick="openInstructorModal(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
+                      (ins.is_active ? '<button onclick="deleteInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">비활성화</button>' : '') +
+                    '</td>' +
+                    '</tr>'
+                );
+            }).join('');
+        }
+
+        function populateCourseInstructorSelect() {
+            var sel = document.getElementById('courseInstructorId');
+            var current = sel.value;
+            sel.innerHTML = '<option value="">선택 안 함</option>' +
+                _instructorsCache.filter(function(i) { return i.is_active; }).map(function(i) {
+                    return '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>';
+                }).join('');
+            sel.value = current;
+        }
+
+        function openInstructorModal(id) {
+            var modal = document.getElementById('instructorModal');
+            document.getElementById('instructorId').value = id || '';
+            if (id) {
+                var ins = _instructorsCache.find(function(i) { return i.id === id; });
+                document.getElementById('instructorModalTitle').textContent = '강사 수정';
+                document.getElementById('instructorName').value = ins ? ins.name : '';
+                document.getElementById('instructorBaseRate').value = ins ? Math.round(ins.base_rate * 100) : '';
+                document.getElementById('instructorBonusRate').value = (ins && ins.over_capacity_bonus_rate) ? Math.round(ins.over_capacity_bonus_rate * 100) : '';
+                document.getElementById('instructorBankName').value = ins ? (ins.bank_name || '') : '';
+                document.getElementById('instructorBankAccount').value = ins ? (ins.bank_account || '') : '';
+                document.getElementById('instructorAccountHolder').value = ins ? (ins.account_holder || '') : '';
+            } else {
+                document.getElementById('instructorModalTitle').textContent = '강사 등록';
+                ['instructorName','instructorBaseRate','instructorBonusRate','instructorBankName','instructorBankAccount','instructorAccountHolder'].forEach(function(elId) {
+                    document.getElementById(elId).value = '';
+                });
+            }
+            modal.style.display = 'flex';
+        }
+
+        function closeInstructorModal() {
+            document.getElementById('instructorModal').style.display = 'none';
+        }
+
+        function saveInstructor() {
+            var id = document.getElementById('instructorId').value;
+            var name = document.getElementById('instructorName').value.trim();
+            var baseRatePct = parseFloat(document.getElementById('instructorBaseRate').value);
+            var bonusRatePct = document.getElementById('instructorBonusRate').value;
+
+            if (!name || isNaN(baseRatePct)) {
+                showAlert('강사명과 기본 요율을 입력해주세요.', 'error');
+                return;
+            }
+
+            var payload = {
+                name: name,
+                base_rate: baseRatePct / 100,
+                over_capacity_bonus_rate: bonusRatePct ? (parseFloat(bonusRatePct) / 100) : null,
+                bank_name: document.getElementById('instructorBankName').value.trim(),
+                bank_account: document.getElementById('instructorBankAccount').value.trim(),
+                account_holder: document.getElementById('instructorAccountHolder').value.trim(),
+            };
+
+            var req = id ? api('PUT', '/api/instructors/' + id, payload) : api('POST', '/api/instructors', payload);
+            req.then(function(r) {
+                if (r && r.success) {
+                    showAlert(r.message || '저장되었습니다.', 'success');
+                    closeInstructorModal();
+                    loadInstructors();
+                } else {
+                    showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
+                }
+            }).catch(function(e) {
+                showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        function deleteInstructor(id) {
+            if (!confirm('이 강사를 비활성화하시겠습니까? (완전 삭제되지 않고, 목록에서 흐리게 표시됩니다)')) return;
+            api('DELETE', '/api/instructors/' + id).then(function(r) {
+                showAlert((r && r.message) || '처리되었습니다.', 'success');
+                loadInstructors();
+            }).catch(function() {
+                showAlert('처리 중 오류가 발생했습니다.', 'error');
+            });
+        }
+
+        // ----- 강좌 관리 -----
+        var _coursesCache = [];
+
+        function loadCohorts() {
+            return api('GET', '/api/courses/cohorts').then(function(r) {
+                var sel = document.getElementById('courseCohortFilter');
+                var current = sel.value;
+                var cohorts = (r && r.cohorts) || [];
+                sel.innerHTML = '<option value="">전체 차수</option>' +
+                    cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
+                sel.value = current;
+            }).catch(function() {});
+        }
+
+        function loadCourses() {
+            var cohort = document.getElementById('courseCohortFilter').value;
+            var qs = cohort ? ('?cohort=' + encodeURIComponent(cohort)) : '';
+            return api('GET', '/api/courses' + qs).then(function(r) {
+                _coursesCache = (r && r.courses) || [];
+                renderCoursesTable();
+            }).catch(function() {
+                document.getElementById('coursesTableBody').innerHTML =
+                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">강좌 목록을 불러오지 못했습니다.</td></tr>';
+            });
+        }
+
+        function renderCoursesTable() {
+            var body = document.getElementById('coursesTableBody');
+            if (!_coursesCache.length) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">등록된 강좌가 없습니다.</td></tr>';
+                return;
+            }
+            body.innerHTML = _coursesCache.map(function(c) {
+                return (
+                    '<tr>' +
+                    '<td>' + escapeHtml(c.cohort) + '</td>' +
+                    '<td>' + escapeHtml(c.course_code) + '</td>' +
+                    '<td>' + escapeHtml(c.course_name) + '</td>' +
+                    '<td>' + escapeHtml(c.instructor_name || '-') + '</td>' +
+                    '<td>' + Number(c.fee_per_student).toLocaleString() + '원</td>' +
+                    '<td>' + (c.capacity ?? '-') + '</td>' +
+                    '<td>' + c.session_total + '회</td>' +
+                    '<td>' +
+                      '<button onclick="openCourseModal(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
+                      '<button onclick="deleteCourse(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
+                    '</td>' +
+                    '</tr>'
+                );
+            }).join('');
+        }
+
+        function openCourseModal(id) {
+            populateCourseInstructorSelect();
+            var modal = document.getElementById('courseModal');
+            document.getElementById('courseId').value = id || '';
+            if (id) {
+                var c = _coursesCache.find(function(x) { return x.id === id; });
+                document.getElementById('courseModalTitle').textContent = '강좌 수정';
+                document.getElementById('courseCohort').value = c ? c.cohort : '';
+                document.getElementById('courseCohort').disabled = true; // 수정 시 차수/코드는 고정 (정산 연동 키)
+                document.getElementById('courseCode').value = c ? c.course_code : '';
+                document.getElementById('courseCode').disabled = true;
+                document.getElementById('courseEnrollmentCode').value = c ? (c.enrollment_code || '') : '';
+                document.getElementById('courseName').value = c ? c.course_name : '';
+                document.getElementById('courseInstructorId').value = c && c.instructor_id ? c.instructor_id : '';
+                document.getElementById('courseClassTime').value = c ? (c.class_time || '') : '';
+                document.getElementById('courseFee').value = c ? c.fee_per_student : '';
+                document.getElementById('courseSessionTotal').value = c ? c.session_total : 12;
+                document.getElementById('courseCapacity').value = c ? (c.capacity || '') : '';
+            } else {
+                document.getElementById('courseModalTitle').textContent = '강좌 등록';
+                document.getElementById('courseCohort').disabled = false;
+                document.getElementById('courseCode').disabled = false;
+                ['courseCohort','courseCode','courseEnrollmentCode','courseName','courseClassTime','courseFee','courseCapacity'].forEach(function(elId) {
+                    document.getElementById(elId).value = '';
+                });
+                document.getElementById('courseInstructorId').value = '';
+                document.getElementById('courseSessionTotal').value = 12;
+                // 필터에 선택된 차수가 있으면 기본값으로 채워줌
+                var filterCohort = document.getElementById('courseCohortFilter').value;
+                if (filterCohort) document.getElementById('courseCohort').value = filterCohort;
+            }
+            modal.style.display = 'flex';
+        }
+
+        function closeCourseModal() {
+            document.getElementById('courseModal').style.display = 'none';
+        }
+
+        function saveCourse() {
+            var id = document.getElementById('courseId').value;
+            var payload = {
+                cohort: document.getElementById('courseCohort').value.trim(),
+                course_code: document.getElementById('courseCode').value.trim(),
+                enrollment_code: document.getElementById('courseEnrollmentCode').value.trim(),
+                course_name: document.getElementById('courseName').value.trim(),
+                instructor_id: document.getElementById('courseInstructorId').value || null,
+                class_time: document.getElementById('courseClassTime').value.trim(),
+                fee_per_student: parseInt(document.getElementById('courseFee').value, 10),
+                session_total: parseInt(document.getElementById('courseSessionTotal').value, 10) || 12,
+                capacity: document.getElementById('courseCapacity').value ? parseInt(document.getElementById('courseCapacity').value, 10) : null,
+            };
+
+            if (!payload.cohort || !payload.course_code || !payload.course_name || !payload.fee_per_student) {
+                showAlert('차수, 강좌코드, 강좌명, 회원비는 필수입니다.', 'error');
+                return;
+            }
+
+            var req = id ? api('PUT', '/api/courses/' + id, payload) : api('POST', '/api/courses', payload);
+            req.then(function(r) {
+                if (r && r.success) {
+                    showAlert(r.message || '저장되었습니다.', 'success');
+                    closeCourseModal();
+                    loadCohorts();
+                    loadCourses();
+                } else {
+                    showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
+                }
+            }).catch(function(e) {
+                showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        function deleteCourse(id) {
+            if (!confirm('이 강좌를 삭제하시겠습니까?')) return;
+            api('DELETE', '/api/courses/' + id).then(function(r) {
+                if (r && r.success) {
+                    showAlert(r.message || '삭제되었습니다.', 'success');
+                    loadCourses();
+                } else {
+                    showAlert((r && r.message) || '삭제에 실패했습니다.', 'error');
+                }
+            }).catch(function(e) {
+                showAlert('삭제 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
         // 부서회비 탭(updateDuesTabVisibility)과 동일한 패턴 — 꺼져 있으면 탭 버튼 자체를 숨기고,
         // 혹시 그 탭이 열려 있는 상태로 꺼졌다면 거래등록 탭으로 이동시킵니다.
         function updateFundsTabVisibility() {
@@ -9376,6 +9790,7 @@
                         loadDuesTabName();
                         loadDashboard();
                         loadDoubleEntryFlag();
+                        loadModuleConfig();
                         api('GET', '/api/dues').then(r => {
                             _duesData = r.data || [];
                             updateDuesTabVisibility();
@@ -9805,6 +10220,8 @@
                 loadSettingsTab();
             } else if (tabName === 'batchApproval') {
                 loadBatchApprovalTab();
+            } else if (tabName === 'instructorsettlement') {
+                initInstructorSettlementTab();
             } else if (tabName === 'approval') {
                 // 전자결재 탭 - 즉시 섹션 표시
                 document.querySelectorAll('.approval-section').forEach(function(s) {
