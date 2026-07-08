@@ -4658,8 +4658,12 @@
                       </select>
                     </label>
                   </div>
-                  <label style="font-size:12.5px;color:#555;">거주지 (예: 동작구)
-                    <input id="enrollmentRegion" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                  <label style="font-size:12.5px;color:#555;">교인 여부
+                    <select id="enrollmentRegion" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                      <option value="">미확인</option>
+                      <option value="교인">교인</option>
+                      <option value="비교인">비교인</option>
+                    </select>
                   </label>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
@@ -4811,7 +4815,7 @@
                   </div>
                 </div>
 
-                <!-- 인사이트: 거주지/성별/연령대 통계 (사용빈도가 낮아 버튼 클릭 시에만 조회 -> API 호출 절약) -->
+                <!-- 인사이트: 교인여부/성별/연령대 통계 (사용빈도가 낮아 버튼 클릭 시에만 조회 -> API 호출 절약) -->
                 <div class="card" style="margin-top:16px;">
                   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                     <h3 style="margin:0;font-size:14.5px;">📊 회원 통계 <span id="memberStatsTotal" style="color:#999;font-weight:400;font-size:12px;"></span></h3>
@@ -4827,7 +4831,7 @@
                         </div>
                       </div>
                       <div style="flex:1;min-width:220px;">
-                        <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">거주지</div>
+                        <div style="text-align:center;font-size:12.5px;color:#666;margin-bottom:4px;">교인 여부</div>
                         <div style="position:relative;height:160px;">
                           <canvas id="memberRegionChart"></canvas>
                         </div>
@@ -9933,14 +9937,26 @@
         }
 
         // ----- 회원 결제내역 엑셀 일괄 등록 (지난 회원 정보 입력용) -----
+
+        // 엑셀에서 "교인여부" 칸에 사람마다 제각각 적을 수 있는 값들을
+        // "교인"/"비교인" 두 가지로 최대한 자동 정리합니다.
+        // 어느 쪽에도 안 걸리는 값은 원문 그대로 저장해서 나중에 확인할 수 있게 합니다.
+        function normalizeChurchMemberValue(raw) {
+            var s = String(raw || '').trim();
+            if (!s) return null;
+            if (/^(교인|성도|신자|o|y|예|1|맞음)$/i.test(s)) return '교인';
+            if (/^(비교인|외부인|타교회|비신자|x|n|아니오|0|아님)$/i.test(s)) return '비교인';
+            return s;
+        }
+
         function downloadEnrollmentTemplate() {
             var course = _coursesCache.find(function(c) { return c.id === _currentCourseDetailId; });
             var sessionTotal = course ? course.session_total : 12;
 
             var aoa = [
-                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '거주지'],
-                ['홍길동', '010-1234-5678', 90000, sessionTotal, 'N', '', '', '1980-05-12', '남', '동작구'],
-                ['김철수', '010-2345-6789', 82500, sessionTotal - 1, 'N', '', '49기 생활일본어', '', '', ''],
+                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '교인여부(교인/비교인)'],
+                ['홍길동', '010-1234-5678', 90000, sessionTotal, 'N', '', '', '1980-05-12', '남', '교인'],
+                ['김철수', '010-2345-6789', 82500, sessionTotal - 1, 'N', '', '49기 생활일본어', '', '', '비교인'],
                 ['이영희', '010-3456-7890', 0, sessionTotal, 'Y', 4, '', '', '', ''],
             ];
             var ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -9985,7 +10001,7 @@
                             existing_member_note: String(row['이력메모'] || '').trim() || null,
                             birth_date: String(row['생년월일'] || '').trim() || null,
                             gender: String(row['성별'] || '').trim() || null,
-                            region: String(row['거주지'] || '').trim() || null,
+                            region: normalizeChurchMemberValue(row['교인여부(교인/비교인)'] || row['교인여부'] || row['거주지'] || ''),
                         });
                     });
 
@@ -10314,7 +10330,7 @@
             return listPromise;
         }
 
-        // ----- 거주지/성별/연령대 통계 차트 (버튼 클릭 시에만 조회) -----
+        // ----- 교인여부/성별/연령대 통계 차트 (버튼 클릭 시에만 조회) -----
         var _memberGenderChart = null;
         var _memberRegionChart = null;
         var _memberAgeChart = null;
@@ -10462,7 +10478,7 @@
                     ['연락처', p.phone || '-'],
                     ['생년월일', p.birthDate ? String(p.birthDate).slice(0, 10) : '-'],
                     ['성별', p.gender || '-'],
-                    ['거주지', p.region || '-'],
+                    ['교인 여부', p.region || '미확인'],
                 ];
                 var infoHtml = '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">' +
                     infoRows.map(function(row) {
@@ -10583,9 +10599,9 @@
         // ----- 과거 차수 회원 일괄 이관 (일시적 기능) -----
         function downloadMemberImportTemplate() {
             var aoa = [
-                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '거주지'],
-                ['49기', '생활 일본어', '임지영', '박미선', '010-1234-5678', 90000, 12, 'N', '', '', '1978-06-25', '여', '용산구'],
-                ['50기', '다시 배우는 영어(초급)', '이미혜', '홍소라', '010-2345-6789', 90000, 12, 'N', '', '', '', '', ''],
+                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '교인여부(교인/비교인)'],
+                ['49기', '생활 일본어', '임지영', '박미선', '010-1234-5678', 90000, 12, 'N', '', '', '1978-06-25', '여', '교인'],
+                ['50기', '다시 배우는 영어(초급)', '이미혜', '홍소라', '010-2345-6789', 90000, 12, 'N', '', '', '', '', '비교인'],
                 ['50기', '다시 배우는 영어(초급)', '이미혜', '김찬호', '010-3456-7890', 90000, 11, 'Y', 4, '', '', '', ''],
             ];
             var ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -10632,7 +10648,7 @@
                             existing_member_note: String(row['이력메모'] || '').trim() || null,
                             birth_date: String(row['생년월일'] || '').trim() || null,
                             gender: String(row['성별'] || '').trim() || null,
-                            region: String(row['거주지'] || '').trim() || null,
+                            region: normalizeChurchMemberValue(row['교인여부(교인/비교인)'] || row['교인여부'] || row['거주지'] || ''),
                         });
                     });
 
