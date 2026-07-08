@@ -10262,8 +10262,11 @@
         }
 
         function handleEnrollmentUpload(event) {
-            var file = event.target.files[0];
+            var triggerInput = event.target;
+            if (triggerInput.disabled) return; // 처리 중 중복 실행 방지
+            var file = triggerInput.files[0];
             if (!file || !_currentCourseDetailId) return;
+            triggerInput.disabled = true;
 
             var reader = new FileReader();
             reader.onload = function(e) {
@@ -10301,14 +10304,18 @@
 
                     if (!enrollments.length) {
                         showAlert('업로드할 회원 데이터가 없습니다. 템플릿 형식을 확인해주세요.', 'error');
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                         return;
                     }
 
-                    var confirmMsg = enrollments.length + '명을 이 강좌에 일괄 등록하시겠습니까?' +
-                        (skippedRows.length ? ('\n(제외된 행: ' + skippedRows.length + '건 - 회원명 누락)') : '');
+                    var skippedDetail = skippedRows.length
+                        ? ('\n\n[제외된 ' + skippedRows.length + '건]\n' + skippedRows.slice(0, 10).join('\n') + (skippedRows.length > 10 ? '\n...외 ' + (skippedRows.length - 10) + '건' : ''))
+                        : '';
+                    var confirmMsg = enrollments.length + '명을 이 강좌에 일괄 등록하시겠습니까?' + skippedDetail;
                     if (!confirm(confirmMsg)) {
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                         return;
                     }
 
@@ -10319,15 +10326,23 @@
                         } else {
                             showAlert((r && r.message) || '일괄 등록에 실패했습니다.', 'error');
                         }
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                     }).catch(function(err) {
                         showAlert('업로드 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                     });
                 } catch (err) {
                     showAlert('엑셀 파일을 읽는 중 오류가 발생했습니다. 템플릿 형식을 확인해주세요.', 'error');
-                    event.target.value = '';
+                    triggerInput.value = '';
+                    triggerInput.disabled = false;
                 }
+            };
+            reader.onerror = function() {
+                showAlert('파일을 읽지 못했습니다. 다시 시도해주세요.', 'error');
+                triggerInput.value = '';
+                triggerInput.disabled = false;
             };
             reader.readAsArrayBuffer(file);
         }
@@ -10907,8 +10922,11 @@
         }
 
         function handleMemberImportUpload(event) {
-            var file = event.target.files[0];
+            var triggerInput = event.target;
+            if (triggerInput.disabled) return; // 처리 중 중복 실행 방지
+            var file = triggerInput.files[0];
             if (!file) return;
+            triggerInput.disabled = true;
 
             var reader = new FileReader();
             reader.onload = function(e) {
@@ -10925,7 +10943,11 @@
                         var cohort = String(row['차수'] || '').trim();
                         var courseName = String(row['강좌명'] || '').trim();
                         if (!memberName || !cohort || !courseName) {
-                            skippedRows.push((idx + 2) + '행: 차수/강좌명/회원명 중 누락');
+                            var missing = [];
+                            if (!cohort) missing.push('차수');
+                            if (!courseName) missing.push('강좌명');
+                            if (!memberName) missing.push('회원명');
+                            skippedRows.push((idx + 2) + '행: ' + missing.join('/') + ' 누락');
                             return;
                         }
                         var isRefunded = String(row['환불여부(Y/N)'] || row['환불여부'] || '').trim().toUpperCase() === 'Y';
@@ -10948,15 +10970,20 @@
 
                     if (!rows.length) {
                         showAlert('가져올 데이터가 없습니다. 템플릿 형식을 확인해주세요.', 'error');
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                         return;
                     }
 
+                    var skippedDetail = skippedRows.length
+                        ? ('\n\n[제외된 ' + skippedRows.length + '건]\n' + skippedRows.slice(0, 10).join('\n') + (skippedRows.length > 10 ? '\n...외 ' + (skippedRows.length - 10) + '건' : ''))
+                        : '';
                     var confirmMsg = rows.length + '명의 회원 데이터를 반영하시겠습니까?\n' +
                         '(엑셀에 없는 차수/강좌는 자동 생성되며, 자동 생성된 강사의 요율은 기본값 60%로 채워집니다)' +
-                        (skippedRows.length ? ('\n제외된 행: ' + skippedRows.length + '건') : '');
+                        skippedDetail;
                     if (!confirm(confirmMsg)) {
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                         return;
                     }
 
@@ -10973,15 +11000,23 @@
                         } else {
                             showAlert((r && r.message) || '반영에 실패했습니다.', 'error');
                         }
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                     }).catch(function(err) {
                         showAlert('반영 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
-                        event.target.value = '';
+                        triggerInput.value = '';
+                        triggerInput.disabled = false;
                     });
                 } catch (err) {
                     showAlert('엑셀 파일을 읽는 중 오류가 발생했습니다. 템플릿 형식을 확인해주세요.', 'error');
-                    event.target.value = '';
+                    triggerInput.value = '';
+                    triggerInput.disabled = false;
                 }
+            };
+            reader.onerror = function() {
+                showAlert('파일을 읽지 못했습니다. 다시 시도해주세요.', 'error');
+                triggerInput.value = '';
+                triggerInput.disabled = false;
             };
             reader.readAsArrayBuffer(file);
         }
