@@ -4783,6 +4783,30 @@
               </div>
             </div>
 
+            <!-- 강좌 이력 모달 (같은 강좌명으로 지난 차수들을 모아서 보여줌) -->
+            <div id="courseHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:94%;max-width:900px;max-height:88vh;overflow-y:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <h3 id="courseHistoryTitle" style="margin:0;">📈 강좌 이력</h3>
+                  <button onclick="closeCourseHistoryModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
+                </div>
+                <p id="courseHistorySummary" style="color:#999;font-size:12.5px;margin:0 0 14px;"></p>
+                <div style="overflow-x:auto;">
+                  <table class="table" style="width:100%;">
+                    <thead>
+                      <tr>
+                        <th>차수</th><th>강사</th><th>회원비</th><th>등록인원</th><th>강사료</th><th>입금액</th><th>정산상태</th><th>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody id="courseHistoryBody"></tbody>
+                  </table>
+                </div>
+                <div style="margin-top:20px;">
+                  <button onclick="closeCourseHistoryModal()" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
+                </div>
+              </div>
+            </div>
+
             <!-- 일괄 정산 결과 모달 -->
             <div id="batchSettlementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
@@ -9618,6 +9642,72 @@
             });
         }
 
+        // HTML onclick 속성(작은따옴표로 감쌈) 안에 안전하게 문자열을 넣기 위한 헬퍼.
+        // JSON.stringify로 큰따옴표 문자열을 만들고, 혹시 모를 작은따옴표만 별도로 이스케이프합니다.
+        function jsAttr(str) {
+            return JSON.stringify(str || '').replace(/'/g, "\\u0027");
+        }
+
+        function parseCohortNum(c) {
+            var m = String(c || '').match(/(\d+)/);
+            return m ? parseInt(m[1], 10) : -1;
+        }
+
+        // ----- 강좌 이력 조회 (같은 강좌명으로 지난 차수들을 모아서 보여줌) -----
+        function openCourseHistoryModal(courseName) {
+            document.getElementById('courseHistoryTitle').textContent = '📈 강좌 이력: ' + courseName;
+            document.getElementById('courseHistorySummary').textContent = '';
+            document.getElementById('courseHistoryBody').innerHTML =
+                '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+            document.getElementById('courseHistoryModal').style.display = 'flex';
+
+            api('GET', '/api/courses').then(function(r) {
+                var all = (r && r.courses) || [];
+                var target = String(courseName || '').trim();
+                var matched = all.filter(function(c) { return String(c.course_name || '').trim() === target; });
+                matched.sort(function(a, b) { return parseCohortNum(b.cohort) - parseCohortNum(a.cohort); });
+
+                if (!matched.length) {
+                    document.getElementById('courseHistoryBody').innerHTML =
+                        '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">이력이 없습니다.</td></tr>';
+                    return;
+                }
+
+                // 각 차수의 저장된 정산 결과도 함께 가져와서 강사료/입금액을 보여줍니다 (미정산이면 '-')
+                Promise.all(matched.map(function(c) {
+                    return api('GET', '/api/settlements/' + c.id).catch(function() { return null; });
+                })).then(function(settlementResults) {
+                    var totalEnrolled = matched.reduce(function(sum, c) { return sum + (c.enrolled_count || 0); }, 0);
+                    document.getElementById('courseHistorySummary').textContent =
+                        '총 ' + matched.length + '개 차수 · 누적 수강생 ' + totalEnrolled + '명';
+
+                    document.getElementById('courseHistoryBody').innerHTML = matched.map(function(c, i) {
+                        var s = settlementResults[i] && settlementResults[i].settlement;
+                        var statusBadge = c.is_closed
+                            ? '<span style="color:#999;">폐강</span>'
+                            : '<span style="color:#27ae60;">진행</span>';
+                        return '<tr>' +
+                            '<td>' + escapeHtml(c.cohort) + '</td>' +
+                            '<td>' + escapeHtml(c.instructor_name || '-') + '</td>' +
+                            '<td>' + Number(c.fee_per_student).toLocaleString() + '원</td>' +
+                            '<td>' + (c.enrolled_count ?? 0) + '명</td>' +
+                            '<td>' + (s ? Number(s.instructor_fee).toLocaleString() + '원' : '-') + '</td>' +
+                            '<td>' + (s ? Number(s.deposit_amount).toLocaleString() + '원' : '-') + '</td>' +
+                            '<td>' + (s ? s.voucher_status : '미정산') + '</td>' +
+                            '<td>' + statusBadge + '</td>' +
+                            '</tr>';
+                    }).join('');
+                });
+            }).catch(function() {
+                document.getElementById('courseHistoryBody').innerHTML =
+                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
+            });
+        }
+
+        function closeCourseHistoryModal() {
+            document.getElementById('courseHistoryModal').style.display = 'none';
+        }
+
         function renderCoursesTable() {
             var body = document.getElementById('coursesTableBody');
             if (!_coursesCache.length) {
@@ -9628,7 +9718,7 @@
                 var closedBadge = c.is_closed
                     ? ' <span style="color:#fff;background:#999;font-size:11px;padding:2px 6px;border-radius:4px;">폐강</span>'
                     : '';
-                var nameCell = escapeHtml(c.course_name) + closedBadge +
+                var nameCell = '<a href="javascript:void(0)" onclick=\'openCourseHistoryModal(' + jsAttr(c.course_name) + ')\' style="color:#2980b9;text-decoration:underline;cursor:pointer;">' + escapeHtml(c.course_name) + '</a>' + closedBadge +
                     (c.is_closed && c.closed_reason ? '<div style="color:#999;font-size:11px;margin-top:2px;">사유: ' + escapeHtml(c.closed_reason) + '</div>' : '');
 
                 var enrolledCount = c.enrolled_count ?? 0;
