@@ -4551,6 +4551,7 @@
                         <option value="">전체 차수</option>
                       </select>
                       <button onclick="runBatchSettlement()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">📊 선택 차수 일괄 정산</button>
+                      <button onclick="openCopyCoursesModal()" style="padding:8px 14px;border-radius:8px;border:1px solid #16a085;background:#fff;color:#16a085;font-size:13px;font-weight:600;cursor:pointer;">📋 이전 차수 강좌 복사</button>
                       <button class="btn" onclick="openCourseModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강좌 등록</button>
                     </div>
                   </div>
@@ -4748,6 +4749,34 @@
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeCourseModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
                   <button id="courseSaveBtn" onclick="saveCourse()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 이전 차수 강좌 복사 모달 -->
+            <div id="copyCoursesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
+                <h3 style="margin:0 0 16px;">📋 이전 차수 강좌 복사</h3>
+                <p style="color:#666;font-size:12.5px;margin:0 0 14px;">
+                  강좌명·담당강사·회원비 등은 그대로 복사되고, <b>회원 명단은 복사되지 않습니다</b> (새 차수는 항상 새 등록으로 시작).
+                  이어가지 않는 강좌는 체크를 해제해주세요.
+                </p>
+                <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                  <label style="flex:1;min-width:140px;font-size:12.5px;color:#555;">원본 차수
+                    <select id="copyCoursesSourceCohort" onchange="loadCopyCoursesSourceList()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                      <option value="">선택하세요</option>
+                    </select>
+                  </label>
+                  <label style="flex:1;min-width:140px;font-size:12.5px;color:#555;">새 차수명 * (예: 53기)
+                    <input id="copyCoursesTargetCohort" placeholder="53기" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                  </label>
+                </div>
+                <div id="copyCoursesListWrap" style="border:1px solid #eee;border-radius:8px;padding:10px;max-height:300px;overflow-y:auto;font-size:13px;color:#999;">
+                  원본 차수를 먼저 선택하세요.
+                </div>
+                <div style="display:flex;gap:8px;margin-top:20px;">
+                  <button onclick="closeCopyCoursesModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
+                  <button id="copyCoursesSaveBtn" onclick="submitCopyCourses()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#16a085;color:#fff;font-weight:600;font-size:13.5px;">선택한 강좌 복사하기</button>
                 </div>
               </div>
             </div>
@@ -9689,6 +9718,130 @@
 
         function closeCourseModal() {
             document.getElementById('courseModal').style.display = 'none';
+        }
+
+        // ----- 이전 차수 강좌 복사 (강좌명/강사/회원비 등은 복사, 회원 명단은 복사 안 함) -----
+        var _copyCoursesSourceList = [];
+
+        function openCopyCoursesModal() {
+            var filterSel = document.getElementById('courseCohortFilter');
+            var sourceSel = document.getElementById('copyCoursesSourceCohort');
+            var optionsHtml = Array.prototype.slice.call(filterSel.options)
+                .filter(function(o) { return o.value; })
+                .map(function(o) { return '<option value="' + escapeHtml(o.value) + '">' + escapeHtml(o.textContent) + '</option>'; })
+                .join('');
+            sourceSel.innerHTML = '<option value="">선택하세요</option>' + optionsHtml;
+            document.getElementById('copyCoursesTargetCohort').value = '';
+            document.getElementById('copyCoursesListWrap').innerHTML = '원본 차수를 먼저 선택하세요.';
+            document.getElementById('copyCoursesListWrap').style.color = '#999';
+            _copyCoursesSourceList = [];
+            document.getElementById('copyCoursesModal').style.display = 'flex';
+        }
+
+        function closeCopyCoursesModal() {
+            document.getElementById('copyCoursesModal').style.display = 'none';
+        }
+
+        function loadCopyCoursesSourceList() {
+            var cohort = document.getElementById('copyCoursesSourceCohort').value;
+            var wrap = document.getElementById('copyCoursesListWrap');
+            if (!cohort) {
+                wrap.innerHTML = '원본 차수를 먼저 선택하세요.';
+                wrap.style.color = '#999';
+                _copyCoursesSourceList = [];
+                return;
+            }
+            wrap.innerHTML = '불러오는 중...';
+            wrap.style.color = '#999';
+            api('GET', '/api/courses?cohort=' + encodeURIComponent(cohort)).then(function(r) {
+                _copyCoursesSourceList = (r && r.courses) || [];
+                if (!_copyCoursesSourceList.length) {
+                    wrap.innerHTML = '이 차수에는 강좌가 없습니다.';
+                    return;
+                }
+                wrap.style.color = '#333';
+                wrap.innerHTML = _copyCoursesSourceList.map(function(c, idx) {
+                    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f2f2f2;font-size:13px;">' +
+                        '<input type="checkbox" class="copyCourseCheckbox" data-idx="' + idx + '" checked>' +
+                        '<span style="flex:1;">' + escapeHtml(c.course_name) +
+                        '<span style="color:#999;"> · ' + escapeHtml(c.instructor_name || '강사 미지정') + ' · ' + Number(c.fee_per_student).toLocaleString() + '원</span></span>' +
+                        '</label>';
+                }).join('');
+            }).catch(function() {
+                wrap.innerHTML = '<span style="color:#e74c3c;">강좌 목록을 불러오지 못했습니다.</span>';
+            });
+        }
+
+        function submitCopyCourses() {
+            var saveBtn = document.getElementById('copyCoursesSaveBtn');
+            if (saveBtn.disabled) return;
+
+            var targetCohort = document.getElementById('copyCoursesTargetCohort').value.trim();
+            var sourceCohort = document.getElementById('copyCoursesSourceCohort').value;
+
+            if (!sourceCohort) {
+                showAlert('원본 차수를 선택해주세요.', 'error');
+                return;
+            }
+            if (!targetCohort) {
+                showAlert('새 차수명을 입력해주세요.', 'error');
+                return;
+            }
+            if (targetCohort === sourceCohort) {
+                showAlert('새 차수명은 원본 차수와 달라야 합니다.', 'error');
+                return;
+            }
+
+            var checkedIdxs = Array.prototype.slice.call(document.querySelectorAll('.copyCourseCheckbox:checked'))
+                .map(function(cb) { return parseInt(cb.getAttribute('data-idx'), 10); });
+            if (!checkedIdxs.length) {
+                showAlert('복사할 강좌를 하나 이상 선택해주세요.', 'error');
+                return;
+            }
+
+            if (!confirm(sourceCohort + '의 강좌 ' + checkedIdxs.length + '개를 "' + targetCohort + '"(으)로 복사하시겠습니까?\n(회원 명단은 복사되지 않고, 강좌 정보만 복사됩니다)')) return;
+
+            saveBtn.disabled = true;
+            var origBtnText = saveBtn.textContent;
+            saveBtn.textContent = '복사 중...';
+
+            var toCopy = checkedIdxs.map(function(i) { return _copyCoursesSourceList[i]; });
+            var succeeded = [];
+            var failed = [];
+
+            var chain = Promise.resolve();
+            toCopy.forEach(function(c) {
+                chain = chain.then(function() {
+                    return api('POST', '/api/courses', {
+                        cohort: targetCohort,
+                        course_name: c.course_name,
+                        instructor_id: c.instructor_id || null,
+                        class_time: c.class_time || '',
+                        fee_per_student: c.fee_per_student,
+                        session_total: c.session_total,
+                        capacity: c.capacity || null,
+                        is_new_course: false,
+                        start_date: null,
+                    }).then(function(r) {
+                        if (r && r.success) succeeded.push(c.course_name);
+                        else failed.push(c.course_name + ' (' + ((r && r.message) || '실패') + ')');
+                    }).catch(function(e) {
+                        failed.push(c.course_name + ' (' + (e && e.message ? e.message : '오류') + ')');
+                    });
+                });
+            });
+
+            chain.then(function() {
+                var msg = succeeded.length + '개 강좌가 "' + targetCohort + '"(으)로 복사되었습니다.' +
+                    (failed.length ? ('\n실패: ' + failed.join(', ')) : '');
+                showAlert(msg, failed.length ? 'error' : 'success');
+                closeCopyCoursesModal();
+                loadCohorts();
+                loadCourses();
+            }).finally(function() {
+                saveBtn.disabled = false;
+                saveBtn.textContent = origBtnText;
+            });
         }
 
         function saveCourse() {
