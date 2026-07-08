@@ -4757,15 +4757,21 @@
                   </div>
                 </div>
 
-                <!-- 인사이트: 이번달 생일자 + 이탈위험 회원 -->
+                <!-- 인사이트: 이번달 생일자 + 이탈위험 회원 (API 호출 절약을 위해 버튼 클릭 시에만 조회) -->
                 <div class="card" style="margin-bottom:16px;display:flex;gap:16px;flex-wrap:wrap;">
                   <div style="flex:1;min-width:260px;">
-                    <h3 style="margin:0 0 8px;font-size:14.5px;">🎂 이번 달 생일 회원</h3>
-                    <div id="birthdayListWrap" style="font-size:13px;color:#aaa;">불러오는 중...</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <h3 style="margin:0;font-size:14.5px;">🎂 이번 달 생일 회원</h3>
+                      <button onclick="loadBirthdays()" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:11.5px;font-weight:600;cursor:pointer;">🔍 조회</button>
+                    </div>
+                    <div id="birthdayListWrap" style="font-size:13px;color:#aaa;">조회 버튼을 눌러주세요.</div>
                   </div>
                   <div style="flex:1;min-width:260px;border-left:1px solid #eee;padding-left:16px;">
-                    <h3 style="margin:0 0 8px;font-size:14.5px;">⚠️ 재등록 유도 대상 (이탈위험)</h3>
-                    <div id="dropoutRiskWrap" style="font-size:13px;color:#aaa;">불러오는 중...</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <h3 style="margin:0;font-size:14.5px;">⚠️ 재등록 유도 대상 (이탈위험)</h3>
+                      <button onclick="loadDropoutRisk()" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:11.5px;font-weight:600;cursor:pointer;">🔍 조회</button>
+                    </div>
+                    <div id="dropoutRiskWrap" style="font-size:13px;color:#aaa;">조회 버튼을 눌러주세요.</div>
                   </div>
                 </div>
 
@@ -9174,6 +9180,7 @@
         var _instructorsCache = [];
         var _instructorCohortDefaulted = false;
         var _courseCohortDefaulted = false;
+        var _memberCohortDefaulted = false;
 
         function getLatestCohort(cohorts) {
             var best = null, bestNum = -1;
@@ -9427,7 +9434,12 @@
                 var memberCurrent = memberSel.value;
                 memberSel.innerHTML = '<option value="">전체 차수</option>' +
                     cohorts.map(function(c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>'; }).join('');
-                memberSel.value = memberCurrent;
+                if (!_memberCohortDefaulted) {
+                    memberSel.value = latest || '';
+                    _memberCohortDefaulted = true;
+                } else {
+                    memberSel.value = memberCurrent;
+                }
             }).catch(function() {});
         }
 
@@ -11611,10 +11623,9 @@
             } else if (tabName === 'instructorsettlement') {
                 initInstructorSettlementTab();
             } else if (tabName === 'membermanagement') {
+                // API 호출 절약을 위해 차수 목록(및 기본 필터값)만 불러오고,
+                // 실제 회원 조회/생일/이탈위험은 사용자가 각 조회 버튼을 눌러야 호출됩니다.
                 loadCohorts();
-                loadMembers();
-                loadBirthdays();
-                loadDropoutRisk();
             } else if (tabName === 'approval') {
                 // 전자결재 탭 - 즉시 섹션 표시
                 document.querySelectorAll('.approval-section').forEach(function(s) {
