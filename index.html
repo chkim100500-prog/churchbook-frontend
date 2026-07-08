@@ -9265,8 +9265,11 @@
                       '<button onclick="openInstructorDetail(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12px;cursor:pointer;margin-right:4px;">상세보기</button>' +
                       '<button onclick="openInstructorModal(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       (ins.is_active
-                        ? '<button onclick="deleteInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>'
-                        : '<button onclick="reactivateInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:12px;cursor:pointer;">복구</button>') +
+                        ? '<button onclick="deactivateInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e67e22;background:#fff;color:#e67e22;font-size:12px;cursor:pointer;margin-right:4px;">비활성화</button>'
+                        : '<button onclick="reactivateInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:12px;cursor:pointer;margin-right:4px;">복구</button>') +
+                      ((ins.course_count ?? 0) === 0
+                        ? '<button onclick="deleteInstructorPermanently(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">완전삭제</button>'
+                        : '') +
                     '</td>' +
                     '</tr>'
                 );
@@ -9451,8 +9454,41 @@
             });
         }
 
-        function deleteInstructor(id) {
-            if (!confirm('이 강사를 삭제하시겠습니까?\n(담당했던 강좌 기록이 없으면 완전히 삭제되고, 기록이 있으면 안전하게 비활성화만 됩니다)')) return;
+        // 강사를 비활성화합니다 (완전 삭제 아님 — 언제든 "복구" 버튼으로 되돌릴 수 있습니다).
+        // PUT은 다른 필드도 함께 저장하는 구조라, 기존 값을 그대로 유지한 채 is_active만 false로 바꿔 보냅니다.
+        function deactivateInstructor(id) {
+            var ins = _instructorsCache.find(function(x) { return x.id === id; });
+            if (!ins) { showAlert('강사 정보를 찾을 수 없습니다.', 'error'); return; }
+            if (!confirm('"' + ins.name + '" 강사를 비활성화하시겠습니까?\n(완전 삭제되지 않고, 목록에서 흐리게 표시되며 "복구" 버튼으로 언제든 되돌릴 수 있습니다)')) return;
+
+            api('PUT', '/api/instructors/' + id, {
+                name: ins.name,
+                phone: ins.phone,
+                base_rate: ins.base_rate,
+                over_capacity_bonus_rate: ins.over_capacity_bonus_rate,
+                bank_account: ins.bank_account,
+                bank_name: ins.bank_name,
+                account_holder: ins.account_holder,
+                resident_registration_number: ins.resident_registration_number,
+                is_active: false,
+            }).then(function(r) {
+                if (r && r.success) {
+                    showAlert('강사가 비활성화되었습니다.', 'success');
+                    loadInstructors();
+                } else {
+                    showAlert((r && r.message) || '처리에 실패했습니다.', 'error');
+                }
+            }).catch(function(e) {
+                showAlert('처리 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        // 담당 강좌 기록이 하나도 없는 강사만 완전삭제 버튼이 노출됩니다 (되돌릴 수 없음).
+        // 혹시 그 사이 강좌가 연결된 경우를 대비해 백엔드에서도 한 번 더 안전하게 확인합니다.
+        function deleteInstructorPermanently(id) {
+            var ins = _instructorsCache.find(function(x) { return x.id === id; });
+            var name = ins ? ins.name : '이 강사';
+            if (!confirm('"' + name + '"를(을) 완전히 삭제하시겠습니까?\n담당했던 강좌 기록이 없는 강사만 삭제할 수 있으며, 삭제 후에는 되돌릴 수 없습니다.')) return;
             api('DELETE', '/api/instructors/' + id).then(function(r) {
                 showAlert((r && r.message) || '처리되었습니다.', 'success');
                 loadInstructors();
