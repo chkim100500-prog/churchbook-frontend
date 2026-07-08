@@ -4683,7 +4683,7 @@
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeEnrollmentModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
-                  <button onclick="saveEnrollment()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                  <button id="enrollmentSaveBtn" onclick="saveEnrollment()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
                 </div>
               </div>
             </div>
@@ -4705,7 +4705,7 @@
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeInstructorModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
-                  <button onclick="saveInstructor()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                  <button id="instructorSaveBtn" onclick="saveInstructor()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
                 </div>
               </div>
             </div>
@@ -4732,10 +4732,9 @@
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">차수 * (예: 50기)<input id="courseCohort" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">강좌명 *<input id="courseName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
-                  <label style="font-size:12.5px;color:#555;">담당 강사
-                    <select id="courseInstructorId" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
-                      <option value="">선택 안 함</option>
-                    </select>
+                  <label style="font-size:12.5px;color:#555;">담당 강사 (이름을 직접 입력하세요. 기존 강사명과 같으면 그 강사로 연결되고, 새 이름이면 강사가 자동 등록됩니다 — 요율 등 세부정보는 나중에 강사 관리에서 채워주세요)
+                    <input id="courseInstructorName" list="courseInstructorDatalist" placeholder="강사명 입력 (비워두면 미지정)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                    <datalist id="courseInstructorDatalist"></datalist>
                   </label>
                   <label style="font-size:12.5px;color:#555;">강의시간<input id="courseClassTime" placeholder="화 10:00~10:50(50분)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
                   <label style="font-size:12.5px;color:#555;">회원비 (전체 회차 기준) *<input id="courseFee" type="number" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
@@ -4748,7 +4747,7 @@
                 </div>
                 <div style="display:flex;gap:8px;margin-top:20px;">
                   <button onclick="closeCourseModal()" style="flex:1;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">취소</button>
-                  <button onclick="saveCourse()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
+                  <button id="courseSaveBtn" onclick="saveCourse()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#2980b9;color:#fff;font-weight:600;font-size:13.5px;">저장</button>
                 </div>
               </div>
             </div>
@@ -9339,16 +9338,22 @@
         }
 
         function populateCourseInstructorSelect() {
-            var sel = document.getElementById('courseInstructorId');
-            var current = sel.value;
-            sel.innerHTML = '<option value="">선택 안 함</option>' +
-                _instructorsCache.filter(function(i) { return i.is_active; }).map(function(i) {
-                    return '<option value="' + i.id + '">' + escapeHtml(i.name) + '</option>';
-                }).join('');
-            sel.value = current;
+            var dl = document.getElementById('courseInstructorDatalist');
+            dl.innerHTML = _instructorsCache.filter(function(i) { return i.is_active; }).map(function(i) {
+                return '<option value="' + escapeHtml(i.name) + '"></option>';
+            }).join('');
+        }
+
+        // 강사명 문자열로 기존 강사를 찾습니다 (대소문자/공백 무시한 정확히 일치하는 이름만 매칭).
+        // 동명이인 강사가 여러 명 있으면 먼저 등록된 강사가 매칭되니, 강사명은 가급적 구분되게 지어주세요.
+        function findInstructorByName(name) {
+            var norm = String(name || '').trim().toLowerCase();
+            if (!norm) return null;
+            return _instructorsCache.find(function(i) { return String(i.name || '').trim().toLowerCase() === norm; }) || null;
         }
 
         function openInstructorModal(id) {
+            document.getElementById('instructorSaveBtn').disabled = false;
             var modal = document.getElementById('instructorModal');
             document.getElementById('instructorId').value = id || '';
             if (id) {
@@ -9394,6 +9399,10 @@
         }
 
         function saveInstructor() {
+            var saveBtn = document.getElementById('instructorSaveBtn');
+            if (saveBtn.disabled) return; // 이미 저장 처리 중 - 중복 클릭 무시
+            saveBtn.disabled = true;
+
             var id = document.getElementById('instructorId').value;
             var name = document.getElementById('instructorName').value.trim();
             var baseRatePct = parseFloat(document.getElementById('instructorBaseRate').value);
@@ -9401,6 +9410,7 @@
 
             if (!name || isNaN(baseRatePct)) {
                 showAlert('강사명과 기본 요율을 입력해주세요.', 'error');
+                saveBtn.disabled = false;
                 return;
             }
 
@@ -9408,6 +9418,7 @@
             if (!isValidRRN(rrnValue)) {
                 showAlert('주민등록번호 자릿수를 확인해주세요. (앞 6자리-뒤 7자리, 예: 000000-0000000)', 'error');
                 document.getElementById('instructorRRN').focus();
+                saveBtn.disabled = false;
                 return;
             }
 
@@ -9433,6 +9444,8 @@
                 }
             }).catch(function(e) {
                 showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            }).finally(function() {
+                saveBtn.disabled = false;
             });
         }
 
@@ -9570,6 +9583,7 @@
         }
 
         function openCourseModal(id) {
+            document.getElementById('courseSaveBtn').disabled = false;
             populateCourseInstructorSelect();
             var modal = document.getElementById('courseModal');
             document.getElementById('courseId').value = id || '';
@@ -9579,7 +9593,11 @@
                 document.getElementById('courseCohort').value = c ? c.cohort : '';
                 document.getElementById('courseCohort').disabled = true; // 수정 시 차수는 고정 (정산 연동 키)
                 document.getElementById('courseName').value = c ? c.course_name : '';
-                document.getElementById('courseInstructorId').value = c && c.instructor_id ? c.instructor_id : '';
+                document.getElementById('courseInstructorName').value = (function() {
+                    if (!c || !c.instructor_id) return '';
+                    var found = _instructorsCache.find(function(x) { return x.id === c.instructor_id; });
+                    return found ? found.name : '';
+                })();
                 document.getElementById('courseClassTime').value = c ? (c.class_time || '') : '';
                 document.getElementById('courseFee').value = c ? c.fee_per_student : '';
                 document.getElementById('courseSessionTotal').value = c ? c.session_total : 12;
@@ -9592,7 +9610,7 @@
                 ['courseCohort','courseName','courseClassTime','courseFee','courseCapacity','courseStartDate'].forEach(function(elId) {
                     document.getElementById(elId).value = '';
                 });
-                document.getElementById('courseInstructorId').value = '';
+                document.getElementById('courseInstructorName').value = '';
                 document.getElementById('courseSessionTotal').value = 12;
                 document.getElementById('courseIsNew').checked = false;
                 // 필터에 선택된 차수가 있으면 기본값으로 채워줌
@@ -9607,11 +9625,14 @@
         }
 
         function saveCourse() {
+            var saveBtn = document.getElementById('courseSaveBtn');
+            if (saveBtn.disabled) return; // 이미 저장 처리 중 - 중복 클릭 무시
+            saveBtn.disabled = true;
+
             var id = document.getElementById('courseId').value;
-            var payload = {
+            var basePayload = {
                 cohort: document.getElementById('courseCohort').value.trim(),
                 course_name: document.getElementById('courseName').value.trim(),
-                instructor_id: document.getElementById('courseInstructorId').value || null,
                 class_time: document.getElementById('courseClassTime').value.trim(),
                 fee_per_student: parseInt(document.getElementById('courseFee').value, 10),
                 session_total: parseInt(document.getElementById('courseSessionTotal').value, 10) || 12,
@@ -9620,23 +9641,51 @@
                 start_date: document.getElementById('courseStartDate').value || null,
             };
 
-            if (!payload.cohort || !payload.course_name || !payload.fee_per_student) {
+            if (!basePayload.cohort || !basePayload.course_name || !basePayload.fee_per_student) {
                 showAlert('차수, 강좌명, 회원비는 필수입니다.', 'error');
+                saveBtn.disabled = false;
                 return;
             }
 
-            var req = id ? api('PUT', '/api/courses/' + id, payload) : api('POST', '/api/courses', payload);
-            req.then(function(r) {
-                if (r && r.success) {
-                    showAlert(r.message || '저장되었습니다.', 'success');
-                    closeCourseModal();
-                    loadCohorts();
-                    loadCourses();
+            var instructorName = document.getElementById('courseInstructorName').value.trim();
+
+            // 강사명 -> instructor_id 확정 (기존 강사와 이름이 일치하면 그 강사로 연결,
+            // 일치하는 강사가 없으면 이름만으로 새 강사를 자동 등록하고 그 id를 사용합니다.
+            // 자동 등록된 강사의 기본요율은 60%로 채워지며, 이후 강사 관리에서 세부정보를 보완할 수 있습니다.)
+            var resolveInstructorId = Promise.resolve(null);
+            if (instructorName) {
+                var matched = findInstructorByName(instructorName);
+                if (matched) {
+                    resolveInstructorId = Promise.resolve(matched.id);
                 } else {
-                    showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
+                    resolveInstructorId = api('POST', '/api/instructors', { name: instructorName, base_rate: 0.6 }).then(function(r) {
+                        if (r && r.success && r.instructor) {
+                            showAlert('"' + instructorName + '" 강사가 자동으로 새로 등록되었습니다 (기본요율 60%). 강사 관리에서 세부정보를 채워주세요.', 'success');
+                            return r.instructor.id;
+                        }
+                        throw new Error((r && r.message) || '강사 자동 등록에 실패했습니다.');
+                    });
                 }
+            }
+
+            resolveInstructorId.then(function(instructorId) {
+                var payload = Object.assign({}, basePayload, { instructor_id: instructorId });
+                var req = id ? api('PUT', '/api/courses/' + id, payload) : api('POST', '/api/courses', payload);
+                return req.then(function(r) {
+                    if (r && r.success) {
+                        showAlert(r.message || '저장되었습니다.', 'success');
+                        closeCourseModal();
+                        loadCohorts();
+                        loadCourses();
+                        loadInstructors();
+                    } else {
+                        showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
+                    }
+                });
             }).catch(function(e) {
                 showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            }).finally(function() {
+                saveBtn.disabled = false;
             });
         }
 
@@ -9805,6 +9854,7 @@
 
         // 강좌 상세화면(회원/정산)에서 "+ 회원 등록"/"수정" 클릭 시
         function openEnrollmentModal(id) {
+            document.getElementById('enrollmentSaveBtn').disabled = false;
             _enrollmentModalContext = 'course';
             document.getElementById('enrollmentCourseSelectWrap').style.display = 'none';
 
@@ -9838,6 +9888,7 @@
 
         // 회원관리 탭에서 "+ 회원 등록"/"수정" 클릭 시 (강좌를 직접 선택해야 함)
         function openMemberModal(id) {
+            document.getElementById('enrollmentSaveBtn').disabled = false;
             _enrollmentModalContext = 'members';
             var modal = document.getElementById('enrollmentModal');
             var selectWrap = document.getElementById('enrollmentCourseSelectWrap');
@@ -9886,10 +9937,15 @@
         }
 
         function saveEnrollment() {
+            var saveBtn = document.getElementById('enrollmentSaveBtn');
+            if (saveBtn.disabled) return; // 이미 저장 처리 중 - 중복 클릭 무시
+            saveBtn.disabled = true;
+
             var id = document.getElementById('enrollmentId').value;
             var memberName = document.getElementById('enrollmentMemberName').value.trim();
             if (!memberName) {
                 showAlert('회원명을 입력해주세요.', 'error');
+                saveBtn.disabled = false;
                 return;
             }
 
@@ -9899,6 +9955,7 @@
 
             if (!courseId) {
                 showAlert('강좌를 선택해주세요.', 'error');
+                saveBtn.disabled = false;
                 return;
             }
 
@@ -9933,6 +9990,8 @@
                 }
             }).catch(function(e) {
                 showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            }).finally(function() {
+                saveBtn.disabled = false;
             });
         }
 
