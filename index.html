@@ -4501,6 +4501,21 @@
                   </div>
                 </div>
 
+                <!-- 전체강좌 회원 한꺼번에 올리기 (담당자가 회원접수마다 정리해두는 전체 강좌 통합 엑셀용) -->
+                <div class="card" style="margin-bottom:16px;background:#fff8f0;border:1px solid #ffe0c2;">
+                  <h2 style="margin:0 0 4px;">📥 전체강좌 회원 한꺼번에 올리기</h2>
+                  <p style="color:#666;font-size:12.5px;margin:0 0 14px;">
+                    회원 접수를 받을 때마다 정리해두는, <b>모든 강좌가 함께 들어있는 통합 엑셀 파일</b>을 그대로 올려주세요.
+                    행마다 적힌 "차수+강좌명"으로 알아서 강좌를 찾아 회원을 반영합니다.
+                    (엑셀에 없는 차수+강좌명 조합은 강좌·강사가 자동 생성되며, 자동 생성된 강사의 요율은 기본값 60%로 채워집니다. 강좌 개설 후 요율은 강사 관리에서 수정해주세요.)
+                  </p>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button onclick="downloadMemberImportTemplate()" style="padding:8px 14px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">📄 전체강좌 양식</button>
+                    <button onclick="document.getElementById('bulkAllCoursesImportInput').click()" style="padding:8px 14px;border-radius:8px;border:1px solid #e67e22;background:#fff;color:#e67e22;font-size:13px;font-weight:600;cursor:pointer;">📥 전체강좌 회원 한꺼번에 올리기</button>
+                    <input type="file" id="bulkAllCoursesImportInput" accept=".xlsx,.xls" style="display:none;" onchange="handleMemberImportUpload(event)">
+                  </div>
+                </div>
+
                 <!-- 강사 관리 -->
                 <div class="card" style="margin-bottom:16px;">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -4565,8 +4580,8 @@
                       <p id="courseDetailSubtitle" style="color:#666;font-size:12.5px;margin:4px 0 0;"></p>
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button onclick="downloadEnrollmentTemplate()" style="padding:8px 14px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">📄 엑셀 템플릿</button>
-                      <button onclick="document.getElementById('enrollmentUploadInput').click()" style="padding:8px 14px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 업로드</button>
+                      <button onclick="downloadEnrollmentTemplate()" style="padding:8px 14px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">📄 개별강좌 양식</button>
+                      <button onclick="document.getElementById('enrollmentUploadInput').click()" style="padding:8px 14px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 개별강좌 회원 올리기</button>
                       <input type="file" id="enrollmentUploadInput" accept=".xlsx,.xls" style="display:none;" onchange="handleEnrollmentUpload(event)">
                       <button onclick="printAttendanceSheet()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">🖨️ 출석부 인쇄</button>
                       <button class="btn" onclick="openEnrollmentModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 회원 등록</button>
@@ -10596,7 +10611,7 @@
             showAlert('회원 목록을 다운로드했습니다.', 'success');
         }
 
-        // ----- 과거 차수 회원 일괄 이관 (일시적 기능) -----
+        // ----- 차수+강좌명 기준 회원 일괄 반영 (과거 차수 이관 / 전체강좌 정기 업로드 공용) -----
         function downloadMemberImportTemplate() {
             var aoa = [
                 ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '이력메모', '생년월일', '성별', '교인여부(교인/비교인)'],
@@ -10607,9 +10622,9 @@
             var ws = XLSX.utils.aoa_to_sheet(aoa);
             ws['!cols'] = [{wch:8}, {wch:24}, {wch:12}, {wch:12}, {wch:16}, {wch:10}, {wch:10}, {wch:14}, {wch:14}, {wch:20}, {wch:12}, {wch:8}, {wch:12}];
             var wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, '과거회원이관');
-            XLSX.writeFile(wb, '과거회원_이관_템플릿.xlsx');
-            showAlert('템플릿을 다운로드했습니다. 예시 행(2~4번째 줄)은 지우고 실제 과거 회원으로 채워주세요.', 'success');
+            XLSX.utils.book_append_sheet(wb, ws, '회원일괄등록');
+            XLSX.writeFile(wb, '전체강좌_회원일괄등록_템플릿.xlsx');
+            showAlert('템플릿을 다운로드했습니다. 예시 행(2~4번째 줄)은 지우고 실제 회원으로 채워주세요. (한 파일에 여러 강좌를 섞어서 넣어도 됩니다)', 'success');
         }
 
         function handleMemberImportUpload(event) {
@@ -10658,8 +10673,8 @@
                         return;
                     }
 
-                    var confirmMsg = rows.length + '명의 과거 회원 데이터를 이관하시겠습니까?\n' +
-                        '(없는 차수/강좌는 자동 생성되며, 강사 요율은 기본값 60%로 채워집니다)' +
+                    var confirmMsg = rows.length + '명의 회원 데이터를 반영하시겠습니까?\n' +
+                        '(엑셀에 없는 차수/강좌는 자동 생성되며, 자동 생성된 강사의 요율은 기본값 60%로 채워집니다)' +
                         (skippedRows.length ? ('\n제외된 행: ' + skippedRows.length + '건') : '');
                     if (!confirm(confirmMsg)) {
                         event.target.value = '';
@@ -10668,15 +10683,20 @@
 
                     api('POST', '/api/members/bulk-import', { rows: rows }).then(function(r) {
                         if (r && r.success) {
-                            showAlert(r.message || '이관이 완료되었습니다.', 'success');
-                            loadMembers();
+                            showAlert(r.message || '반영이 완료되었습니다.', 'success');
                             loadCohorts();
+                            // 회원관리 탭 목록과 강사정산 탭 목록(자동 생성된 강좌/강사 포함)을
+                            // 둘 다 갱신합니다. 두 탭 다 화면에 없어도 다음에 열 때 최신 상태로 보이도록
+                            // 조용히 새로고침해두는 것이라 안전합니다.
+                            loadMembers();
+                            if (typeof loadCourses === 'function') loadCourses();
+                            if (typeof loadInstructors === 'function') loadInstructors();
                         } else {
-                            showAlert((r && r.message) || '이관에 실패했습니다.', 'error');
+                            showAlert((r && r.message) || '반영에 실패했습니다.', 'error');
                         }
                         event.target.value = '';
                     }).catch(function(err) {
-                        showAlert('이관 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
+                        showAlert('반영 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
                         event.target.value = '';
                     });
                 } catch (err) {
