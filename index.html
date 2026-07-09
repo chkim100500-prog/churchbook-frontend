@@ -2671,7 +2671,7 @@
                 <button class="tab-btn" onclick="showTab('report')">보고서</button>
                 <button class="tab-btn" onclick="showTab('receipt')" style="display:none;">영수증</button>
                 <button class="tab-btn" onclick="showTab('balance')">💰잔고확인</button>
-                <button class="tab-btn" id="doubleEntryTabBtn" onclick="showTab('doubleentry')" style="display:none;">🧮복식부기</button>
+                <button class="tab-btn" id="doubleEntryTabBtn" data-module="double_entry" onclick="showTab('doubleentry')" style="display:none;">🧮복식부기</button>
                 <button class="tab-btn" data-module="instructor_settlement" onclick="showTab('instructorsettlement')" style="display:none;">🎤강사정산</button>
                 <button class="tab-btn" data-module="member_management" onclick="showTab('membermanagement')" style="display:none;">👥회원관리</button>
                 <button class="tab-btn" onclick="showTab('settings')">⚙️설정</button>
@@ -9210,18 +9210,9 @@
         var _mappingFilter = 'all';
         var _doubleEntryEnabled = false; // 복식부기 자동분개 기능 ON/OFF (조직별, 기본값 OFF)
 
-        // 로그인 직후 호출: 이 조직의 복식부기 플래그를 확인해서 '펀드/거래처' 탭과
-        // 계정과목 관리 탭의 토글 스위치 표시 상태를 맞춥니다.
-        // 조회 자체가 실패해도(네트워크 오류 등) 안전하게 꺼짐으로 처리합니다.
-        function loadDoubleEntryFlag() {
-            return api('GET', '/api/double-entry')
-                .then(function(r) { _doubleEntryEnabled = !!(r && r.enabled); })
-                .catch(function() { _doubleEntryEnabled = false; })
-                .then(function() {
-                    updateFundsTabVisibility();
-                    renderDoubleEntryToggle();
-                });
-        }
+        // 복식부기 플래그는 이제 이 조직의 다른 모듈 플래그와 함께 loadModuleConfig()에서
+        // 한 번에 로딩됩니다 (아래 loadModuleConfig 함수 참고). 예전에는 여기서 별도로
+        // GET /api/double-entry를 호출했지만, 관리자 전용 모듈 시스템으로 통합되면서 제거했습니다.
 
         // ===== 모듈형 기능 플래그 (조직별로 켜고 끌 수 있는 특수 기능) =====
         // 노량진문화원의 강사정산/회원관리처럼 "일부 조직에만 필요한 기능"을
@@ -9232,7 +9223,13 @@
             return api('GET', '/api/church/config')
                 .then(function(r) { _enabledModules = (r && r.enabledModules) || []; })
                 .catch(function() { _enabledModules = []; })
-                .then(function() { updateModuleTabsVisibility(); });
+                .then(function() {
+                    updateModuleTabsVisibility();
+                    // 복식부기도 이제 관리자 전용 모듈 플래그로 통합되어, 같은 목록에서 상태를 가져옵니다.
+                    _doubleEntryEnabled = isModuleEnabled('double_entry');
+                    updateFundsTabVisibility();
+                    renderDoubleEntryToggle();
+                });
         }
 
         function isModuleEnabled(moduleName) {
@@ -11250,41 +11247,21 @@
             }
         }
 
-        // 계정과목 관리 탭 상단에 있는 '복식부기 자동분개' 켜기/끄기 스위치를 그립니다.
+        // 계정과목 관리 탭 상단에 있던 '복식부기 자동분개' 켜기/끄기 스위치를
+        // 이제는 상태만 보여주는 읽기 전용 안내로 바꿨습니다 (관리자 전용 모듈로 전환).
         function renderDoubleEntryToggle() {
             var el = document.getElementById('doubleEntryToggleWrap');
             if (!el) return;
             el.innerHTML =
-                '<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">' +
-                  '<div>' +
-                    '<p style="font-size:13.5px;font-weight:700;color:#5b21b6;margin-bottom:4px;">🧮 복식부기 자동분개 (재정부 등 상위 조직 전용, 선택사항)</p>' +
-                    '<p style="font-size:12px;color:#666;line-height:1.6;margin:0;">' +
-                      (_doubleEntryEnabled
-                        ? '현재 <b style="color:#2e7d32;">켜짐</b> — 설정 탭에 "펀드/거래처" 메뉴가 표시되고, 거래 등록 시 분개가 자동 생성됩니다.'
-                        : '기본값은 꺼짐입니다. 대부분의 소조직은 켜지 않아도 됩니다 — 켜면 "펀드/거래처" 메뉴가 나타나고 복식부기 분개가 자동 생성되기 시작합니다.') +
-                    '</p>' +
-                  '</div>' +
-                  '<button onclick="toggleDoubleEntry()" style="background:' + (_doubleEntryEnabled ? '#dc3545' : '#5b21b6') + ';color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">' +
-                    (_doubleEntryEnabled ? '끄기' : '켜기') +
-                  '</button>' +
+                '<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:14px 16px;margin-bottom:20px;">' +
+                  '<p style="font-size:13.5px;font-weight:700;color:#5b21b6;margin-bottom:4px;">🧮 복식부기 자동분개 (재정부 등 상위 조직 전용)</p>' +
+                  '<p style="font-size:12px;color:#666;line-height:1.6;margin:0;">' +
+                    (_doubleEntryEnabled
+                      ? '현재 <b style="color:#2e7d32;">켜짐</b> — 설정 탭에 "펀드/거래처" 메뉴가 표시되고, 거래 등록 시 분개가 자동 생성됩니다.'
+                      : '현재 <b style="color:#999;">꺼짐</b>입니다.') +
+                    ' 이 기능은 관리자만 켜고 끌 수 있습니다. 필요하시면 담당자에게 문의해주세요.' +
+                  '</p>' +
                 '</div>';
-        }
-
-        function toggleDoubleEntry() {
-            var next = !_doubleEntryEnabled;
-            var msg = next
-                ? '복식부기 자동분개를 켜시겠습니까?\n\n켠 이후 등록되는 거래부터 분개가 자동 생성됩니다. 재정부처럼 전체 회계를 관리하는 조직에서만 켜세요.'
-                : '복식부기 자동분개를 끄시겠습니까?\n\n끄면 이후 등록되는 거래에는 분개가 생성되지 않습니다. (이미 생성된 분개 기록은 분개장에 그대로 남습니다)';
-            if (!confirm(msg)) return;
-            showLoading();
-            api('PUT', '/api/double-entry', { enabled: next }).then(function(r) {
-                hideLoading();
-                if (!r.success) { showAlert(r.message || '변경 실패', 'error'); return; }
-                _doubleEntryEnabled = !!r.enabled;
-                updateFundsTabVisibility();
-                renderDoubleEntryToggle();
-                showAlert(r.message || '변경되었습니다', 'success');
-            }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
         }
 
         function loadFundsTab() {
@@ -11837,7 +11814,6 @@
                         loadHeaderInfo();
                         loadDuesTabName();
                         loadDashboard();
-                        loadDoubleEntryFlag();
                         loadModuleConfig();
                         api('GET', '/api/dues').then(r => {
                             _duesData = r.data || [];
