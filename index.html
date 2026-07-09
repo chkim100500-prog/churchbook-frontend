@@ -5750,7 +5750,7 @@
                         </div>
                       </div>
                       <p id="fixedAssetEditNotice" style="display:none;color:#999;font-size:11.5px;margin-top:10px;">취득원가·취득일·내용연수는 이미 취득 분개가 나간 뒤라 여기서 수정할 수 없습니다. 금액이 잘못됐다면 이 자산을 처분 처리하고 새로 등록해주세요.</p>
-                      <button class="btn" onclick="saveFixedAsset()" style="background:#2980b9;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-top:14px;">저장</button>
+                      <button class="btn" id="fixedAssetSaveBtn" onclick="saveFixedAsset()" style="background:#2980b9;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-top:14px;">저장</button>
                     </div>
                   </div>
 
@@ -11478,22 +11478,36 @@
                 '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">관리</th>' +
                 '</tr></thead><tbody>' +
                 _fixedAssetsCache.map(function(a) {
-                    return '<tr>' +
-                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;">' + escapeHtml(a.name) + '</td>' +
+                    var isVoided = a.status === '취소';
+                    var statusHtml = isVoided
+                        ? '<span style="color:#c0392b;">등록취소</span>'
+                        : (a.active ? '<span style="color:#27ae60;">활성</span>' : '<span style="color:#999;">처분</span>');
+                    var buttons = '';
+                    if (!isVoided) {
+                        buttons += '<button onclick="showFixedAssetModal(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:11.5px;cursor:pointer;margin-right:4px;">수정</button>';
+                        if (Number(a.accumDepr) === 0) {
+                            // 감가상각 전인 자산만 등록 취소 가능 (취득 분개까지 깨끗이 제거)
+                            buttons += '<button onclick="voidFixedAsset(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid #c0392b;background:#fff;color:#c0392b;font-size:11.5px;cursor:pointer;margin-right:4px;">등록 취소</button>';
+                        }
+                        buttons += '<button onclick="toggleFixedAssetActive(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid ' + (a.active ? '#e67e22' : '#27ae60') + ';background:#fff;color:' + (a.active ? '#e67e22' : '#27ae60') + ';font-size:11.5px;cursor:pointer;">' + (a.active ? '처분' : '복원') + '</button>';
+                    }
+                    return '<tr style="' + (isVoided ? 'opacity:0.5;' : '') + '">' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;' + (isVoided ? 'text-decoration:line-through;' : '') + '">' + escapeHtml(a.name) + '</td>' +
                         '<td style="padding:8px;border-bottom:1px solid #f2f2f2;">' + fundLabel(a.fundCode) + '</td>' +
                         '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(a.acquireCost).toLocaleString() + '</td>' +
                         '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(a.accumDepr).toLocaleString() + '</td>' +
-                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;font-weight:600;">' + Number(a.bookValue).toLocaleString() + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;font-weight:600;">' + (isVoided ? '-' : Number(a.bookValue).toLocaleString()) + '</td>' +
                         '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:center;color:#999;">' + (a.lastDeprYm || '-') + '</td>' +
-                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:center;">' + (a.active ? '<span style="color:#27ae60;">활성</span>' : '<span style="color:#999;">처분</span>') + '</td>' +
-                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' +
-                        '<button onclick="showFixedAssetModal(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:11.5px;cursor:pointer;margin-right:4px;">수정</button>' +
-                        '<button onclick="toggleFixedAssetActive(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid ' + (a.active ? '#e74c3c' : '#27ae60') + ';background:#fff;color:' + (a.active ? '#e74c3c' : '#27ae60') + ';font-size:11.5px;cursor:pointer;">' + (a.active ? '처분' : '복원') + '</button>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:center;">' + statusHtml + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + buttons +
                         '</td></tr>';
                 }).join('') + '</tbody></table>';
         }
 
         function showFixedAssetModal(code) {
+            _fixedAssetSaving = false;
+            var _saveBtn = document.getElementById('fixedAssetSaveBtn');
+            if (_saveBtn) { _saveBtn.disabled = false; _saveBtn.textContent = '저장'; _saveBtn.style.opacity = '1'; }
             document.getElementById('fixedAssetCode').value = code || '';
             document.getElementById('fixedAssetFundSelect').innerHTML = fundOptionsHtml(code ? null : 'F00');
             var editNotice = document.getElementById('fixedAssetEditNotice');
@@ -11527,23 +11541,49 @@
         }
         function closeFixedAssetModal() { document.getElementById('fixedAssetModal').style.display = 'none'; }
 
+        function voidFixedAsset(code) {
+            var a = _fixedAssetsCache.find(function(x) { return x.code === code; });
+            if (!a) return;
+            if (!confirm('[' + a.name + '] (취득원가 ' + Number(a.acquireCost).toLocaleString() + '원)\n\n등록을 취소하시겠습니까?\n취득 분개도 함께 취소되어 재무제표에서 완전히 제거됩니다.\n\n※ 실수로 등록한 자산을 되돌리는 기능입니다. 실제로 보유하다 매각·폐기한 자산은 "처분"을 사용하세요.')) return;
+            showLoading();
+            api('POST', '/api/fixed-assets/' + encodeURIComponent(code) + '/void').then(function(r) {
+                hideLoading();
+                if (!r.success) { showAlert(r.message || '취소 실패', 'error'); return; }
+                showAlert('✅ ' + (r.message || '등록이 취소되었습니다'), 'success');
+                loadFundsTab();
+            }).catch(function(e) { hideLoading(); showAlert('취소 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        var _fixedAssetSaving = false; // 이중 클릭(중복 등록) 방지
         function saveFixedAsset() {
+            if (_fixedAssetSaving) return; // 이미 저장 진행 중이면 무시
             var code = document.getElementById('fixedAssetCode').value;
             var name = document.getElementById('fixedAssetName').value.trim();
             var fundCode = document.getElementById('fixedAssetFundSelect').value;
             var memo = document.getElementById('fixedAssetMemo').value.trim();
             if (!name) { showAlert('자산명을 입력하세요', 'error'); return; }
 
+            var saveBtn = document.getElementById('fixedAssetSaveBtn');
+            function lockBtn() {
+                _fixedAssetSaving = true;
+                if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 등록 중... 잠시만 기다려주세요'; saveBtn.style.opacity = '0.7'; }
+            }
+            function unlockBtn() {
+                _fixedAssetSaving = false;
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '저장'; saveBtn.style.opacity = '1'; }
+            }
+
             showLoading();
             if (code) {
                 // 수정: 이름/회계단위/비고만 변경 (금액·날짜는 이미 분개가 나간 값이라 불변)
+                lockBtn();
                 api('PUT', '/api/fixed-assets/' + encodeURIComponent(code), { name: name, fundCode: fundCode, memo: memo }).then(function(r) {
-                    hideLoading();
+                    hideLoading(); unlockBtn();
                     if (!r.success) { showAlert(r.message || '저장 실패', 'error'); return; }
                     closeFixedAssetModal();
                     showAlert('✅ 자산 정보가 저장되었습니다', 'success');
                     loadFundsTab();
-                }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+                }).catch(function(e) { hideLoading(); unlockBtn(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
                 return;
             }
 
@@ -11555,16 +11595,17 @@
             if (!acquireCost || acquireCost <= 0) { hideLoading(); showAlert('취득원가를 올바르게 입력하세요', 'error'); return; }
             if (!usefulLifeMonths || usefulLifeMonths <= 0) { hideLoading(); showAlert('내용연수(개월)를 올바르게 입력하세요', 'error'); return; }
 
+            lockBtn();
             api('POST', '/api/fixed-assets', {
                 name: name, fundCode: fundCode, acquireDate: acquireDate,
                 acquireCost: acquireCost, residualValue: residualValue, usefulLifeMonths: usefulLifeMonths, memo: memo,
             }).then(function(r) {
-                hideLoading();
+                hideLoading(); unlockBtn();
                 if (!r.success) { showAlert(r.message || '저장 실패', 'error'); return; }
                 closeFixedAssetModal();
                 showAlert('✅ ' + (r.message || '자산이 등록되고 취득 분개가 생성되었습니다'), 'success');
                 loadFundsTab();
-            }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+            }).catch(function(e) { hideLoading(); unlockBtn(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
 
         function toggleFixedAssetActive(code) {
