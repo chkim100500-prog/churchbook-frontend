@@ -5688,6 +5688,72 @@
                     </div>
                   </div>
 
+                  <!-- 카드 4-1: 고정자산 / 감가상각 -->
+                  <div class="card" style="margin-top:16px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                      <h2 style="margin:0;">🏢 고정자산 / 감가상각</h2>
+                      <button onclick="showFixedAssetModal(null)" style="display:flex;align-items:center;gap:5px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 자산 등록</button>
+                    </div>
+                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">
+                      건물·차량·비품 같은 유형자산을 등록하면, 등록 즉시 취득 분개(자산 증가)가 자동 생성됩니다.
+                      정액법으로만 계산합니다 — 월 감가상각액 = (취득원가-잔존가치) ÷ 내용연수(개월).
+                    </p>
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px 12px;">
+                      <label style="font-size:12.5px;color:#5b21b6;">감가상각 반영 연월
+                        <input id="depreciationYm" type="month" style="padding:6px;border:1px solid #ddd;border-radius:6px;margin-left:6px;">
+                      </label>
+                      <button onclick="runDepreciationBatch()" style="padding:7px 14px;border-radius:8px;border:1px solid #5b21b6;background:#fff;color:#5b21b6;font-size:12.5px;font-weight:600;cursor:pointer;">🧮 이번 달 감가상각 일괄 분개</button>
+                    </div>
+                    <div id="fixedAssetsListWrap" style="overflow-x:auto;"><p style="color:#aaa;font-size:13px;">불러오는 중...</p></div>
+                  </div>
+
+                  <!-- 고정자산 등록/수정 모달 -->
+                  <div id="fixedAssetModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
+                    <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:440px;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                        <h3 id="fixedAssetModalTitle" style="font-size:16px;font-weight:600;color:#333;">자산 등록</h3>
+                        <button onclick="closeFixedAssetModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
+                      </div>
+                      <input type="hidden" id="fixedAssetCode">
+                      <div style="display:flex;flex-direction:column;gap:12px;">
+                        <div>
+                          <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">자산명</label>
+                          <input id="fixedAssetName" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;" placeholder="예: 스타렉스 승합차">
+                        </div>
+                        <div>
+                          <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">소속 회계단위</label>
+                          <select id="fixedAssetFundSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
+                        </div>
+                        <div style="display:flex;gap:10px;">
+                          <div style="flex:1;">
+                            <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">취득일</label>
+                            <input id="fixedAssetAcquireDate" type="date" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                          </div>
+                          <div style="flex:1;">
+                            <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">취득원가</label>
+                            <input id="fixedAssetAcquireCost" type="number" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;" placeholder="원">
+                          </div>
+                        </div>
+                        <div style="display:flex;gap:10px;">
+                          <div style="flex:1;">
+                            <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">잔존가치 (선택, 기본 0)</label>
+                            <input id="fixedAssetResidualValue" type="number" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;" placeholder="0">
+                          </div>
+                          <div style="flex:1;">
+                            <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">내용연수 (개월)</label>
+                            <input id="fixedAssetUsefulLifeMonths" type="number" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;" placeholder="예: 48">
+                          </div>
+                        </div>
+                        <div>
+                          <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">비고</label>
+                          <input id="fixedAssetMemo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+                        </div>
+                      </div>
+                      <p id="fixedAssetEditNotice" style="display:none;color:#999;font-size:11.5px;margin-top:10px;">취득원가·취득일·내용연수는 이미 취득 분개가 나간 뒤라 여기서 수정할 수 없습니다. 금액이 잘못됐다면 이 자산을 처분 처리하고 새로 등록해주세요.</p>
+                      <button class="btn" onclick="saveFixedAsset()" style="background:#2980b9;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;margin-top:14px;">저장</button>
+                    </div>
+                  </div>
+
                   <!-- 카드 4: 회계단위 간 자금이동 (이체 / 대여·상환) -->
                   <div class="card" style="margin-top:16px;">
                     <h2 style="margin:0;">🔀 회계단위 간 자금이동</h2>
@@ -9221,6 +9287,7 @@
         var _fundsCache = [];          // [{code,name,kind,active,memo}]
         var _counterpartiesCache = []; // [{id,name,kind,fundCode,active}]
         var _mappingCache = [];        // [{itemType,itemName,dept,fundCode,counterAccount}]
+        var _fixedAssetsCache = [];    // [{code,name,fundCode,acquireDate,acquireCost,residualValue,usefulLifeMonths,accumDepr,bookValue,lastDeprYm,active}]
         var _masterItemsCache = { incomeItems: [], expenseItemsByDept: {} };
         var _mappingFilter = 'all';
         var _doubleEntryEnabled = false; // 복식부기 자동분개 기능 ON/OFF (조직별, 기본값 OFF)
@@ -11286,16 +11353,24 @@
                 api('GET', '/api/counterparties').catch(function() { return { success: true, data: [] }; }),
                 api('GET', '/api/fund-mapping').catch(function() { return { success: true, data: [] }; }),
                 api('GET', '/api/master').catch(function() { return { success: true, data: { incomeItems: [], expenseItemsByDept: {} } }; }),
+                api('GET', '/api/fixed-assets').catch(function() { return { success: true, data: [] }; }),
             ]).then(function(results) {
                 hideLoading();
                 _fundsCache = (results[0] && results[0].data) || [];
                 _counterpartiesCache = (results[1] && results[1].data) || [];
                 _mappingCache = (results[2] && results[2].data) || [];
                 _masterItemsCache = (results[3] && results[3].data) || { incomeItems: [], expenseItemsByDept: {} };
+                _fixedAssetsCache = (results[4] && results[4].data) || [];
                 // 회계단위가 하나도 없으면 일반회계 회계단위를 화면에서만 기본 노출(저장 전까지는 안내용)
                 renderFundsList();
                 renderCounterpartiesList();
                 renderMappingTable();
+                renderFixedAssetsList();
+                var ymInput = document.getElementById('depreciationYm');
+                if (ymInput && !ymInput.value) {
+                    var now = new Date();
+                    ymInput.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+                }
             }).catch(function(e) {
                 hideLoading();
                 showAlert('회계단위/거래처 데이터를 불러오지 못했습니다: ' + friendlyErrorMessage(e), 'error');
@@ -11381,6 +11456,145 @@
                 showAlert('✅ 회계단위가 저장되었습니다', 'success');
                 loadFundsTab();
             }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        // ----- 고정자산 / 감가상각 -----
+        function renderFixedAssetsList() {
+            var wrap = document.getElementById('fixedAssetsListWrap');
+            if (!wrap) return;
+            if (_fixedAssetsCache.length === 0) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">등록된 고정자산이 없습니다.</p>';
+                return;
+            }
+            wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px;">' +
+                '<thead><tr style="background:#f5f7fa;">' +
+                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">자산명</th>' +
+                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">회계단위</th>' +
+                '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">취득원가</th>' +
+                '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">감가상각누계액</th>' +
+                '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">장부가액</th>' +
+                '<th style="text-align:center;padding:8px;border-bottom:1px solid #eee;">마지막상각월</th>' +
+                '<th style="text-align:center;padding:8px;border-bottom:1px solid #eee;">상태</th>' +
+                '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">관리</th>' +
+                '</tr></thead><tbody>' +
+                _fixedAssetsCache.map(function(a) {
+                    return '<tr>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;">' + escapeHtml(a.name) + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;">' + fundLabel(a.fundCode) + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(a.acquireCost).toLocaleString() + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' + Number(a.accumDepr).toLocaleString() + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;font-weight:600;">' + Number(a.bookValue).toLocaleString() + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:center;color:#999;">' + (a.lastDeprYm || '-') + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:center;">' + (a.active ? '<span style="color:#27ae60;">활성</span>' : '<span style="color:#999;">처분</span>') + '</td>' +
+                        '<td style="padding:8px;border-bottom:1px solid #f2f2f2;text-align:right;">' +
+                        '<button onclick="showFixedAssetModal(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:11.5px;cursor:pointer;margin-right:4px;">수정</button>' +
+                        '<button onclick="toggleFixedAssetActive(\'' + a.code + '\')" style="padding:4px 10px;border-radius:6px;border:1px solid ' + (a.active ? '#e74c3c' : '#27ae60') + ';background:#fff;color:' + (a.active ? '#e74c3c' : '#27ae60') + ';font-size:11.5px;cursor:pointer;">' + (a.active ? '처분' : '복원') + '</button>' +
+                        '</td></tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        function showFixedAssetModal(code) {
+            document.getElementById('fixedAssetCode').value = code || '';
+            document.getElementById('fixedAssetFundSelect').innerHTML = fundOptionsHtml(code ? null : 'F00');
+            var editNotice = document.getElementById('fixedAssetEditNotice');
+            var costInput = document.getElementById('fixedAssetAcquireCost');
+            var dateInput = document.getElementById('fixedAssetAcquireDate');
+            var lifeInput = document.getElementById('fixedAssetUsefulLifeMonths');
+            var residualInput = document.getElementById('fixedAssetResidualValue');
+
+            if (code) {
+                var a = _fixedAssetsCache.find(function(x) { return x.code === code; });
+                document.getElementById('fixedAssetModalTitle').textContent = '자산 수정';
+                document.getElementById('fixedAssetName').value = a ? a.name : '';
+                document.getElementById('fixedAssetFundSelect').innerHTML = fundOptionsHtml(a ? a.fundCode : 'F00');
+                dateInput.value = a ? String(a.acquireDate).slice(0, 10) : '';
+                costInput.value = a ? a.acquireCost : '';
+                residualInput.value = a ? a.residualValue : 0;
+                lifeInput.value = a ? a.usefulLifeMonths : '';
+                document.getElementById('fixedAssetMemo').value = a ? (a.memo || '') : '';
+                // 이미 취득 분개가 나간 값이라 수정 화면에서는 잠급니다 (표시만, 이름/회계단위/비고만 수정 가능)
+                dateInput.disabled = true; costInput.disabled = true; lifeInput.disabled = true; residualInput.disabled = true;
+                editNotice.style.display = 'block';
+            } else {
+                document.getElementById('fixedAssetModalTitle').textContent = '자산 등록';
+                document.getElementById('fixedAssetName').value = '';
+                dateInput.value = ''; costInput.value = ''; residualInput.value = 0; lifeInput.value = '';
+                document.getElementById('fixedAssetMemo').value = '';
+                dateInput.disabled = false; costInput.disabled = false; lifeInput.disabled = false; residualInput.disabled = false;
+                editNotice.style.display = 'none';
+            }
+            document.getElementById('fixedAssetModal').style.display = 'flex';
+        }
+        function closeFixedAssetModal() { document.getElementById('fixedAssetModal').style.display = 'none'; }
+
+        function saveFixedAsset() {
+            var code = document.getElementById('fixedAssetCode').value;
+            var name = document.getElementById('fixedAssetName').value.trim();
+            var fundCode = document.getElementById('fixedAssetFundSelect').value;
+            var memo = document.getElementById('fixedAssetMemo').value.trim();
+            if (!name) { showAlert('자산명을 입력하세요', 'error'); return; }
+
+            showLoading();
+            if (code) {
+                // 수정: 이름/회계단위/비고만 변경 (금액·날짜는 이미 분개가 나간 값이라 불변)
+                api('PUT', '/api/fixed-assets/' + encodeURIComponent(code), { name: name, fundCode: fundCode, memo: memo }).then(function(r) {
+                    hideLoading();
+                    if (!r.success) { showAlert(r.message || '저장 실패', 'error'); return; }
+                    closeFixedAssetModal();
+                    showAlert('✅ 자산 정보가 저장되었습니다', 'success');
+                    loadFundsTab();
+                }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+                return;
+            }
+
+            var acquireDate = document.getElementById('fixedAssetAcquireDate').value;
+            var acquireCost = parseFloat(document.getElementById('fixedAssetAcquireCost').value);
+            var residualValue = parseFloat(document.getElementById('fixedAssetResidualValue').value) || 0;
+            var usefulLifeMonths = parseInt(document.getElementById('fixedAssetUsefulLifeMonths').value, 10);
+            if (!acquireDate) { hideLoading(); showAlert('취득일을 입력하세요', 'error'); return; }
+            if (!acquireCost || acquireCost <= 0) { hideLoading(); showAlert('취득원가를 올바르게 입력하세요', 'error'); return; }
+            if (!usefulLifeMonths || usefulLifeMonths <= 0) { hideLoading(); showAlert('내용연수(개월)를 올바르게 입력하세요', 'error'); return; }
+
+            api('POST', '/api/fixed-assets', {
+                name: name, fundCode: fundCode, acquireDate: acquireDate,
+                acquireCost: acquireCost, residualValue: residualValue, usefulLifeMonths: usefulLifeMonths, memo: memo,
+            }).then(function(r) {
+                hideLoading();
+                if (!r.success) { showAlert(r.message || '저장 실패', 'error'); return; }
+                closeFixedAssetModal();
+                showAlert('✅ ' + (r.message || '자산이 등록되고 취득 분개가 생성되었습니다'), 'success');
+                loadFundsTab();
+            }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        function toggleFixedAssetActive(code) {
+            var a = _fixedAssetsCache.find(function(x) { return x.code === code; });
+            if (!a) return;
+            var nextActive = !a.active;
+            if (!confirm(nextActive ? '이 자산을 다시 활성화하시겠습니까?' : '이 자산을 처분 처리하시겠습니까? (감가상각 대상에서 제외되며, 기존 분개에는 영향 없음)')) return;
+            showLoading();
+            api('PUT', '/api/fixed-assets/' + encodeURIComponent(code), { active: nextActive }).then(function(r) {
+                hideLoading();
+                if (!r.success) { showAlert(r.message || '처리 실패', 'error'); return; }
+                showAlert('✅ 처리되었습니다', 'success');
+                loadFundsTab();
+            }).catch(function(e) { hideLoading(); showAlert('처리 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        function runDepreciationBatch() {
+            var ym = document.getElementById('depreciationYm').value;
+            if (!ym) { showAlert('감가상각을 반영할 연월을 선택하세요', 'error'); return; }
+            if (!confirm(ym + ' 감가상각을 일괄 분개하시겠습니까?\n(이미 그 달에 상각된 자산은 자동으로 제외됩니다)')) return;
+
+            showLoading();
+            api('POST', '/api/fixed-assets/depreciate', { yearMonth: ym }).then(function(r) {
+                hideLoading();
+                if (!r.success) { showAlert(r.message || '처리 실패', 'error'); return; }
+                var msg = r.message || '처리되었습니다';
+                if (r.skipped && r.skipped.length) msg += '\n\n[제외 내역]\n' + r.skipped.join('\n');
+                showAlert(msg, 'success');
+                loadFundsTab();
+            }).catch(function(e) { hideLoading(); showAlert('처리 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
 
         function toggleFundActive(code) {
