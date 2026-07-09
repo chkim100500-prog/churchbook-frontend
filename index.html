@@ -4455,7 +4455,7 @@
                       </select>
                     </div>
                     <div>
-                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">펀드</label>
+                      <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">회계단위</label>
                       <select id="deReportFund" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                         <option value="">전체</option>
                       </select>
@@ -4469,7 +4469,7 @@
                     <button class="de-subtab-btn" data-de="fs" onclick="setDeSubtab('fs')" style="border:1px solid #ddd;background:#fff;color:#555;border-radius:20px;padding:6px 16px;font-size:12.5px;cursor:pointer;">📑 재무제표</button>
                   </div>
 
-                  <div id="deSubtabJournal" style="overflow-x:auto;"><div id="deJournalWrap"><p style="color:#aaa;font-size:13px;">연도/월/펀드를 고르고 조회를 눌러주세요.</p></div></div>
+                  <div id="deSubtabJournal" style="overflow-x:auto;"><div id="deJournalWrap"><p style="color:#aaa;font-size:13px;">연도/월/회계단위를 고르고 조회를 눌러주세요.</p></div></div>
                   <div id="deSubtabTrial" style="display:none;overflow-x:auto;"><div id="deTrialWrap"></div></div>
                   <div id="deSubtabFs" style="display:none;overflow-x:auto;"><div id="deFsWrap"></div></div>
                 </div>
@@ -4958,7 +4958,7 @@
                     </button>
                     <button id="stab-funds" onclick="showSettingsTab('funds')" class="settings-subtab" style="display:none;">
                       <span class="stab-icon">🗂️</span>
-                      <span class="stab-label">펀드/거래처</span>
+                      <span class="stab-label">회계단위/거래처</span>
                     </button>
                     <button id="stab-audit" onclick="showSettingsTab('audit')" class="settings-subtab">
                       <span class="stab-icon">📋</span>
@@ -5569,25 +5569,31 @@
                   </div>
                 </div><!-- /stab-content-account -->
 
-                <!-- 서브탭: 펀드/거래처 (복식부기 자동분개용 마스터) -->
+                <!-- 서브탭: 회계단위/거래처 (복식부기 자동분개용 마스터) -->
                 <div id="stab-content-funds" style="display:none;">
 
                   <div style="background:#eef6ff;border:1px solid #cfe2ff;border-radius:10px;padding:14px 16px;margin-bottom:16px;line-height:1.7;">
                     <div style="font-size:14px;font-weight:bold;color:#1a4a7a;margin-bottom:6px;">📌 이 탭은 무엇을 하나요?</div>
                     <div style="font-size:13px;color:#2c5c88;">
                       기존 거래 등록 화면은 <strong>지금처럼 그대로</strong> 사용합니다. 여기서는 특별회계처럼 별도로 관리되는
-                      <strong>펀드(회계단위)</strong>와 <strong>선교사/단체 같은 거래처</strong>를 등록하고,
-                      각 계정과목이 어느 펀드에 속하는지 연결해두면 — 이후 거래를 등록할 때 복식부기 분개가 자동으로 생성됩니다.
+                      <strong>회계단위</strong>와 <strong>선교사/단체 같은 거래처</strong>를 등록하고,
+                      각 계정과목이 어느 회계단위에 속하는지 연결해두면 — 이후 거래를 등록할 때 복식부기 분개가 자동으로 생성됩니다.
+                    </div>
+                    <div style="font-size:12.5px;color:#5b21b6;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:10px 12px;margin-top:10px;">
+                      🧮 <strong>이 탭이 보인다는 것 자체가 관리자가 "복식부기 자동분개" 기능을 켜뒀다는 뜻입니다.</strong>
+                      켜져 있으면 <strong>모든 거래에 분개가 자동 생성</strong>되며, 아래 "계정과목별 특별회계 매핑"에서
+                      따로 지정하지 않은 항목은 기본값인 <strong>일반회계 · 보통예금</strong>으로 분개됩니다.
+                      선교비·장학금처럼 별도로 추적하고 싶은 항목만 특별회계로 지정해주시면 됩니다.
                     </div>
                   </div>
 
-                  <!-- 카드 1: 펀드(회계단위) 관리 -->
+                  <!-- 카드 1: 회계단위 관리 -->
                   <div class="card">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                      <h2 style="margin:0;">🗂️ 펀드(회계단위) 관리</h2>
-                      <button onclick="showFundModal(null)" style="display:flex;align-items:center;gap:5px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 펀드 추가</button>
+                      <h2 style="margin:0;">🗂️ 회계단위 관리</h2>
+                      <button onclick="showFundModal(null)" style="display:flex;align-items:center;gap:5px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 회계단위 추가</button>
                     </div>
-                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">일반회계 1개와 특별회계 항목(펀드)들을 등록합니다. 자주 바뀌지 않는 목록이므로 한 번 등록해두면 계속 재사용합니다.</p>
+                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">일반회계 1개와 특별회계 항목(회계단위)들을 등록합니다. 자주 바뀌지 않는 목록이므로 한 번 등록해두면 계속 재사용합니다.</p>
                     <div id="fundsListWrap"><p style="color:#aaa;font-size:13px;">불러오는 중...</p></div>
                   </div>
 
@@ -5597,16 +5603,16 @@
                       <h2 style="margin:0;">👥 거래처 관리 (선교사·단체 등)</h2>
                       <button onclick="showCounterpartyModal(null)" style="display:flex;align-items:center;gap:5px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;">+ 거래처 추가</button>
                     </div>
-                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">선교회비처럼 개인·단체별로 지급 내역을 따로 집계하고 싶을 때 등록합니다. 등록한 거래처는 소속 펀드의 지출 내역에서 선택할 수 있습니다.</p>
+                    <p style="color:#666;font-size:13px;margin:6px 0 16px;">선교회비처럼 개인·단체별로 지급 내역을 따로 집계하고 싶을 때 등록합니다. 등록한 거래처는 소속 회계단위의 지출 내역에서 선택할 수 있습니다.</p>
                     <div id="counterpartiesListWrap"><p style="color:#aaa;font-size:13px;">불러오는 중...</p></div>
                   </div>
 
-                  <!-- 카드 3: 계정과목 - 펀드 매핑 -->
+                  <!-- 카드 3: 계정과목별 특별회계 매핑 -->
                   <div class="card" style="margin-top:16px;">
-                    <h2 style="margin:0;">🔗 계정과목 - 펀드 매핑</h2>
+                    <h2 style="margin:0;">🔗 계정과목별 특별회계 매핑</h2>
                     <p style="color:#666;font-size:13px;margin:6px 0 16px;">
-                      각 수입·지출 항목이 어느 펀드 소속인지, 상대계정(보통예금/현금)이 무엇인지 지정합니다.
-                      지정하지 않은 항목은 자동으로 <strong>일반회계 · 보통예금</strong>으로 분개됩니다.
+                      선교비·장학금처럼 별도로 추적하고 싶은 수입·지출 항목만 특별회계로 지정하고, 상대계정(보통예금/현금)도 함께 정합니다.
+                      아무것도 지정하지 않은 항목은 자동으로 <strong>일반회계 · 보통예금</strong>으로 분개됩니다.
                     </p>
                     <div id="mappingFilterWrap" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
                       <button class="mapping-filter-btn active" data-f="all" onclick="setMappingFilter('all')" style="border:1px solid #ddd;background:#333;color:#fff;border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;">전체</button>
@@ -5617,16 +5623,16 @@
                     <div id="mappingTableWrap" style="overflow-x:auto;"><p style="color:#aaa;font-size:13px;">불러오는 중...</p></div>
                   </div>
 
-                  <!-- 펀드 추가/수정 모달 -->
+                  <!-- 회계단위 추가/수정 모달 -->
                   <div id="fundModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
                     <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:420px;">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                        <h3 id="fundModalTitle" style="font-size:16px;font-weight:600;color:#333;">펀드 추가</h3>
+                        <h3 id="fundModalTitle" style="font-size:16px;font-weight:600;color:#333;">회계단위 추가</h3>
                         <button onclick="closeFundModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
                       </div>
                       <input type="hidden" id="fundEditCode">
                       <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">펀드명</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">회계단위명</label>
                         <input type="text" id="fundNameInput" placeholder="예: 본당대지·100주년" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
@@ -5666,35 +5672,35 @@
                         </select>
                       </div>
                       <div class="form-group" style="margin-bottom:16px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">소속 펀드</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">소속 회계단위</label>
                         <select id="cpFundSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
                       </div>
                       <button class="btn" onclick="saveCounterparty()" style="background:#2980b9;color:#fff;width:100%;padding:12px;border-radius:8px;font-size:14px;font-weight:600;">저장</button>
                     </div>
                   </div>
 
-                  <!-- 카드 4: 펀드 간 자금이동 (이체 / 대여·상환) -->
+                  <!-- 카드 4: 회계단위 간 자금이동 (이체 / 대여·상환) -->
                   <div class="card" style="margin-top:16px;">
-                    <h2 style="margin:0;">🔀 펀드 간 자금이동</h2>
+                    <h2 style="margin:0;">🔀 회계단위 간 자금이동</h2>
                     <p style="color:#666;font-size:13px;margin:6px 0 16px;">
                       회계원장(거래등록)에는 기록되지 않고, 분개장에만 기록됩니다. 실제 통장은 하나뿐이라
-                      펀드 간 이동은 장부상 소속만 바뀌는 것이지 진짜 돈이 계좌 밖으로 나가는 게 아니기 때문입니다.
+                      회계단위 간 이동은 장부상 소속만 바뀌는 것이지 진짜 돈이 계좌 밖으로 나가는 게 아니기 때문입니다.
                     </p>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                       <button onclick="showFundTransferModal()" style="background:#eef4ff;color:#2980b9;border:1px solid #cfe2ff;border-radius:10px;padding:14px;font-size:13.5px;font-weight:600;cursor:pointer;">
-                        💸 펀드 이체 등록<br><span style="font-weight:400;font-size:11.5px;color:#5a7ba8;">갚을 의무 없는 적립/이체</span>
+                        💸 회계단위 이체 등록<br><span style="font-weight:400;font-size:11.5px;color:#5a7ba8;">갚을 의무 없는 적립/이체</span>
                       </button>
                       <button onclick="showFundLoanModal()" style="background:#fff3e0;color:#b45309;border:1px solid #ffe0b2;border-radius:10px;padding:14px;font-size:13.5px;font-weight:600;cursor:pointer;">
-                        🤝 펀드 대여/상환 등록<br><span style="font-weight:400;font-size:11.5px;color:#a87a3f;">갚을 의무 있는 내부 차입</span>
+                        🤝 회계단위 대여/상환 등록<br><span style="font-weight:400;font-size:11.5px;color:#a87a3f;">갚을 의무 있는 내부 차입</span>
                       </button>
                     </div>
                   </div>
 
-                  <!-- 펀드 이체 모달 -->
+                  <!-- 회계단위 이체 모달 -->
                   <div id="fundTransferModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
                     <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:420px;">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                        <h3 style="font-size:16px;font-weight:600;color:#2980b9;">💸 펀드 이체 등록</h3>
+                        <h3 style="font-size:16px;font-weight:600;color:#2980b9;">💸 회계단위 이체 등록</h3>
                         <button onclick="closeFundTransferModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
@@ -5702,11 +5708,11 @@
                         <input type="date" id="xferDate" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">출발 펀드 (돈이 나가는 쪽)</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">출발 회계단위 (돈이 나가는 쪽)</label>
                         <select id="xferFrom" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">도착 펀드 (돈이 들어오는 쪽)</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">도착 회계단위 (돈이 들어오는 쪽)</label>
                         <select id="xferTo" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
@@ -5721,11 +5727,11 @@
                     </div>
                   </div>
 
-                  <!-- 펀드 대여/상환 모달 -->
+                  <!-- 회계단위 대여/상환 모달 -->
                   <div id="fundLoanModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99999;justify-content:center;align-items:flex-start;padding-top:60px;">
                     <div style="background:#fff;border-radius:14px;padding:22px;width:92%;max-width:420px;">
                       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-                        <h3 style="font-size:16px;font-weight:600;color:#b45309;">🤝 펀드 대여/상환 등록</h3>
+                        <h3 style="font-size:16px;font-weight:600;color:#b45309;">🤝 회계단위 대여/상환 등록</h3>
                         <button onclick="closeFundLoanModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
@@ -5740,11 +5746,11 @@
                         <input type="date" id="loanDate" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">대여 펀드 (빌려주는 쪽)</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">대여 회계단위 (빌려주는 쪽)</label>
                         <select id="loanLender" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
-                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">차입 펀드 (빌리는 쪽)</label>
+                        <label style="font-size:13px;color:#555;display:block;margin-bottom:6px;">차입 회계단위 (빌리는 쪽)</label>
                         <select id="loanBorrower" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;"></select>
                       </div>
                       <div class="form-group" style="margin-bottom:12px;">
@@ -9197,7 +9203,7 @@
         }
 
         // =============================================
-        // 펀드(회계단위) / 거래처 / 계정과목-펀드 매핑
+        // 회계단위 / 거래처 / 계정과목-회계단위 매핑
         // — 복식부기 자동분개를 위한 신규 마스터 데이터.
         //   기존 /api/master(계정과목) 데이터는 건드리지 않고,
         //   별도 엔드포인트(/api/funds, /api/counterparties, /api/fund-mapping)에서
@@ -11257,7 +11263,7 @@
                   '<p style="font-size:13.5px;font-weight:700;color:#5b21b6;margin-bottom:4px;">🧮 복식부기 자동분개 (재정부 등 상위 조직 전용)</p>' +
                   '<p style="font-size:12px;color:#666;line-height:1.6;margin:0;">' +
                     (_doubleEntryEnabled
-                      ? '현재 <b style="color:#2e7d32;">켜짐</b> — 설정 탭에 "펀드/거래처" 메뉴가 표시되고, 거래 등록 시 분개가 자동 생성됩니다.'
+                      ? '현재 <b style="color:#2e7d32;">켜짐</b> — 설정 탭에 "회계단위/거래처" 메뉴가 표시되고, 거래 등록 시 분개가 자동 생성됩니다.'
                       : '현재 <b style="color:#999;">꺼짐</b>입니다.') +
                     ' 이 기능은 관리자만 켜고 끌 수 있습니다. 필요하시면 담당자에게 문의해주세요.' +
                   '</p>' +
@@ -11277,13 +11283,13 @@
                 _counterpartiesCache = (results[1] && results[1].data) || [];
                 _mappingCache = (results[2] && results[2].data) || [];
                 _masterItemsCache = (results[3] && results[3].data) || { incomeItems: [], expenseItemsByDept: {} };
-                // 펀드가 하나도 없으면 일반회계 펀드를 화면에서만 기본 노출(저장 전까지는 안내용)
+                // 회계단위가 하나도 없으면 일반회계 회계단위를 화면에서만 기본 노출(저장 전까지는 안내용)
                 renderFundsList();
                 renderCounterpartiesList();
                 renderMappingTable();
             }).catch(function(e) {
                 hideLoading();
-                showAlert('펀드/거래처 데이터를 불러오지 못했습니다: ' + friendlyErrorMessage(e), 'error');
+                showAlert('회계단위/거래처 데이터를 불러오지 못했습니다: ' + friendlyErrorMessage(e), 'error');
             });
         }
 
@@ -11294,7 +11300,7 @@
         }
 
         function fundOptionsHtml(selectedCode) {
-            var html = '<option value="F00"' + (selectedCode === 'F00' || !selectedCode ? ' selected' : '') + '>일반회계 (F00)</option>';
+            var html = '<option value="F00"' + (selectedCode === 'F00' || !selectedCode ? ' selected' : '') + '>일반회계 (기본값)</option>';
             _fundsCache.filter(function(f) { return f.active !== false; }).forEach(function(f) {
                 html += '<option value="' + f.code + '"' + (selectedCode === f.code ? ' selected' : '') + '>' +
                     f.name + ' (' + f.code + ')</option>';
@@ -11302,7 +11308,7 @@
             return html;
         }
 
-        // ---- 펀드 목록 렌더링 ----
+        // ---- 회계단위 목록 렌더링 ----
         function renderFundsList() {
             var wrap = document.getElementById('fundsListWrap');
             if (!wrap) return;
@@ -11311,7 +11317,7 @@
             wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:13px;">' +
                 '<thead><tr style="background:#f5f7fa;">' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">코드</th>' +
-                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">펀드명</th>' +
+                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">회계단위명</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">성격</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">상태</th>' +
                 '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">관리</th>' +
@@ -11335,12 +11341,12 @@
             document.getElementById('fundEditCode').value = code || '';
             if (code) {
                 var f = _fundsCache.find(function(x) { return x.code === code; });
-                document.getElementById('fundModalTitle').textContent = '펀드 수정';
+                document.getElementById('fundModalTitle').textContent = '회계단위 수정';
                 document.getElementById('fundNameInput').value = f ? f.name : '';
                 document.getElementById('fundKindSelect').value = f ? f.kind : 'designated';
                 document.getElementById('fundMemoInput').value = f ? (f.memo || '') : '';
             } else {
-                document.getElementById('fundModalTitle').textContent = '펀드 추가';
+                document.getElementById('fundModalTitle').textContent = '회계단위 추가';
                 document.getElementById('fundNameInput').value = '';
                 document.getElementById('fundKindSelect').value = 'designated';
                 document.getElementById('fundMemoInput').value = '';
@@ -11354,7 +11360,7 @@
             var name = document.getElementById('fundNameInput').value.trim();
             var kind = document.getElementById('fundKindSelect').value;
             var memo = document.getElementById('fundMemoInput').value.trim();
-            if (!name) { showAlert('펀드명을 입력하세요', 'error'); return; }
+            if (!name) { showAlert('회계단위명을 입력하세요', 'error'); return; }
             showLoading();
             var req = code ?
                 api('PUT', '/api/funds/' + encodeURIComponent(code), { name: name, kind: kind, memo: memo }) :
@@ -11363,7 +11369,7 @@
                 hideLoading();
                 if (!r.success) { showAlert(r.message || '저장 실패', 'error'); return; }
                 closeFundModal();
-                showAlert('✅ 펀드가 저장되었습니다', 'success');
+                showAlert('✅ 회계단위가 저장되었습니다', 'success');
                 loadFundsTab();
             }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
@@ -11372,7 +11378,7 @@
             var f = _fundsCache.find(function(x) { return x.code === code; });
             if (!f) return;
             var nextActive = f.active === false ? true : false;
-            if (!confirm((nextActive ? '이 펀드를 다시 사용하시겠습니까?' : '이 펀드를 비활성화하시겠습니까? (기존 거래·잔액에는 영향 없음)'))) return;
+            if (!confirm((nextActive ? '이 회계단위를 다시 사용하시겠습니까?' : '이 회계단위를 비활성화하시겠습니까? (기존 거래·잔액에는 영향 없음)'))) return;
             showLoading();
             api('PUT', '/api/funds/' + encodeURIComponent(code), { active: nextActive }).then(function(r) {
                 hideLoading();
@@ -11393,7 +11399,7 @@
                 '<thead><tr style="background:#f5f7fa;">' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">이름</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">구분</th>' +
-                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">소속 펀드</th>' +
+                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">소속 회계단위</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">상태</th>' +
                 '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">관리</th>' +
                 '</tr></thead><tbody>' +
@@ -11459,7 +11465,7 @@
             }).catch(function(e) { hideLoading(); showAlert('처리 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
 
-        // ---- 계정과목 - 펀드 매핑 테이블 ----
+        // ---- 계정과목 - 회계단위 매핑 테이블 ----
         function setMappingFilter(f) {
             _mappingFilter = f;
             document.querySelectorAll('.mapping-filter-btn').forEach(function(btn) {
@@ -11502,7 +11508,7 @@
                 '<thead><tr style="background:#f5f7fa;">' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">구분</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">항목명</th>' +
-                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">소속 펀드</th>' +
+                '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">특별회계 지정</th>' +
                 '<th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">상대계정</th>' +
                 '<th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">저장</th>' +
                 '</tr></thead><tbody>' +
@@ -11544,7 +11550,7 @@
             }).catch(function(e) { hideLoading(); showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
         }
 
-        // ---- 펀드 이체 (갚을 의무 없는 자금이동) ----
+        // ---- 회계단위 이체 (갚을 의무 없는 자금이동) ----
         function showFundTransferModal() {
             var today = new Date();
             document.getElementById('xferDate').value = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
@@ -11563,18 +11569,18 @@
             var amount = document.getElementById('xferAmount').value;
             var description = document.getElementById('xferDesc').value;
             if (!date || !amount) { showAlert('날짜와 금액을 입력하세요', 'error'); return; }
-            if (fromFund === toFund) { showAlert('출발 펀드와 도착 펀드가 같습니다', 'error'); return; }
+            if (fromFund === toFund) { showAlert('출발 회계단위와 도착 회계단위가 같습니다', 'error'); return; }
             showLoading();
             api('POST', '/api/fund-transactions/transfer', { date: date, fromFund: fromFund, toFund: toFund, amount: Number(amount), description: description })
                 .then(function(r) {
                     hideLoading();
                     if (!r.success) { showAlert(r.message || '등록 실패', 'error'); return; }
                     closeFundTransferModal();
-                    showAlert('✅ ' + (r.message || '펀드 이체가 기록되었습니다'), 'success');
+                    showAlert('✅ ' + (r.message || '회계단위 이체가 기록되었습니다'), 'success');
                 }).catch(function(e) { hideLoading(); showAlert(friendlyErrorMessage(e), 'error'); });
         }
 
-        // ---- 펀드 대여 / 상환 (갚을 의무 있는 내부 차입) ----
+        // ---- 회계단위 대여 / 상환 (갚을 의무 있는 내부 차입) ----
         function showFundLoanModal() {
             var today = new Date();
             document.getElementById('loanDirection').value = 'loan';
@@ -11595,7 +11601,7 @@
             var amount = document.getElementById('loanAmount').value;
             var description = document.getElementById('loanDesc').value;
             if (!date || !amount) { showAlert('날짜와 금액을 입력하세요', 'error'); return; }
-            if (lenderFund === borrowerFund) { showAlert('대여 펀드와 차입 펀드가 같습니다', 'error'); return; }
+            if (lenderFund === borrowerFund) { showAlert('대여 회계단위와 차입 회계단위가 같습니다', 'error'); return; }
             var path = direction === 'repay' ? '/api/fund-transactions/loan-repay' : '/api/fund-transactions/loan';
             showLoading();
             api('POST', path, { date: date, lenderFund: lenderFund, borrowerFund: borrowerFund, amount: Number(amount), description: description })
@@ -11696,7 +11702,7 @@
             }
             wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:680px;">' +
                 '<thead><tr style="background:#f5f7fa;">' +
-                ['날짜', '펀드', '차/대변', '계정명', '금액', '적요', '상태'].map(function(h) {
+                ['날짜', '회계단위', '차/대변', '계정명', '금액', '적요', '상태'].map(function(h) {
                     return '<th style="padding:6px 8px;border-bottom:1px solid #eee;text-align:left;">' + h + '</th>';
                 }).join('') +
                 '</tr></thead><tbody>' +
@@ -11724,7 +11730,7 @@
             var catLabel = { asset: '자산', liability: '부채', revenue: '수익', expense: '비용', other: '기타' };
             wrap.innerHTML = '<table class="table" style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:640px;">' +
                 '<thead><tr style="background:#f5f7fa;">' +
-                ['펀드', '계정명', '구분', '차변합계', '대변합계', '잔액'].map(function(h) {
+                ['회계단위', '계정명', '구분', '차변합계', '대변합계', '잔액'].map(function(h) {
                     return '<th style="padding:6px 8px;border-bottom:1px solid #eee;text-align:left;">' + h + '</th>';
                 }).join('') +
                 '</tr></thead><tbody>' +
