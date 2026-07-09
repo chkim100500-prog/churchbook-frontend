@@ -145,6 +145,19 @@
     @media (max-width: 480px) {
       .stat-grid { grid-template-columns: 1fr 1fr; }
     }
+
+    /* 모듈 플래그 토글 스위치 */
+    .module-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid #f0f0f0; }
+    .module-row:last-child { border-bottom: none; }
+    .module-row-label { font-size: 14px; color: #333; }
+    .module-row-key { font-size: 11px; color: #aaa; margin-left: 6px; }
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .2s; border-radius: 24px; }
+    .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .2s; border-radius: 50%; }
+    .toggle-switch input:checked + .toggle-slider { background-color: #34a853; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+    .toggle-switch input:disabled + .toggle-slider { opacity: .5; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -390,6 +403,21 @@
   </div>
 </div>
 
+<!-- 모듈 플래그 토글 모달 -->
+<div class="modal-overlay" id="modulesModal">
+  <div class="modal-box">
+    <h3>🧩 <span id="modulesTargetName"></span> - 기능(모듈) 설정</h3>
+    <div id="modulesAlert"></div>
+    <p style="font-size:12.5px;color:#888;margin:-8px 0 16px;">강사정산/회원관리처럼 일부 조직에만 필요한 기능을 켜고 끕니다. 켜는 즉시 그 계정 화면에 탭이 나타납니다.</p>
+    <div id="modulesListWrap" style="min-height:60px;">
+      <p style="color:#999;font-size:13px;text-align:center;padding:20px 0;">불러오는 중...</p>
+    </div>
+    <div class="btn-group" style="margin-top:16px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeModulesModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const API = 'https://churchbook-backend-production.up.railway.app';
   let adminToken = sessionStorage.getItem('admin_token') || '';
@@ -598,6 +626,7 @@
         <td>
           <div class="action-btns">
             <button class="btn btn-primary btn-sm" onclick="openEditModal(${c.id}, '${c.name}', '${c.username}', '${c.plan}', ${c.is_active}, '${(c.church_name||'').replace(/'/g,"\\'")}', '${(c.email||'').replace(/'/g,"\\'")}')">수정</button>
+            <button class="btn btn-secondary btn-sm" onclick="openModulesModal(${c.id}, '${(c.church_name||'').replace(/'/g,"\\'")} ${(c.name||'').replace(/'/g,"\\'")}')">🧩 모듈</button>
             <button class="btn btn-warning btn-sm" onclick="toggleActive(${c.id}, ${c.is_active})">${c.is_active ? '비활성화' : '활성화'}</button>
             ${c.email ? `<button class="btn btn-info btn-sm" onclick="openResetModal(${c.id}, '${c.name}', '${c.email}')">🔑</button>` : ''}
             ${c.email && !c.email_verified ? `<button class="btn btn-warning btn-sm" onclick="sendVerifyEmail(${c.id}, '${c.name}')" title="인증 이메일 발송">✉️</button>` : ''}
@@ -821,6 +850,83 @@
   }
 
   function closeEditModal() { document.getElementById('editModal').classList.remove('active'); }
+
+  // ===== 모듈(기능) 플래그 토글 =====
+  const MODULE_LABELS = {
+    instructor_settlement: '강사정산',
+    member_management: '회원관리',
+  };
+  let modulesTargetId = null;
+
+  async function openModulesModal(id, label) {
+    modulesTargetId = id;
+    document.getElementById('modulesTargetName').textContent = label;
+    document.getElementById('modulesAlert').innerHTML = '';
+    document.getElementById('modulesListWrap').innerHTML = '<p style="color:#999;font-size:13px;text-align:center;padding:20px 0;">불러오는 중...</p>';
+    document.getElementById('modulesModal').classList.add('active');
+
+    try {
+      const res = await fetch(`${API}/api/admin/churches/${id}/modules`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      const data = await res.json();
+      if (!data.success) {
+        document.getElementById('modulesListWrap').innerHTML = `<div class="alert alert-error">❌ ${data.message}</div>`;
+        return;
+      }
+      renderModulesList(data.moduleKeys, data.enabledModules);
+    } catch (e) {
+      document.getElementById('modulesListWrap').innerHTML = '<div class="alert alert-error">❌ 서버 오류</div>';
+    }
+  }
+
+  function renderModulesList(moduleKeys, enabledModules) {
+    const keys = Object.keys(moduleKeys || {});
+    if (!keys.length) {
+      document.getElementById('modulesListWrap').innerHTML = '<p style="color:#999;font-size:13px;">등록된 모듈이 없습니다.</p>';
+      return;
+    }
+    document.getElementById('modulesListWrap').innerHTML = keys.map(key => {
+      const isOn = enabledModules.includes(key);
+      const label = MODULE_LABELS[key] || key;
+      return `
+        <div class="module-row">
+          <span class="module-row-label">${label}<span class="module-row-key">${key}</span></span>
+          <label class="toggle-switch">
+            <input type="checkbox" ${isOn ? 'checked' : ''} onchange="toggleModuleFlag('${key}', this)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>`;
+    }).join('');
+  }
+
+  async function toggleModuleFlag(moduleName, checkboxEl) {
+    const enabled = checkboxEl.checked;
+    checkboxEl.disabled = true;
+    document.getElementById('modulesAlert').innerHTML = '';
+    try {
+      const res = await fetch(`${API}/api/admin/churches/${modulesTargetId}/modules/${moduleName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        checkboxEl.checked = !enabled; // 실패 시 되돌리기
+        showAlert('modulesAlert', '❌ ' + (data.message || '변경에 실패했습니다.'), 'error');
+      }
+    } catch (e) {
+      checkboxEl.checked = !enabled;
+      showAlert('modulesAlert', '❌ 서버 오류', 'error');
+    } finally {
+      checkboxEl.disabled = false;
+    }
+  }
+
+  function closeModulesModal() {
+    document.getElementById('modulesModal').classList.remove('active');
+    modulesTargetId = null;
+  }
 
   async function saveEdit() {
     const id = document.getElementById('editId').value;
