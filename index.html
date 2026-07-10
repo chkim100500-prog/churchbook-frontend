@@ -4563,6 +4563,7 @@
                       </select>
                       <button onclick="runBatchSettlement()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">📊 선택 차수 일괄 정산</button>
                       <button onclick="openCopyCoursesModal()" style="padding:8px 14px;border-radius:8px;border:1px solid #16a085;background:#fff;color:#16a085;font-size:13px;font-weight:600;cursor:pointer;">📋 이전 차수 강좌 복사</button>
+                      <button onclick="printAttendanceSheetsBulk()" style="padding:8px 14px;border-radius:8px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:13px;font-weight:600;cursor:pointer;">🖨️ 출석부 일괄인쇄</button>
                       <button class="btn" onclick="openCourseModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 강좌 등록</button>
                     </div>
                   </div>
@@ -9849,6 +9850,7 @@
                       '<button onclick="openCourseDetail(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#2980b9;color:#fff;font-size:12px;cursor:pointer;margin-right:4px;">회원/정산</button>' +
                       '<button onclick="openCourseModal(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       closeBtn +
+                      '<button onclick="printAttendanceSheet(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #8e44ad;background:#fff;color:#8e44ad;font-size:12px;cursor:pointer;margin-right:4px;">🖨️ 출석부</button>' +
                       '<button onclick="deleteCourse(' + c.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
                     '</td>' +
                     '</tr>'
@@ -10547,61 +10549,114 @@
         }
 
         // ----- 출석부 인쇄 -----
-        function printAttendanceSheet() {
-            if (!_currentCourseDetailId) return;
+        // 출석부 내용(표 부분)만 만드는 헬퍼 - 개별 인쇄와 일괄 인쇄에서 공용으로 씁니다.
+        function buildAttendanceSheetBlock(course, sessionDates, members) {
+            var title = course.cohort + ' ' + course.courseName + ' 출석부';
+            var weekdayNames = ['일','월','화','수','목','금','토'];
+            var headerCells = sessionDates.map(function(dateStr, idx) {
+                var d = new Date(dateStr);
+                var label = (idx + 1) + '회<br>' + (d.getMonth() + 1) + '/' + d.getDate() + '(' + weekdayNames[d.getDay()] + ')';
+                return '<th style="min-width:44px;">' + label + '</th>';
+            }).join('');
+            var emptyBox = '<td style="text-align:center;"><span style="display:inline-block;width:16px;height:16px;border:1px solid #999;"></span></td>';
+            var bodyRows = members.map(function(memberName, i) {
+                var cells = sessionDates.map(function() { return emptyBox; }).join('');
+                return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + escapeHtml(memberName) + '</td>' + cells + '</tr>';
+            }).join('');
 
-            api('GET', '/api/courses/' + _currentCourseDetailId + '/attendance-sheet').then(function(r) {
+            return '<h2>' + title + '</h2>' +
+                '<p class="sub">강사: ' + (course.instructorName || '-') + ' · 회차: ' + course.sessionTotal + '회 · 개강일: ' + course.startDate.slice(0, 10) + '</p>' +
+                '<table><thead><tr><th style="width:30px;">No</th><th style="width:80px;">회원명</th>' + headerCells + '</tr></thead><tbody>' +
+                bodyRows +
+                '</tbody></table>' +
+                '<div style="margin-top:24px;font-size:12px;">강사 확인: ____________________</div>';
+        }
+
+        function attendanceSheetPrintStyle() {
+            return 'body{font-family:"맑은 고딕",sans-serif;padding:20px;color:#000;}' +
+                'h2{text-align:center;margin-bottom:4px;}' +
+                'p.sub{text-align:center;color:#555;margin:0 0 18px;font-size:13px;}' +
+                'table{width:100%;border-collapse:collapse;font-size:12px;}' +
+                'th,td{border:1px solid #999;padding:6px 4px;}' +
+                'th{background:#eee;text-align:center;font-size:11.5px;line-height:1.4;}' +
+                '.attendance-page{page-break-after:always;}' +
+                '.attendance-page:last-child{page-break-after:auto;}' +
+                '@media print{button{display:none;}}';
+        }
+
+        // 강좌 하나의 출석부를 인쇄합니다. courseId를 안 넘기면 지금 열려있는 강좌 상세(_currentCourseDetailId)를 사용합니다.
+        // (강좌 관리 목록에서 "출석부" 버튼으로 바로 호출할 때는 courseId를 직접 넘겨줍니다)
+        function printAttendanceSheet(courseId) {
+            var id = courseId || _currentCourseDetailId;
+            if (!id) return;
+
+            return api('GET', '/api/courses/' + id + '/attendance-sheet').then(function(r) {
                 if (!r || !r.success) {
                     showAlert((r && r.message) || '출석부 데이터를 불러오지 못했습니다.', 'error');
                     return;
                 }
-
-                var course = r.course;
-                var sessionDates = r.sessionDates;
-                var members = r.members;
-
-                if (!members.length) {
+                if (!r.members.length) {
                     showAlert('등록된 회원이 없어 출석부를 만들 수 없습니다.', 'error');
                     return;
                 }
 
-                var title = course.cohort + ' ' + course.courseName + ' 출석부';
-
-                // 헤더: 회차 번호 + 날짜(월/일, 요일)
-                var weekdayNames = ['일','월','화','수','목','금','토'];
-                var headerCells = sessionDates.map(function(dateStr, idx) {
-                    var d = new Date(dateStr);
-                    var label = (idx + 1) + '회<br>' + (d.getMonth() + 1) + '/' + d.getDate() + '(' + weekdayNames[d.getDay()] + ')';
-                    return '<th style="min-width:44px;">' + label + '</th>';
-                }).join('');
-
-                var emptyBox = '<td style="text-align:center;"><span style="display:inline-block;width:16px;height:16px;border:1px solid #999;"></span></td>';
-                var bodyRows = members.map(function(memberName, i) {
-                    var cells = sessionDates.map(function() { return emptyBox; }).join('');
-                    return '<tr><td style="text-align:center;">' + (i + 1) + '</td><td>' + escapeHtml(memberName) + '</td>' + cells + '</tr>';
-                }).join('');
-
+                var title = r.course.cohort + ' ' + r.course.courseName + ' 출석부';
                 var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
-                    'body{font-family:"맑은 고딕",sans-serif;padding:20px;color:#000;}' +
-                    'h2{text-align:center;margin-bottom:4px;}' +
-                    'p.sub{text-align:center;color:#555;margin:0 0 18px;font-size:13px;}' +
-                    'table{width:100%;border-collapse:collapse;font-size:12px;}' +
-                    'th,td{border:1px solid #999;padding:6px 4px;}' +
-                    'th{background:#eee;text-align:center;font-size:11.5px;line-height:1.4;}' +
-                    '@media print{button{display:none;}}' +
+                    attendanceSheetPrintStyle() +
                     '</style></head><body>' +
-                    '<h2>' + title + '</h2>' +
-                    '<p class="sub">강사: ' + (course.instructorName || '-') + ' · 회차: ' + course.sessionTotal + '회 · 개강일: ' + course.startDate.slice(0, 10) + '</p>' +
-                    '<table><thead><tr><th style="width:30px;">No</th><th style="width:80px;">회원명</th>' + headerCells + '</tr></thead><tbody>' +
-                    bodyRows +
-                    '</tbody></table>' +
-                    '<div style="margin-top:24px;font-size:12px;">강사 확인: ____________________</div>' +
+                    buildAttendanceSheetBlock(r.course, r.sessionDates, r.members) +
                     '<button onclick="window.print()" style="margin-top:16px;padding:10px 20px;">인쇄하기</button>' +
                     '</body></html>';
 
                 mobilePrint(html);
             }).catch(function(e) {
                 showAlert('출석부 생성 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+            });
+        }
+
+        // 선택된 차수의 모든 강좌 출석부를 한 번에(한 인쇄창에 강좌별로 페이지를 나눠서) 인쇄합니다.
+        function printAttendanceSheetsBulk() {
+            var cohort = document.getElementById('courseCohortFilter').value;
+            if (!cohort) {
+                showAlert('먼저 차수를 선택해주세요 (전체 차수 상태에서는 일괄 인쇄할 수 없습니다).', 'error');
+                return;
+            }
+            var targets = _coursesCache.filter(function(c) { return c.cohort === cohort; });
+            if (!targets.length) {
+                showAlert('이 차수에 강좌가 없습니다.', 'error');
+                return;
+            }
+            if (!confirm(cohort + '의 강좌 ' + targets.length + '개 출석부를 한 번에 인쇄하시겠습니까?\n(회원이 없는 강좌는 자동으로 제외됩니다)')) return;
+
+            Promise.all(targets.map(function(c) {
+                return api('GET', '/api/courses/' + c.id + '/attendance-sheet').catch(function() { return null; });
+            })).then(function(results) {
+                var blocks = [];
+                var skipped = [];
+                results.forEach(function(r, i) {
+                    if (!r || !r.success || !r.members.length) {
+                        skipped.push(targets[i].course_name);
+                        return;
+                    }
+                    blocks.push('<div class="attendance-page">' + buildAttendanceSheetBlock(r.course, r.sessionDates, r.members) + '</div>');
+                });
+
+                if (!blocks.length) {
+                    showAlert('인쇄할 출석부가 없습니다 (전부 회원 미등록).', 'error');
+                    return;
+                }
+
+                var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + cohort + ' 출석부 일괄인쇄</title><style>' +
+                    attendanceSheetPrintStyle() +
+                    '</style></head><body>' +
+                    blocks.join('') +
+                    '<button onclick="window.print()" style="margin-top:16px;padding:10px 20px;">인쇄하기</button>' +
+                    '</body></html>';
+
+                mobilePrint(html);
+                if (skipped.length) {
+                    showAlert('⚠ 회원이 없어 제외된 강좌: ' + skipped.join(', '), 'error');
+                }
             });
         }
 
