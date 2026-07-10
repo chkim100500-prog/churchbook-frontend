@@ -4878,16 +4878,22 @@
                       <button class="btn" onclick="openMemberModal()" style="background:#2980b9;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;">+ 회원 등록</button>
                     </div>
                   </div>
-                  <p style="color:#666;font-size:12.5px;margin:0 0 14px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다. 이름을 클릭하면 이 회원의 전체 수강 이력을 볼 수 있습니다.</p>
+                  <p style="color:#666;font-size:12.5px;margin:0 0 10px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다. 이름을 클릭하면 이 회원의 전체 수강 이력을 볼 수 있습니다.</p>
+                  <div id="memberBulkDeleteBar" style="display:none;align-items:center;gap:10px;background:#fff5f5;border:1px solid #ffd2d2;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
+                    <span id="memberSelectedCount" style="font-size:12.5px;color:#c0392b;font-weight:600;"></span>
+                    <button onclick="bulkDeleteMembers()" style="padding:6px 14px;border-radius:6px;border:1px solid #e74c3c;background:#e74c3c;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">🗑 선택 삭제</button>
+                    <button onclick="clearMemberSelection()" style="padding:6px 14px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12.5px;cursor:pointer;">선택 해제</button>
+                  </div>
                   <div class="table-container" style="overflow-x:auto;">
                     <table class="table" id="membersTable">
                       <thead>
                         <tr>
+                          <th style="width:36px;"><input type="checkbox" id="memberSelectAll" onchange="toggleAllMemberSelection(this)"></th>
                           <th>이름</th><th>연락처</th><th>강좌</th><th>차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="membersTableBody">
-                        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
+                        <tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -10996,8 +11002,9 @@
 
         function renderMembersTable() {
             var body = document.getElementById('membersTableBody');
+            clearMemberSelection();
             if (!_membersCache.length) {
-                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
                 return;
             }
             body.innerHTML = _membersCache.map(function(m) {
@@ -11007,6 +11014,7 @@
                 var payDate = m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '-';
                 return (
                     '<tr>' +
+                    '<td><input type="checkbox" class="memberRowCheckbox" value="' + m.id + '" onchange="updateMemberSelectionBar()"></td>' +
                     '<td><a href="javascript:void(0)" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')" style="color:#2980b9;text-decoration:underline;">' + escapeHtml(m.member_name) + '</a></td>' +
                     '<td>' + escapeHtml(m.phone || '-') + '</td>' +
                     '<td>' + escapeHtml(m.course_name) + '</td>' +
@@ -11026,6 +11034,59 @@
                     '</tr>'
                 );
             }).join('');
+        }
+
+        // ----- 회원관리 표 선택삭제 (체크박스로 여러 명 한번에) -----
+        function toggleAllMemberSelection(headerCheckbox) {
+            document.querySelectorAll('.memberRowCheckbox').forEach(function(cb) { cb.checked = headerCheckbox.checked; });
+            updateMemberSelectionBar();
+        }
+
+        function updateMemberSelectionBar() {
+            var checked = document.querySelectorAll('.memberRowCheckbox:checked');
+            var bar = document.getElementById('memberBulkDeleteBar');
+            var countLabel = document.getElementById('memberSelectedCount');
+            if (checked.length > 0) {
+                bar.style.display = 'flex';
+                countLabel.textContent = checked.length + '명 선택됨';
+            } else {
+                bar.style.display = 'none';
+            }
+            var all = document.querySelectorAll('.memberRowCheckbox');
+            var selectAllBox = document.getElementById('memberSelectAll');
+            if (selectAllBox) selectAllBox.checked = all.length > 0 && checked.length === all.length;
+        }
+
+        function clearMemberSelection() {
+            document.querySelectorAll('.memberRowCheckbox').forEach(function(cb) { cb.checked = false; });
+            var selectAllBox = document.getElementById('memberSelectAll');
+            if (selectAllBox) selectAllBox.checked = false;
+            var bar = document.getElementById('memberBulkDeleteBar');
+            if (bar) bar.style.display = 'none';
+        }
+
+        function bulkDeleteMembers() {
+            var ids = Array.prototype.slice.call(document.querySelectorAll('.memberRowCheckbox:checked'))
+                .map(function(cb) { return cb.value; });
+            if (!ids.length) return;
+            if (!confirm(ids.length + '명의 회원 내역을 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+
+            var succeeded = 0;
+            var failed = 0;
+            var chain = Promise.resolve();
+            ids.forEach(function(id) {
+                chain = chain.then(function() {
+                    return api('DELETE', '/api/enrollments/' + id).then(function() {
+                        succeeded++;
+                    }).catch(function() {
+                        failed++;
+                    });
+                });
+            });
+            chain.then(function() {
+                showAlert('✅ ' + succeeded + '명 삭제 완료' + (failed ? (', ' + failed + '명 실패') : ''), failed ? 'error' : 'success');
+                loadMembers();
+            });
         }
 
         function saveMemberNote(enrollmentId) {
