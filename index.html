@@ -4794,7 +4794,7 @@
 
             <!-- 강좌 이력 모달 (같은 강좌명으로 지난 차수들을 모아서 보여줌) -->
             <div id="courseHistoryModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
-              <div style="background:#fff;border-radius:12px;padding:24px;width:94%;max-width:900px;max-height:88vh;overflow-y:auto;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:94%;max-width:1100px;max-height:88vh;overflow-y:auto;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                   <h3 id="courseHistoryTitle" style="margin:0;">📈 강좌 이력</h3>
                   <button onclick="closeCourseHistoryModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
@@ -4804,7 +4804,7 @@
                   <table class="table" style="width:100%;">
                     <thead>
                       <tr>
-                        <th>차수</th><th>강사</th><th>회원비</th><th>등록인원</th><th>강사료</th><th>입금액</th><th>정산상태</th><th>상태</th>
+                        <th>차수</th><th>강사</th><th>회원비</th><th>등록인원</th><th>강사료</th><th>입금액</th><th>정산상태</th><th>상태</th><th>수강생 명단</th>
                       </tr>
                     </thead>
                     <tbody id="courseHistoryBody"></tbody>
@@ -4869,8 +4869,11 @@
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
                     <h2 style="margin:0;">👥 회원관리</h2>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <select id="memberCohortFilter" onchange="loadMembers()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                      <select id="memberCohortFilter" onchange="loadMemberCourseOptions();loadMembers()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                         <option value="">전체 차수</option>
+                      </select>
+                      <select id="memberCourseFilter" onchange="loadMembers()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;max-width:220px;">
+                        <option value="">전체 강좌</option>
                       </select>
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
@@ -4879,6 +4882,10 @@
                     </div>
                   </div>
                   <p style="color:#666;font-size:12.5px;margin:0 0 10px;">전체 강좌를 가로질러 회원을 조회합니다. "기존회원"은 같은 연락처로 이전에 등록된 이력이 있으면 자동으로 표시됩니다. 이름을 클릭하면 이 회원의 전체 수강 이력을 볼 수 있습니다.</p>
+                  <div id="memberResultSummary" style="display:none;background:#eef6ff;border:1px solid #cfe2ff;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px;">
+                    <div style="color:#1a4a7a;font-weight:700;margin-bottom:6px;" id="memberResultCountText"></div>
+                    <div id="memberResultByCourse" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                  </div>
                   <div id="memberBulkDeleteBar" style="display:none;align-items:center;gap:10px;background:#fff5f5;border:1px solid #ffd2d2;border-radius:8px;padding:8px 12px;margin-bottom:10px;">
                     <span id="memberSelectedCount" style="font-size:12.5px;color:#c0392b;font-weight:600;"></span>
                     <button onclick="bulkDeleteMembers()" style="padding:6px 14px;border-radius:6px;border:1px solid #e74c3c;background:#e74c3c;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">🗑 선택 삭제</button>
@@ -9743,7 +9750,7 @@
             document.getElementById('courseHistoryTitle').textContent = '📈 강좌 이력: ' + courseName;
             document.getElementById('courseHistorySummary').textContent = '';
             document.getElementById('courseHistoryBody').innerHTML =
-                '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+                '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
             document.getElementById('courseHistoryModal').style.display = 'flex';
 
             api('GET', '/api/courses').then(function(r) {
@@ -9754,23 +9761,37 @@
 
                 if (!matched.length) {
                     document.getElementById('courseHistoryBody').innerHTML =
-                        '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">이력이 없습니다.</td></tr>';
+                        '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">이력이 없습니다.</td></tr>';
                     return;
                 }
 
-                // 각 차수의 저장된 정산 결과도 함께 가져와서 강사료/입금액을 보여줍니다 (미정산이면 '-')
-                Promise.all(matched.map(function(c) {
-                    return api('GET', '/api/settlements/' + c.id).catch(function() { return null; });
-                })).then(function(settlementResults) {
+                // 각 차수의 저장된 정산 결과와, 그 차수에 실제로 등록된 수강생 명단을 함께 가져옵니다.
+                Promise.all([
+                    Promise.all(matched.map(function(c) {
+                        return api('GET', '/api/settlements/' + c.id).catch(function() { return null; });
+                    })),
+                    Promise.all(matched.map(function(c) {
+                        return api('GET', '/api/enrollments?course_id=' + c.id).catch(function() { return { enrollments: [] }; });
+                    })),
+                ]).then(function(results) {
+                    var settlementResults = results[0];
+                    var enrollmentResults = results[1];
                     var totalEnrolled = matched.reduce(function(sum, c) { return sum + (c.enrolled_count || 0); }, 0);
                     document.getElementById('courseHistorySummary').textContent =
-                        '총 ' + matched.length + '개 차수 · 누적 수강생 ' + totalEnrolled + '명';
+                        '총 ' + matched.length + '개 차수 · 누적 수강생 ' + totalEnrolled + '명 (이름을 누르면 그 회원의 전체 수강 이력을 볼 수 있습니다)';
 
                     document.getElementById('courseHistoryBody').innerHTML = matched.map(function(c, i) {
                         var s = settlementResults[i] && settlementResults[i].settlement;
                         var statusBadge = c.is_closed
                             ? '<span style="color:#999;">폐강</span>'
                             : '<span style="color:#27ae60;">진행</span>';
+                        var enrollList = (enrollmentResults[i] && enrollmentResults[i].enrollments) || [];
+                        var namesHtml = enrollList.length
+                            ? enrollList.map(function(e) {
+                                var refundedTag = e.is_refunded ? '<span style="color:#e74c3c;">(환불)</span>' : '';
+                                return '<a href="javascript:void(0)" onclick="openMemberProfile(\'' + String(e.phone || '').replace(/'/g, '') + '\')" style="color:#2980b9;text-decoration:underline;white-space:nowrap;">' + escapeHtml(e.member_name) + '</a>' + refundedTag;
+                            }).join(', ')
+                            : '<span style="color:#ccc;">-</span>';
                         return '<tr>' +
                             '<td>' + escapeHtml(c.cohort) + '</td>' +
                             '<td>' + escapeHtml(c.instructor_name || '-') + '</td>' +
@@ -9780,12 +9801,13 @@
                             '<td>' + (s ? Number(s.deposit_amount).toLocaleString() + '원' : '-') + '</td>' +
                             '<td>' + (s ? s.voucher_status : '미정산') + '</td>' +
                             '<td>' + statusBadge + '</td>' +
+                            '<td style="max-width:260px;font-size:12px;line-height:1.6;">' + namesHtml + '</td>' +
                             '</tr>';
                     }).join('');
                 });
             }).catch(function() {
                 document.getElementById('courseHistoryBody').innerHTML =
-                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="9" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
             });
         }
 
@@ -10904,20 +10926,24 @@
         function loadMembers() {
             var search = document.getElementById('memberSearchInput').value.trim();
             var cohort = document.getElementById('memberCohortFilter').value;
+            var courseName = document.getElementById('memberCourseFilter').value;
             var params = [];
             if (search) params.push('search=' + encodeURIComponent(search));
             if (cohort) params.push('cohort=' + encodeURIComponent(cohort));
+            if (courseName) params.push('course=' + encodeURIComponent(courseName));
             var qs = params.length ? ('?' + params.join('&')) : '';
             _lastMembersQs = qs;
 
             document.getElementById('membersTableBody').innerHTML =
-                '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+                '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+            document.getElementById('memberResultSummary').style.display = 'none';
             var listPromise = api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
                 renderMembersTable();
+                renderMemberResultSummary();
             }).catch(function() {
                 document.getElementById('membersTableBody').innerHTML =
-                    '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="9" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
             // 통계는 API 호출 절약을 위해 자동으로 불러오지 않습니다.
             // 검색조건이 바뀌었으므로 캐시를 무효화하고, 이미 열려있는 경우에만 바로 갱신합니다.
@@ -10925,6 +10951,42 @@
             _memberStatsLoaded = false;
             if (_memberStatsOpen) loadMemberStats(qs);
             return listPromise;
+        }
+
+        // 검색결과 개수와 강좌별 인원 분포를 보여줍니다 (페이지 이동 없이 바로 확인 가능하도록).
+        function renderMemberResultSummary() {
+            var wrap = document.getElementById('memberResultSummary');
+            if (!_membersCache.length) { wrap.style.display = 'none'; return; }
+
+            var byCourse = {};
+            _membersCache.forEach(function(m) {
+                var key = m.course_name + ' (' + m.cohort + ')';
+                byCourse[key] = (byCourse[key] || 0) + 1;
+            });
+            var courseKeys = Object.keys(byCourse).sort(function(a, b) { return byCourse[b] - byCourse[a]; });
+
+            document.getElementById('memberResultCountText').textContent =
+                '🔍 총 ' + _membersCache.length + '명 검색됨' + (courseKeys.length > 1 ? (' · 강좌 ' + courseKeys.length + '개') : '');
+            document.getElementById('memberResultByCourse').innerHTML = courseKeys.map(function(key) {
+                return '<span style="background:#fff;border:1px solid #cfe2ff;border-radius:14px;padding:3px 10px;font-size:12px;color:#2c5c88;">' +
+                    escapeHtml(key) + ' <b>' + byCourse[key] + '명</b></span>';
+            }).join('');
+            wrap.style.display = 'block';
+        }
+
+        // 회원관리 탭의 "강좌명으로 찾기" 드롭다운을 채웁니다. 차수 필터가 선택되어 있으면 그 차수의 강좌만 보여줍니다.
+        function loadMemberCourseOptions() {
+            var cohort = document.getElementById('memberCohortFilter').value;
+            var courseSel = document.getElementById('memberCourseFilter');
+            var current = courseSel.value;
+            var qs = cohort ? ('?cohort=' + encodeURIComponent(cohort)) : '';
+            api('GET', '/api/courses' + qs).then(function(r) {
+                var courses = (r && r.courses) || [];
+                var names = Array.from(new Set(courses.map(function(c) { return c.course_name; }))).sort();
+                courseSel.innerHTML = '<option value="">전체 강좌</option>' +
+                    names.map(function(n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+                if (names.indexOf(current) !== -1) courseSel.value = current;
+            }).catch(function() {});
         }
 
         // ----- 교인여부/성별/연령대 통계 차트 (버튼 클릭 시에만 조회) -----
@@ -12594,7 +12656,7 @@
             } else if (tabName === 'membermanagement') {
                 // API 호출 절약을 위해 차수 목록(및 기본 필터값)만 불러오고,
                 // 실제 회원 조회/생일/이탈위험은 사용자가 각 조회 버튼을 눌러야 호출됩니다.
-                loadCohorts();
+                loadCohorts().then(function() { loadMemberCourseOptions(); });
             } else if (tabName === 'approval') {
                 // 전자결재 탭 - 즉시 섹션 표시
                 document.querySelectorAll('.approval-section').forEach(function(s) {
