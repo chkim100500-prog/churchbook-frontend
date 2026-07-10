@@ -4920,6 +4920,7 @@
                       </tbody>
                     </table>
                   </div>
+                  <div id="members-pagination" style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:14px;"></div>
                 </div>
 
                 <!-- 인사이트: 교인여부/성별/연령대 통계 (사용빈도가 낮아 버튼 클릭 시에만 조회 -> API 호출 절약) -->
@@ -11009,6 +11010,7 @@
             document.getElementById('memberResultSummary').style.display = 'none';
             var listPromise = api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
+                _membersPage = 1;
                 renderMembersTable();
                 renderMemberResultSummary();
             }).catch(function() {
@@ -11159,9 +11161,16 @@
             clearMemberSelection();
             if (!_membersCache.length) {
                 body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
+                document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
-            body.innerHTML = _membersCache.map(function(m) {
+
+            var totalPages = Math.max(1, Math.ceil(_membersCache.length / MEMBERS_PAGE_SIZE));
+            _membersPage = Math.min(Math.max(1, _membersPage), totalPages);
+            var start = (_membersPage - 1) * MEMBERS_PAGE_SIZE;
+            var pageItems = _membersCache.slice(start, start + MEMBERS_PAGE_SIZE);
+
+            body.innerHTML = pageItems.map(function(m) {
                 var badge = m.is_existing_member
                     ? '<span style="color:#2980b9;font-weight:600;">기존회원</span>'
                     : '<span style="color:#27ae60;">신규</span>';
@@ -11188,6 +11197,47 @@
                     '</tr>'
                 );
             }).join('');
+
+            renderMembersPagination(totalPages, _membersCache.length, start, pageItems.length);
+        }
+
+        // ----- 회원관리 표 페이지네이션 (50명 단위) -----
+        var _membersPage = 1;
+        var MEMBERS_PAGE_SIZE = 50;
+
+        function renderMembersPagination(totalPages, totalCount, start, pageCount) {
+            var box = document.getElementById('members-pagination');
+            if (totalPages <= 1) { box.innerHTML = ''; return; }
+
+            var rangeLabel = (start + 1).toLocaleString() + '–' + (start + pageCount).toLocaleString() + ' / 총 ' + totalCount.toLocaleString() + '명';
+            var html = '<span style="font-size:12px;color:#888;margin-right:8px;align-self:center;">' + rangeLabel + '</span>';
+
+            function mkBtn(label, page, disabled, active) {
+                return '<button ' + (disabled ? 'disabled' : ('onclick="goMembersPage(' + page + ')"')) +
+                    ' style="padding:6px 12px;border:1px solid ' + (active ? '#007BFF' : '#ddd') + ';border-radius:6px;' +
+                    'background:' + (active ? '#007BFF' : (disabled ? '#f5f5f5' : 'white')) + ';' +
+                    'color:' + (active ? 'white' : (disabled ? '#ccc' : '#333')) + ';' +
+                    'font-size:13px;cursor:' + (disabled ? 'default' : 'pointer') + ';">' + label + '</button>';
+            }
+
+            html += mkBtn('이전', _membersPage - 1, _membersPage === 1, false);
+
+            var pStart = Math.max(1, _membersPage - 3);
+            var pEnd = Math.min(totalPages, pStart + 6);
+            pStart = Math.max(1, pEnd - 6);
+            for (var p = pStart; p <= pEnd; p++) {
+                html += mkBtn(String(p), p, false, p === _membersPage);
+            }
+
+            html += mkBtn('다음', _membersPage + 1, _membersPage === totalPages, false);
+            box.innerHTML = html;
+        }
+
+        function goMembersPage(page) {
+            _membersPage = page;
+            renderMembersTable();
+            var container = document.querySelector('#membermanagement .table-container');
+            if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // ----- 회원관리 표 선택삭제 (체크박스로 여러 명 한번에) -----
