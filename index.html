@@ -10960,18 +10960,29 @@
 
             var byCourse = {};
             _membersCache.forEach(function(m) {
-                var key = m.course_name + ' (' + m.cohort + ')';
-                byCourse[key] = (byCourse[key] || 0) + 1;
+                var key = m.course_name + '|||' + m.cohort;
+                if (!byCourse[key]) byCourse[key] = { courseName: m.course_name, cohort: m.cohort, count: 0 };
+                byCourse[key].count++;
             });
-            var courseKeys = Object.keys(byCourse).sort(function(a, b) { return byCourse[b] - byCourse[a]; });
+            var groups = Object.values(byCourse).sort(function(a, b) { return b.count - a.count; });
 
             document.getElementById('memberResultCountText').textContent =
-                '🔍 총 ' + _membersCache.length + '명 검색됨' + (courseKeys.length > 1 ? (' · 강좌 ' + courseKeys.length + '개') : '');
-            document.getElementById('memberResultByCourse').innerHTML = courseKeys.map(function(key) {
-                return '<span style="background:#fff;border:1px solid #cfe2ff;border-radius:14px;padding:3px 10px;font-size:12px;color:#2c5c88;">' +
-                    escapeHtml(key) + ' <b>' + byCourse[key] + '명</b></span>';
+                '🔍 총 ' + _membersCache.length + '명 검색됨' + (groups.length > 1 ? (' · 강좌 ' + groups.length + '개 — 클릭하면 그 강좌만 바로 조회됩니다') : '');
+            document.getElementById('memberResultByCourse').innerHTML = groups.map(function(g) {
+                return '<button onclick="filterMembersByCourse(' + jsAttr(g.courseName) + ', ' + jsAttr(g.cohort) + ')" ' +
+                    'style="background:#fff;border:1px solid #cfe2ff;border-radius:14px;padding:3px 10px;font-size:12px;color:#2c5c88;cursor:pointer;">' +
+                    escapeHtml(g.courseName) + ' (' + escapeHtml(g.cohort) + ') <b>' + g.count + '명</b></button>';
             }).join('');
             wrap.style.display = 'block';
+        }
+
+        // 검색결과 요약의 강좌 알약(pill)을 클릭했을 때: 그 강좌+차수로 필터를 맞추고 바로 재조회합니다.
+        function filterMembersByCourse(courseName, cohort) {
+            document.getElementById('memberCohortFilter').value = cohort;
+            loadMemberCourseOptions().then(function() {
+                document.getElementById('memberCourseFilter').value = courseName;
+                loadMembers();
+            });
         }
 
         // 회원관리 탭의 "강좌명으로 찾기" 드롭다운을 채웁니다. 차수 필터가 선택되어 있으면 그 차수의 강좌만 보여줍니다.
@@ -10980,7 +10991,7 @@
             var courseSel = document.getElementById('memberCourseFilter');
             var current = courseSel.value;
             var qs = cohort ? ('?cohort=' + encodeURIComponent(cohort)) : '';
-            api('GET', '/api/courses' + qs).then(function(r) {
+            return api('GET', '/api/courses' + qs).then(function(r) {
                 var courses = (r && r.courses) || [];
                 var names = Array.from(new Set(courses.map(function(c) { return c.course_name; }))).sort();
                 courseSel.innerHTML = '<option value="">전체 강좌</option>' +
