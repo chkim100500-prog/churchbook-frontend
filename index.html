@@ -12340,6 +12340,79 @@
             printDeReport('재무제표', wrap.innerHTML);
         }
 
+        // 로그인 성공(신규 로그인/자동 로그인 공통) 후 메인 화면 진입 처리
+        function showMainApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            armBackExitGuard();
+        }
+
+        function initAppAfterAuth() {
+            showMainApp();
+            initializeAllYearSelects();
+            populateOptions();
+            initializeConstants();
+            loadApprovalAuthorities();
+            loadHeaderInfo();
+            loadDuesTabName();
+            loadDashboard();
+            loadModuleConfig();
+            api('GET', '/api/dues').then(r => {
+                _duesData = r.data || [];
+                updateDuesTabVisibility();
+                loadDuesToSelect();
+            }).catch(() => {});
+            checkAnnouncements();
+        }
+
+        // ===== 자동 로그인 유지 =====
+        // 모바일에서 뒤로가기 등으로 페이지가 통째로 새로고침되어도, 저장된 토큰이 아직 살아있으면
+        // 로그인 화면을 건너뛰고 바로 메인 화면으로 진입시킵니다.
+        function tryAutoLogin() {
+            const token = getAuthToken();
+            if (!token) return; // 저장된 토큰 없음 → 로그인 화면 그대로 표시
+
+            const payload = parseJwt(token);
+            if (!payload || (payload.exp && payload.exp * 1000 < Date.now())) {
+                clearAuthToken();
+                return; // 토큰이 없거나 만료됨 → 로그인 화면 그대로 표시
+            }
+
+            // 토큰이 유효해 보여도, 서버에서 여전히 받아들이는지 가벼운 API 호출로 한 번 확인 후 진입합니다.
+            showLoading();
+            api('GET', '/api/settings/department-info')
+                .then(() => {
+                    hideLoading();
+                    initAppAfterAuth();
+                })
+                .catch(() => {
+                    hideLoading();
+                    clearAuthToken(); // 서버가 거부한 토큰(로그아웃/만료 등)은 지우고 로그인 화면 유지
+                });
+        }
+        document.addEventListener('DOMContentLoaded', tryAutoLogin);
+
+        // ===== 뒤로가기 = 앱 종료 확인 =====
+        // 메인 화면에서 기기 뒤로가기를 누르면 다른 앱들처럼 "종료하시겠습니까?"를 먼저 물어봅니다.
+        let _cbBackGuardBound = false;
+        let _cbAllowNextBack = false;
+
+        function armBackExitGuard() {
+            history.pushState({ cbGuard: true }, '');
+            if (_cbBackGuardBound) return;
+            _cbBackGuardBound = true;
+            window.addEventListener('popstate', () => {
+                if (document.getElementById('mainApp').style.display !== 'block') return; // 로그인 화면 등에서는 기본 동작 유지
+                if (_cbAllowNextBack) return; // 종료를 승낙한 다음의 뒤로가기는 그대로 진행
+                if (confirm('처치북을 종료하시겠습니까?')) {
+                    _cbAllowNextBack = true;
+                    history.back();
+                } else {
+                    history.pushState({ cbGuard: true }, '');
+                }
+            });
+        }
+
         function login() {
             const username = document.getElementById('usernameInput').value.trim();
             const password = document.getElementById('passwordInput').value;
@@ -12353,22 +12426,7 @@
                     hideLoading();
                     if (result.success && result.token) {
                         setAuthToken(result.token);
-                        document.getElementById('loginScreen').style.display = 'none';
-                        document.getElementById('mainApp').style.display = 'block';
-                        initializeAllYearSelects();
-                        populateOptions();
-                        initializeConstants();
-                        loadApprovalAuthorities();
-                        loadHeaderInfo();
-                        loadDuesTabName();
-                        loadDashboard();
-                        loadModuleConfig();
-                        api('GET', '/api/dues').then(r => {
-                            _duesData = r.data || [];
-                            updateDuesTabVisibility();
-                            loadDuesToSelect();
-                        }).catch(() => {});
-                        checkAnnouncements();
+                        initAppAfterAuth();
 
                     } else {
                         document.getElementById('loginError').classList.remove('hidden');
