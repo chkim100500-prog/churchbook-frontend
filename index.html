@@ -4829,6 +4829,30 @@
               </div>
             </div>
 
+            <!-- 강사별 정산 이력 모달 (이 강사가 담당한 모든 강좌의 정산 결과를 한 번에 모아서 보여줌) -->
+            <div id="instructorSettlementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:94%;max-width:1000px;max-height:88vh;overflow-y:auto;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <h3 id="instructorSettlementTitle" style="margin:0;">💰 정산 이력</h3>
+                  <button onclick="closeInstructorSettlementModal()" style="border:none;background:none;font-size:20px;cursor:pointer;color:#999;">×</button>
+                </div>
+                <p id="instructorSettlementSummary" style="color:#999;font-size:12.5px;margin:0 0 14px;"></p>
+                <div style="overflow-x:auto;">
+                  <table class="table" style="width:100%;">
+                    <thead>
+                      <tr>
+                        <th>차수</th><th>강좌명</th><th>등록인원</th><th>강사료</th><th>차인지급액</th><th>정산상태</th><th>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody id="instructorSettlementBody"></tbody>
+                  </table>
+                </div>
+                <div style="margin-top:20px;">
+                  <button onclick="closeInstructorSettlementModal()" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
+                </div>
+              </div>
+            </div>
+
             <!-- 일괄 정산 결과 모달 -->
             <div id="batchSettlementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
@@ -9427,6 +9451,7 @@
                     '<td>' + statusBadge + '</td>' +
                     '<td>' +
                       '<button onclick="openInstructorDetail(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12px;cursor:pointer;margin-right:4px;">상세보기</button>' +
+                      '<button onclick=\'openInstructorSettlementHistory(' + ins.id + ', ' + jsAttr(ins.name) + ')\' style="padding:4px 10px;border-radius:6px;border:1px solid #16a085;background:#fff;color:#16a085;font-size:12px;cursor:pointer;margin-right:4px;">💰 정산이력</button>' +
                       '<button onclick="openInstructorModal(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       (ins.is_active
                         ? '<button onclick="deactivateInstructor(' + ins.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e67e22;background:#fff;color:#e67e22;font-size:12px;cursor:pointer;margin-right:4px;">비활성화</button>'
@@ -9504,6 +9529,68 @@
 
         function closeInstructorDetailModal() {
             document.getElementById('instructorDetailModal').style.display = 'none';
+        }
+
+        // ----- 강사별 정산 이력 (그 강사가 담당한 모든 차수의 강좌를 모아 정산 결과를 보여줌) -----
+        function openInstructorSettlementHistory(instructorId, instructorName) {
+            document.getElementById('instructorSettlementTitle').textContent = '💰 정산 이력: ' + instructorName + ' 강사';
+            document.getElementById('instructorSettlementSummary').textContent = '';
+            document.getElementById('instructorSettlementBody').innerHTML =
+                '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+            document.getElementById('instructorSettlementModal').style.display = 'flex';
+
+            api('GET', '/api/courses').then(function(r) {
+                var all = (r && r.courses) || [];
+                var matched = all.filter(function(c) { return c.instructor_id === instructorId; });
+                matched.sort(function(a, b) { return parseCohortNum(b.cohort) - parseCohortNum(a.cohort); });
+
+                if (!matched.length) {
+                    document.getElementById('instructorSettlementBody').innerHTML =
+                        '<tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px;">담당한 강좌가 없습니다.</td></tr>';
+                    return;
+                }
+
+                Promise.all(matched.map(function(c) {
+                    return api('GET', '/api/settlements/' + c.id).catch(function() { return null; });
+                })).then(function(settlementResults) {
+                    var settledCount = 0;
+                    var totalNet = 0;
+
+                    var rowsHtml = matched.map(function(c, i) {
+                        var s = settlementResults[i] && settlementResults[i].settlement;
+                        if (s) {
+                            settledCount++;
+                            totalNet += Number(s.net_payment) || 0;
+                        }
+                        var statusBadge = c.is_closed
+                            ? '<span style="color:#999;">폐강</span>'
+                            : '<span style="color:#27ae60;">진행</span>';
+                        var settleCell = s
+                            ? ((s.settlement_month || '-') + ' · ' + s.voucher_status)
+                            : '<span style="color:#aaa;">미정산</span>';
+                        return '<tr>' +
+                            '<td>' + escapeHtml(c.cohort) + '</td>' +
+                            '<td>' + escapeHtml(c.course_name) + '</td>' +
+                            '<td>' + (c.enrolled_count ?? 0) + (c.capacity ? '/' + c.capacity : '') + '명</td>' +
+                            '<td>' + (s ? Number(s.instructor_fee).toLocaleString() + '원' : '-') + '</td>' +
+                            '<td>' + (s ? Number(s.net_payment).toLocaleString() + '원' : '-') + '</td>' +
+                            '<td>' + settleCell + '</td>' +
+                            '<td>' + statusBadge + '</td>' +
+                            '</tr>';
+                    }).join('');
+
+                    document.getElementById('instructorSettlementSummary').textContent =
+                        '총 ' + matched.length + '개 강좌 · 정산완료 ' + settledCount + '건 · 누적 차인지급액 ' + totalNet.toLocaleString() + '원';
+                    document.getElementById('instructorSettlementBody').innerHTML = rowsHtml;
+                });
+            }).catch(function() {
+                document.getElementById('instructorSettlementBody').innerHTML =
+                    '<tr><td colspan="7" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
+            });
+        }
+
+        function closeInstructorSettlementModal() {
+            document.getElementById('instructorSettlementModal').style.display = 'none';
         }
 
         function populateCourseInstructorSelect() {
