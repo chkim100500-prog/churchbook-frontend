@@ -4647,7 +4647,10 @@
             <!-- 회원 등록/수정 모달 -->
             <div id="enrollmentModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:420px;max-height:88vh;overflow-y:auto;">
-                <h3 id="enrollmentModalTitle" style="margin:0 0 16px;">회원 등록</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 id="enrollmentModalTitle" style="margin:0;">회원 등록</h3>
+                  <button onclick="closeEnrollmentModal()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#999;padding:0;">×</button>
+                </div>
                 <input type="hidden" id="enrollmentId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label id="enrollmentCourseSelectWrap" style="font-size:12.5px;color:#555;display:none;">강좌 *
@@ -4704,7 +4707,10 @@
             <!-- 강사 등록/수정 모달 -->
             <div id="instructorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:420px;max-height:88vh;overflow-y:auto;">
-                <h3 id="instructorModalTitle" style="margin:0 0 16px;">강사 등록</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 id="instructorModalTitle" style="margin:0;">강사 등록</h3>
+                  <button onclick="closeInstructorModal()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#999;padding:0;">×</button>
+                </div>
                 <input type="hidden" id="instructorId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">강사명 *<input id="instructorName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
@@ -4740,7 +4746,10 @@
             <!-- 강좌 등록/수정 모달 -->
             <div id="courseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:420px;max-height:88vh;overflow-y:auto;">
-                <h3 id="courseModalTitle" style="margin:0 0 16px;">강좌 등록</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 id="courseModalTitle" style="margin:0;">강좌 등록</h3>
+                  <button onclick="closeCourseModal()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#999;padding:0;">×</button>
+                </div>
                 <input type="hidden" id="courseId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">차수 * (예: 50기)<input id="courseCohort" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
@@ -4768,7 +4777,10 @@
             <!-- 이전 차수 강좌 복사 모달 -->
             <div id="copyCoursesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
-                <h3 style="margin:0 0 16px;">📋 이전 차수 강좌 복사</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 style="margin:0;">📋 이전 차수 강좌 복사</h3>
+                  <button onclick="closeCopyCoursesModal()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#999;padding:0;">×</button>
+                </div>
                 <p style="color:#666;font-size:12.5px;margin:0 0 14px;">
                   강좌명·담당강사·회원비 등은 그대로 복사되고, <b>회원 명단은 복사되지 않습니다</b> (새 차수는 항상 새 등록으로 시작).
                   이어가지 않는 강좌는 체크를 해제해주세요.
@@ -4820,7 +4832,10 @@
             <!-- 일괄 정산 결과 모달 -->
             <div id="batchSettlementModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
               <div style="background:#fff;border-radius:12px;padding:24px;width:92%;max-width:520px;max-height:88vh;overflow-y:auto;">
-                <h3 style="margin:0 0 16px;">📊 일괄 정산 결과</h3>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                  <h3 style="margin:0;">📊 일괄 정산 결과</h3>
+                  <button onclick="document.getElementById('batchSettlementModal').style.display='none'" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#999;padding:0;">×</button>
+                </div>
                 <div id="batchSettlementBody" style="font-size:13px;color:#333;"></div>
                 <div style="margin-top:20px;">
                   <button onclick="document.getElementById('batchSettlementModal').style.display='none'" style="width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13.5px;">닫기</button>
@@ -11024,7 +11039,7 @@
             document.getElementById('memberResultCountText').textContent =
                 '🔍 총 ' + _membersCache.length + '명 검색됨' + (groups.length > 1 ? (' · 강좌 ' + groups.length + '개 — 클릭하면 그 강좌만 바로 조회됩니다') : '');
             document.getElementById('memberResultByCourse').innerHTML = groups.map(function(g) {
-                return '<button onclick="filterMembersByCourse(' + jsAttr(g.courseName) + ', ' + jsAttr(g.cohort) + ')" ' +
+                return '<button onclick=\'filterMembersByCourse(' + jsAttr(g.courseName) + ', ' + jsAttr(g.cohort) + ')\' ' +
                     'style="background:#fff;border:1px solid #cfe2ff;border-radius:14px;padding:3px 10px;font-size:12px;color:#2c5c88;cursor:pointer;">' +
                     escapeHtml(g.courseName) + ' (' + escapeHtml(g.cohort) + ') <b>' + g.count + '명</b></button>';
             }).join('');
