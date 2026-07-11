@@ -4990,7 +4990,7 @@
                 <h2>📇 회원명부</h2>
                 <p style="color:#666;font-size:13.5px;margin-bottom:16px;">고정 회원 명단을 관리합니다. 그만두는 개념이 없고, <b>이사·제적·기타</b> 사유가 있을 때만 상태를 변경합니다 (기록은 계속 남습니다).</p>
 
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
                   <select id="rosterStatusFilter" onchange="loadMemberRoster()" style="padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                     <option value="">전체 상태</option>
                     <option value="활성">활성만</option>
@@ -5005,19 +5005,30 @@
                   <button class="btn" onclick="openRosterModal()" style="background:#28a745;white-space:nowrap;">+ 회원 등록</button>
                 </div>
 
+                <div id="rosterDuesToolbar" style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;background:#f0f7ff;border:1px solid #cfe2ff;border-radius:8px;padding:10px 12px;">
+                  <span style="font-size:12.5px;color:#2c5c88;font-weight:600;white-space:nowrap;">💰 회비 납부 현황</span>
+                  <select id="rosterDuesYear" onchange="loadRosterDuesStatus()" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;"></select>
+                  <select id="rosterDuesNameSelect" onchange="loadRosterDuesStatus()" style="flex:1;min-width:140px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">
+                    <option value="">회비 항목을 선택하세요</option>
+                  </select>
+                  <button class="btn" onclick="downloadRosterExcel()" style="background:#16a085;white-space:nowrap;padding:6px 12px;font-size:12.5px;">📊 엑셀 내보내기</button>
+                  <button class="btn" onclick="printRosterList()" style="background:#8e44ad;white-space:nowrap;padding:6px 12px;font-size:12.5px;">🖨️ 인쇄</button>
+                </div>
+
                 <p id="rosterSummary" style="color:#888;font-size:12.5px;margin:0 0 10px;"></p>
 
                 <div style="overflow-x:auto;">
                   <table class="table" style="width:100%;">
                     <thead>
                       <tr>
-                        <th>이름</th><th>연락처</th><th>생년월일</th><th>성별</th><th>가입일</th><th>상태</th><th>상태사유</th><th>관리</th>
+                        <th>이름</th><th>연락처</th><th>생년월일</th><th>성별</th><th>가입일</th><th>상태</th><th>상태사유</th><th>올해납부액</th><th>납부횟수</th><th>완납상태</th><th>관리</th>
                       </tr>
                     </thead>
                     <tbody id="rosterTableBody">
-                      <tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
+                      <tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>
                     </tbody>
                   </table>
+
                 </div>
               </div>
             </div>
@@ -9692,17 +9703,84 @@
 
         // ===== 회원명부 (남선교회/여전도회/목장 등 고정 회원 명단) =====
         var _rosterCache = [];
+        var _rosterDuesMap = {};       // { 이름: { paid, count } } — 선택된 연도+회비 기준
+        var _rosterDuesExpected = 0;   // 선택된 회비의 연간 예상 납부액 (0이면 금액미정)
+        var _rosterDuesControlsInited = false;
 
         function loadMemberRoster() {
             var body = document.getElementById('rosterTableBody');
-            body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
             var status = document.getElementById('rosterStatusFilter').value;
             var qs = status ? ('?status=' + encodeURIComponent(status)) : '';
+            if (!_rosterDuesControlsInited) {
+                _rosterDuesControlsInited = true;
+                initRosterDuesControls();
+            }
             api('GET', '/api/member-roster' + qs).then(function(r) {
                 _rosterCache = (r && r.members) || [];
                 renderRosterTable();
             }).catch(function() {
-                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#e74c3c;padding:20px;">불러오지 못했습니다.</td></tr>';
+            });
+        }
+
+        // 연도 select(최근 3년~내년)와 회비 항목 select(부서회비 설정에서 가져옴)를 채웁니다.
+        function initRosterDuesControls() {
+            var yearSel = document.getElementById('rosterDuesYear');
+            var thisYear = new Date().getFullYear();
+            var years = [];
+            for (var y = thisYear + 1; y >= thisYear - 3; y--) years.push(y);
+            yearSel.innerHTML = years.map(function(y) { return '<option value="' + y + '"' + (y === thisYear ? ' selected' : '') + '>' + y + '년</option>'; }).join('');
+
+            api('GET', '/api/dues').then(function(r) {
+                var list = (r && r.data) || [];
+                var names = Array.from(new Set(list.filter(function(d) { return d.active; }).map(function(d) { return d.duesName; }).filter(Boolean)));
+                var nameSel = document.getElementById('rosterDuesNameSelect');
+                nameSel.innerHTML = '<option value="">회비 항목을 선택하세요</option>' +
+                    names.map(function(n) { return '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>'; }).join('');
+                nameSel.dataset.duesJson = encodeURIComponent(JSON.stringify(list));
+            }).catch(function() {
+                // 부서회비 기능을 아예 안 쓰는 조직일 수 있음 — 조용히 무시 (완납현황은 그냥 안 뜸)
+            });
+        }
+
+        // 선택된 연도+회비명 기준으로 회원별 납부 현황을 계산합니다.
+        // 월납/연납 등 방식에 상관없이 "올해 총 납부액"만 비교합니다 (한 번에 1년치를 내도 동일하게 인정).
+        function loadRosterDuesStatus() {
+            var year = document.getElementById('rosterDuesYear').value;
+            var duesName = document.getElementById('rosterDuesNameSelect').value;
+            _rosterDuesMap = {};
+            _rosterDuesExpected = 0;
+
+            if (!duesName) { renderRosterTable(); return; }
+
+            // 연간 예상 납부액 계산 (선택된 회비 설정의 주기×금액 기준)
+            var nameSel = document.getElementById('rosterDuesNameSelect');
+            try {
+                var duesList = JSON.parse(decodeURIComponent(nameSel.dataset.duesJson || '[]'));
+                var matched = duesList.find(function(d) { return d.duesName === duesName && d.active; });
+                if (matched && matched.amount > 0) {
+                    var cycleMultiplier = { '월': 12, '분기': 4, '반기': 2, '년': 1 }[matched.cycle] || 1;
+                    _rosterDuesExpected = Number(matched.amount) * cycleMultiplier;
+                }
+            } catch (e) { /* 무시 */ }
+
+            api('GET', '/api/teacher-fees?year=' + encodeURIComponent(year)).then(function(r) {
+                var rows = (r && r.data) || [];
+                rows.forEach(function(row) {
+                    var income = Number(row.income) || 0;
+                    if (income <= 0) return; // 지출 행은 제외
+                    if ((row.incomeItem || '') !== duesName) return;
+                    var payer = (row.description || '').trim();
+                    if (!payer) return;
+                    if (!_rosterDuesMap[payer]) _rosterDuesMap[payer] = { paid: 0, count: 0 };
+                    _rosterDuesMap[payer].paid += income;
+                    _rosterDuesMap[payer].count += 1;
+                });
+                renderRosterTable();
+            }).catch(function() {
+                showAlert('회비 납부 현황을 불러오지 못했습니다.', 'error');
+                renderRosterTable();
             });
         }
 
@@ -9717,13 +9795,29 @@
             document.getElementById('rosterSummary').textContent = '총 ' + _rosterCache.length + '명 중 ' + list.length + '명 표시';
 
             if (!list.length) {
-                body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:20px;">해당하는 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">해당하는 회원이 없습니다.</td></tr>';
                 return;
             }
 
+            var duesSelected = !!document.getElementById('rosterDuesNameSelect').value;
             var statusColor = { '활성': '#27ae60', '이사': '#e67e22', '제적': '#e74c3c', '기타': '#8e44ad' };
             body.innerHTML = list.map(function(m) {
                 var color = statusColor[m.status] || '#999';
+                var duesCell, countCell, payStatusCell;
+                if (!duesSelected) {
+                    duesCell = '-'; countCell = '-'; payStatusCell = '<span style="color:#ccc;">-</span>';
+                } else {
+                    var d = _rosterDuesMap[m.name] || { paid: 0, count: 0 };
+                    duesCell = d.paid.toLocaleString() + '원';
+                    countCell = d.count + '회';
+                    if (_rosterDuesExpected > 0) {
+                        if (d.paid >= _rosterDuesExpected) payStatusCell = '<span style="color:#27ae60;font-weight:600;">완납</span>';
+                        else if (d.paid > 0) payStatusCell = '<span style="color:#e67e22;font-weight:600;">부분납부</span>';
+                        else payStatusCell = '<span style="color:#e74c3c;font-weight:600;">미납</span>';
+                    } else {
+                        payStatusCell = '<span style="color:#999;">참고용(금액미정)</span>';
+                    }
+                }
                 return '<tr>' +
                     '<td>' + escapeHtml(m.name) + '</td>' +
                     '<td>' + escapeHtml(m.phone || '-') + '</td>' +
@@ -9732,12 +9826,98 @@
                     '<td>' + escapeHtml(m.joined_date || '-') + '</td>' +
                     '<td><span style="color:' + color + ';font-weight:600;">' + escapeHtml(m.status) + '</span></td>' +
                     '<td>' + escapeHtml(m.status_reason || '-') + '</td>' +
+                    '<td>' + duesCell + '</td>' +
+                    '<td>' + countCell + '</td>' +
+                    '<td>' + payStatusCell + '</td>' +
                     '<td>' +
                       '<button onclick=\'openRosterModal(' + jsAttr(m.id) + ')\' style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       '<button onclick=\'openRosterStatusModal(' + jsAttr(m.id) + ', ' + jsAttr(m.name) + ', ' + jsAttr(m.status) + ')\' style="padding:4px 10px;border-radius:6px;border:1px solid #e67e22;background:#fff;color:#e67e22;font-size:12px;cursor:pointer;">상태변경</button>' +
                     '</td>' +
                     '</tr>';
             }).join('');
+        }
+
+        // ----- 회원명부 엑셀 내보내기 (회비 납부현황 포함) -----
+        function downloadRosterExcel() {
+            var keyword = (document.getElementById('rosterSearchInput').value || '').trim();
+            var list = _rosterCache.filter(function(m) {
+                if (!keyword) return true;
+                return m.name.indexOf(keyword) !== -1 || (m.phone || '').indexOf(keyword) !== -1;
+            });
+            var duesSelected = !!document.getElementById('rosterDuesNameSelect').value;
+            var duesName = document.getElementById('rosterDuesNameSelect').value;
+            var year = document.getElementById('rosterDuesYear').value;
+
+            var header = ['이름', '연락처', '생년월일', '성별', '가입일', '상태', '상태사유'];
+            if (duesSelected) header = header.concat([year + '년 납부액', '납부횟수', '완납상태']);
+
+            var aoa = [header];
+            list.forEach(function(m) {
+                var row = [m.name, m.phone || '', m.birth_date || '', m.gender || '', m.joined_date || '', m.status, m.status_reason || ''];
+                if (duesSelected) {
+                    var d = _rosterDuesMap[m.name] || { paid: 0, count: 0 };
+                    var payStatus = _rosterDuesExpected > 0
+                        ? (d.paid >= _rosterDuesExpected ? '완납' : (d.paid > 0 ? '부분납부' : '미납'))
+                        : '참고용(금액미정)';
+                    row = row.concat([d.paid, d.count, payStatus]);
+                }
+                aoa.push(row);
+            });
+
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = duesSelected
+                ? [{wch:10},{wch:16},{wch:12},{wch:6},{wch:12},{wch:8},{wch:14},{wch:12},{wch:8},{wch:14}]
+                : [{wch:10},{wch:16},{wch:12},{wch:6},{wch:12},{wch:8},{wch:14}];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '회원명부');
+            var fname = duesSelected ? ('회원명부_' + duesName + '_' + year + '.xlsx') : '회원명부.xlsx';
+            XLSX.writeFile(wb, fname);
+        }
+
+        // ----- 회원명부 인쇄 -----
+        function printRosterList() {
+            var keyword = (document.getElementById('rosterSearchInput').value || '').trim();
+            var list = _rosterCache.filter(function(m) {
+                if (!keyword) return true;
+                return m.name.indexOf(keyword) !== -1 || (m.phone || '').indexOf(keyword) !== -1;
+            });
+            var duesSelected = !!document.getElementById('rosterDuesNameSelect').value;
+            var duesName = document.getElementById('rosterDuesNameSelect').value;
+            var year = document.getElementById('rosterDuesYear').value;
+
+            var extraHeader = duesSelected ? ('<th>' + year + '년 납부액</th><th>납부횟수</th><th>완납상태</th>') : '';
+            var rowsHtml = list.map(function(m) {
+                var extraCells = '';
+                if (duesSelected) {
+                    var d = _rosterDuesMap[m.name] || { paid: 0, count: 0 };
+                    var payStatus = _rosterDuesExpected > 0
+                        ? (d.paid >= _rosterDuesExpected ? '완납' : (d.paid > 0 ? '부분납부' : '미납'))
+                        : '참고용';
+                    extraCells = '<td>' + d.paid.toLocaleString() + '원</td><td>' + d.count + '회</td><td>' + payStatus + '</td>';
+                }
+                return '<tr>' +
+                    '<td>' + escapeHtml(m.name) + '</td>' +
+                    '<td>' + escapeHtml(m.phone || '-') + '</td>' +
+                    '<td>' + escapeHtml(m.birth_date || '-') + '</td>' +
+                    '<td>' + escapeHtml(m.gender || '-') + '</td>' +
+                    '<td>' + escapeHtml(m.joined_date || '-') + '</td>' +
+                    '<td>' + escapeHtml(m.status) + '</td>' +
+                    extraCells +
+                    '</tr>';
+            }).join('');
+
+            var title = '회원명부' + (duesSelected ? (' (' + duesName + ' ' + year + '년 납부현황)') : '');
+            var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
+                'body{font-family:sans-serif;padding:20px;} h2{margin-bottom:12px;} table{width:100%;border-collapse:collapse;font-size:13px;} ' +
+                'th,td{border:1px solid #999;padding:6px 8px;text-align:center;} th{background:#f0f0f0;}' +
+                '</style></head><body>' +
+                '<h2>' + title + '</h2>' +
+                '<table><thead><tr><th>이름</th><th>연락처</th><th>생년월일</th><th>성별</th><th>가입일</th><th>상태</th>' + extraHeader + '</tr></thead>' +
+                '<tbody>' + rowsHtml + '</tbody></table>' +
+                '<button onclick="window.print()" style="margin-top:16px;padding:10px 20px;">인쇄하기</button>' +
+                '</body></html>';
+
+            mobilePrint(html);
         }
 
         function openRosterModal(id) {
