@@ -2983,7 +2983,8 @@
                         </div>
                         <div class="form-group">
                             <label id="tfDescLabel" for="tfDescription">납부자 이름</label>
-                            <input type="text" id="tfDescription" placeholder="이름을 입력하세요" lang="ko">
+                            <input type="text" id="tfDescription" list="tfNameDatalist" placeholder="이름을 입력하세요" lang="ko">
+                            <datalist id="tfNameDatalist"></datalist>
                         </div>
                     </div>
                     <div class="form-row">
@@ -9811,6 +9812,24 @@
             wrap.style.display = (status === '활성') ? 'none' : 'block';
         }
 
+        // ===== 회원명부 자동완성 (부서회비 납부자 이름 입력에서 사용) =====
+        // member_roster 모듈이 꺼져 있거나 명부가 비어있는 조직에서는 조용히 아무 일도 하지 않습니다
+        // (기존 자유입력 방식 그대로 동작).
+        function populateRosterNameDatalist() {
+            var dl = document.getElementById('tfNameDatalist');
+            if (!dl) return;
+            if (typeof isModuleEnabled === 'function' && !isModuleEnabled('member_roster')) return;
+
+            api('GET', '/api/member-roster?status=활성').then(function(r) {
+                var members = (r && r.members) || [];
+                dl.innerHTML = members.map(function(m) {
+                    return '<option value="' + escapeHtml(m.name) + '">';
+                }).join('');
+            }).catch(function() {
+                // 조용히 무시 — 자동완성이 안 뜨더라도 기존처럼 자유 입력은 계속 가능
+            });
+        }
+
         function submitRosterStatusChange() {
             var id = document.getElementById('rosterStatusId').value;
             var status = document.getElementById('rosterStatusSelect').value;
@@ -15703,6 +15722,7 @@
                 if (deptLabel) deptLabel.textContent = '부서/회비 선택';
                 document.getElementById('tfAmount').readOnly = false;
                 document.getElementById('tfAmount').placeholder = '금액 (회비 선택 시 자동 입력)';
+                populateRosterNameDatalist();
             } else {
                 title.textContent = '💸 부서회비 지출 입력';
                 descLabel.textContent = '적요 (사용 내역)';
