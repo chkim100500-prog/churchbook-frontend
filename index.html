@@ -10025,7 +10025,7 @@
             if (!matches.length) { box.style.display = 'none'; return; }
 
             box.innerHTML = matches.map(function(n) {
-                return '<div class="tf-name-suggestion" onmousedown="selectTfName(' + jsAttr(n) + ')" ' +
+                return '<div class="tf-name-suggestion" onmousedown=\'selectTfName(' + jsAttr(n) + ')\' ' +
                     'style="padding:8px 12px;font-size:13.5px;cursor:pointer;">' + escapeHtml(n) + '</div>';
             }).join('');
             box.style.display = 'block';
