@@ -4986,18 +4986,20 @@
             <div class="tab-content" id="memberroster">
               <div class="card">
                 <h2>📇 회원명부</h2>
-                <p style="color:#666;font-size:13.5px;margin-bottom:16px;">고정 회원 명단을 관리합니다. 그만두는 개념이 없고, <b>사망·이사·제적</b> 등 사유가 있을 때만 상태를 변경합니다 (기록은 계속 남습니다).</p>
+                <p style="color:#666;font-size:13.5px;margin-bottom:16px;">고정 회원 명단을 관리합니다. 그만두는 개념이 없고, <b>이사·제적·기타</b> 사유가 있을 때만 상태를 변경합니다 (기록은 계속 남습니다).</p>
 
                 <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
                   <select id="rosterStatusFilter" onchange="loadMemberRoster()" style="padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                     <option value="">전체 상태</option>
                     <option value="활성">활성만</option>
-                    <option value="사망">사망</option>
                     <option value="이사">이사</option>
                     <option value="제적">제적</option>
                     <option value="기타">기타</option>
                   </select>
                   <input id="rosterSearchInput" placeholder="이름 또는 연락처로 검색" oninput="renderRosterTable()" style="flex:1;min-width:160px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                  <button class="btn" onclick="downloadRosterTemplate()" style="background:#607d8b;white-space:nowrap;">📄 엑셀 양식</button>
+                  <button class="btn" onclick="document.getElementById('rosterExcelInput').click()" style="background:#ff9800;white-space:nowrap;">📤 엑셀 일괄등록</button>
+                  <input type="file" id="rosterExcelInput" accept=".xlsx,.xls" style="display:none;" onchange="handleRosterExcelUpload(event)">
                   <button class="btn" onclick="openRosterModal()" style="background:#28a745;white-space:nowrap;">+ 회원 등록</button>
                 </div>
 
@@ -5059,10 +5061,9 @@
                   <label style="font-size:12.5px;color:#555;">변경할 상태
                     <select id="rosterStatusSelect" onchange="updateRosterReasonVisibility()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                       <option value="활성">활성 (복귀)</option>
-                      <option value="사망">사망</option>
                       <option value="이사">이사</option>
                       <option value="제적">제적</option>
-                      <option value="기타">기타</option>
+                      <option value="기타">기타 (사망 등)</option>
                     </select>
                   </label>
                   <label id="rosterReasonWrap" style="font-size:12.5px;color:#555;">사유 *<input id="rosterReasonInput" placeholder="예: 2026년 3월 이사" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;" lang="ko"></label>
@@ -9718,7 +9719,7 @@
                 return;
             }
 
-            var statusColor = { '활성': '#27ae60', '사망': '#7f8c8d', '이사': '#e67e22', '제적': '#e74c3c', '기타': '#8e44ad' };
+            var statusColor = { '활성': '#27ae60', '이사': '#e67e22', '제적': '#e74c3c', '기타': '#8e44ad' };
             body.innerHTML = list.map(function(m) {
                 var color = statusColor[m.status] || '#999';
                 return '<tr>' +
@@ -9831,6 +9832,110 @@
             }).catch(function(e) {
                 showAlert('변경 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
             });
+        }
+
+        // ----- 회원명부 엑셀 일괄등록 -----
+        function downloadRosterTemplate() {
+            var aoa = [
+                ['이름', '연락처', '생년월일', '성별', '가입일', '비고'],
+                ['홍길동', '010-1234-5678', '1970-01-15', '남', '2020-03-01', '예시 행 — 지우고 사용하세요'],
+                ['김영희', '010-9876-5432', '1965-06-20', '여', '2019-05-10', ''],
+            ];
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [{wch:10}, {wch:16}, {wch:12}, {wch:6}, {wch:12}, {wch:24}];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '회원명부');
+            XLSX.writeFile(wb, '회원명부_등록양식.xlsx');
+            showAlert('양식을 다운로드했습니다. 예시 행(2~3번째 줄)은 지우고 실제 회원으로 채워주세요.', 'success');
+        }
+
+        function handleRosterExcelUpload(event) {
+            var triggerInput = event.target;
+            if (triggerInput.disabled) return; // 처리 중 중복 실행 방지
+            var file = triggerInput.files[0];
+            if (!file) return;
+            triggerInput.disabled = true;
+
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    var data = new Uint8Array(e.target.result);
+                    var wb = XLSX.read(data, { type: 'array', cellDates: false });
+                    var ws = wb.Sheets[wb.SheetNames[0]];
+                    var jsonRows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                    var members = [];
+                    var skippedRows = [];
+                    jsonRows.forEach(function(row, idx) {
+                        var name = String(row['이름'] || row['성명'] || '').trim();
+                        if (!name) {
+                            skippedRows.push((idx + 2) + '행: 이름 누락');
+                            return;
+                        }
+                        members.push({
+                            name: name,
+                            phone: String(row['연락처'] || row['전화번호'] || '').trim(),
+                            birth_date: normalizeExcelDate(row['생년월일']),
+                            gender: String(row['성별'] || '').trim(),
+                            joined_date: normalizeExcelDate(row['가입일']),
+                            notes: String(row['비고'] || row['메모'] || '').trim(),
+                        });
+                    });
+
+                    if (!members.length) {
+                        showAlert('등록할 수 있는 행이 없습니다. (이름 컬럼을 확인해주세요)', 'error');
+                        triggerInput.disabled = false;
+                        triggerInput.value = '';
+                        return;
+                    }
+
+                    var confirmMsg = members.length + '명을 회원명부에 등록하시겠습니까?' +
+                        (skippedRows.length ? ('\n\n건너뛴 행 ' + skippedRows.length + '개:\n' + skippedRows.slice(0, 5).join('\n') + (skippedRows.length > 5 ? '\n...' : '')) : '');
+                    if (!confirm(confirmMsg)) {
+                        triggerInput.disabled = false;
+                        triggerInput.value = '';
+                        return;
+                    }
+
+                    showLoading('회원명부에 등록하는 중...');
+                    api('POST', '/api/member-roster/bulk', { members: members }).then(function(r) {
+                        hideLoading();
+                        triggerInput.disabled = false;
+                        triggerInput.value = '';
+                        if (r && r.success) {
+                            showNotification(r.count + '명이 등록되었습니다.', 'success');
+                            loadMemberRoster();
+                        } else {
+                            showAlert((r && r.message) || '일괄등록에 실패했습니다.', 'error');
+                        }
+                    }).catch(function(err) {
+                        hideLoading();
+                        triggerInput.disabled = false;
+                        triggerInput.value = '';
+                        showAlert('일괄등록 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
+                    });
+                } catch (err) {
+                    triggerInput.disabled = false;
+                    triggerInput.value = '';
+                    showAlert('엑셀 파일을 읽는 중 오류가 발생했습니다: ' + (err && err.message ? err.message : ''), 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 엑셀 날짜 값(문자열 "2020-03-01"이거나 엑셀 날짜 일련번호)을 "YYYY-MM-DD"로 통일합니다.
+        function normalizeExcelDate(value) {
+            if (!value && value !== 0) return '';
+            if (typeof value === 'number') {
+                var jsDate = (typeof serialDateToJSDate === 'function') ? serialDateToJSDate(value) : new Date(Math.round((value - 25569) * 86400 * 1000));
+                if (!jsDate || isNaN(jsDate.getTime())) return '';
+                var y = jsDate.getFullYear(), m = String(jsDate.getMonth() + 1).padStart(2, '0'), d = String(jsDate.getDate()).padStart(2, '0');
+                return y + '-' + m + '-' + d;
+            }
+            var str = String(value).trim();
+            var m2 = str.match(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+            if (m2) return m2[1] + '-' + String(m2[2]).padStart(2, '0') + '-' + String(m2[3]).padStart(2, '0');
+            return str;
         }
 
         function populateCourseInstructorSelect() {
