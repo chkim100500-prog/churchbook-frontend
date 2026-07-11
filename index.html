@@ -5007,6 +5007,10 @@
                       <span class="stab-icon">💰</span>
                       <span class="stab-label">부서회비</span>
                     </button>
+                    <button id="stab-roster" onclick="showSettingsTab('roster')" class="settings-subtab">
+                      <span class="stab-icon">👥</span>
+                      <span class="stab-label">부서명부</span>
+                    </button>
                     <button id="stab-auth" onclick="showSettingsTab('auth')" class="settings-subtab">
                       <span class="stab-icon">👤</span>
                       <span class="stab-label">결재권한</span>
@@ -5521,6 +5525,31 @@
                   </div>
                 </div>
                 </div><!-- /stab-content-dues -->
+
+                <!-- 서브탭: 부서명부 설정 -->
+                <div id="stab-content-roster" style="display:none;">
+                <div class="card">
+                  <h2>👥 부서명부 설정</h2>
+
+                  <!-- 안내 박스 -->
+                  <div style="background:#fff8e1;border:1px solid #ffd54f;border-radius:10px;padding:14px 16px;margin-bottom:16px;line-height:1.7;">
+                    <div style="font-size:14px;font-weight:bold;color:#e65100;margin-bottom:8px;">📌 부서명부(회원명부) 기능이란?</div>
+                    <div style="font-size:13px;color:#5d4037;">
+                      남선교회·여전도회·목장처럼 <strong>고정 회원 명단을 관리해야 하는 부서</strong>를 위한 기능입니다.
+                      명단 관리, 회비 납부 이력, 상태 관리(사망·이사 등)를 지원합니다.
+                    </div>
+                    <div style="font-size:13px;color:#5d4037;margin-top:10px;padding-top:10px;border-top:1px dashed #ffd54f;">
+                      모든 부서에 필요한 기능이 아니므로, <strong>아래에서 사용할 부서만 켜주세요.</strong>
+                      켜진 부서에서만 명부 관련 화면이 나타납니다.
+                    </div>
+                  </div>
+
+                  <p style="color:#666;font-size:13px;margin-bottom:15px;">부서 목록은 계정과목 설정의 지출 부서에서 자동으로 가져옵니다. 부서가 안 보이면 먼저 계정과목 탭에서 부서(소조직)를 등록해주세요.</p>
+                  <div id="deptRosterList" style="display:flex;flex-direction:column;gap:8px;">
+                    <p style="color:#aaa;font-size:13px;">불러오는 중...</p>
+                  </div>
+                </div>
+                </div><!-- /stab-content-roster -->
 
                 <!-- 서브탭: 결재권한자 관리 -->
                 <div id="stab-content-auth" style="display:none;">
@@ -9315,10 +9344,11 @@
 
         // ===== 설정 서브탭 전환 =====
         function showSettingsTab(tab) {
-            var tabs = ['master', 'dues', 'auth', 'bankinfo', 'account', 'funds', 'audit'];
+            var tabs = ['master', 'dues', 'roster', 'auth', 'bankinfo', 'account', 'funds', 'audit'];
             if (tab === 'bankinfo') { loadBankInfoToSettings(); initHandoverTab(); loadHeroImageToSettings(); }
             if (tab === 'audit') { loadAuditLogs(); }
             if (tab === 'funds') { loadFundsTab(); }
+            if (tab === 'roster') { loadDeptRosterSettings(); }
             tabs.forEach(function(t) {
                 var btn = document.getElementById('stab-' + t);
                 var cont = document.getElementById('stab-content-' + t);
@@ -9329,6 +9359,61 @@
             var activeContent = document.getElementById('stab-content-' + tab);
             if (activeBtn) activeBtn.classList.add('active-stab');
             if (activeContent) activeContent.style.display = 'block';
+        }
+
+        // ===== 부서명부(회원명부) 설정 =====
+        // 부서설정 시트의 "회원명부사용" Y/N 플래그를 부서별로 토글합니다.
+        var _deptRosterSettings = []; // [{department, useMemberRoster}]
+
+        function loadDeptRosterSettings() {
+            var wrap = document.getElementById('deptRosterList');
+            wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">불러오는 중...</p>';
+            api('GET', '/api/department-settings').then(function(r) {
+                _deptRosterSettings = (r && r.settings) || [];
+                renderDeptRosterList();
+            }).catch(function() {
+                wrap.innerHTML = '<p style="color:#e74c3c;font-size:13px;">부서 목록을 불러오지 못했습니다. 백엔드가 최신 버전인지 확인해주세요.</p>';
+            });
+        }
+
+        function renderDeptRosterList() {
+            var wrap = document.getElementById('deptRosterList');
+            if (!_deptRosterSettings.length) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">등록된 부서가 없습니다. 계정과목 탭에서 지출 부서(소조직)를 먼저 등록해주세요.</p>';
+                return;
+            }
+            var onCount = _deptRosterSettings.filter(function(s) { return s.useMemberRoster; }).length;
+            wrap.innerHTML =
+                '<p style="color:#888;font-size:12px;margin:0 0 4px;">총 ' + _deptRosterSettings.length + '개 부서 중 <b style="color:#27ae60;">' + onCount + '개</b>에서 명부 기능 사용 중</p>' +
+                _deptRosterSettings.map(function(s) {
+                    var on = s.useMemberRoster;
+                    return '<div style="display:flex;align-items:center;justify-content:space-between;border:1px solid ' + (on ? '#a5d6a7' : '#eee') + ';background:' + (on ? '#f1f8f1' : '#fff') + ';border-radius:8px;padding:10px 14px;">' +
+                        '<span style="font-size:13.5px;font-weight:' + (on ? '600' : '400') + ';">' + escapeHtml(s.department) +
+                        (on ? ' <span style="color:#27ae60;font-size:11.5px;font-weight:600;">사용 중</span>' : '') + '</span>' +
+                        '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:12.5px;color:#666;">' +
+                          '<input type="checkbox" ' + (on ? 'checked' : '') + ' onchange=\'toggleDeptRoster(' + jsAttr(s.department) + ', this.checked, this)\' style="width:18px;height:18px;cursor:pointer;">' +
+                          '명부 사용' +
+                        '</label>' +
+                        '</div>';
+                }).join('');
+        }
+
+        function toggleDeptRoster(dept, enabled, checkboxEl) {
+            if (checkboxEl) checkboxEl.disabled = true;
+            api('PUT', '/api/department-settings/' + encodeURIComponent(dept), { useMemberRoster: enabled }).then(function(r) {
+                if (r && r.success) {
+                    var found = _deptRosterSettings.find(function(s) { return s.department === dept; });
+                    if (found) found.useMemberRoster = enabled;
+                    renderDeptRosterList();
+                    showNotification('[' + dept + '] 회원명부 기능을 ' + (enabled ? '켰습니다' : '껐습니다') + '.', 'success');
+                } else {
+                    showAlert((r && r.message) || '저장에 실패했습니다.', 'error');
+                    renderDeptRosterList(); // 체크박스 원상복구
+                }
+            }).catch(function(e) {
+                showAlert('저장 중 오류가 발생했습니다: ' + (e && e.message ? e.message : ''), 'error');
+                renderDeptRosterList();
+            });
         }
 
         // =============================================
