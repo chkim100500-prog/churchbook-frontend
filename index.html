@@ -2981,10 +2981,11 @@
                             <label for="tfDuesName">회비명</label>
                             <input type="text" id="tfDuesName" placeholder="회비명 (자동 입력)" lang="ko">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="position:relative;">
                             <label id="tfDescLabel" for="tfDescription">납부자 이름</label>
-                            <input type="text" id="tfDescription" list="tfNameDatalist" placeholder="이름을 입력하세요" lang="ko">
-                            <datalist id="tfNameDatalist"></datalist>
+                            <input type="text" id="tfDescription" placeholder="이름을 입력하세요" lang="ko" autocomplete="off"
+                                   oninput="onTfNameInput()" onfocus="onTfNameInput()">
+                            <div id="tfNameSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;box-shadow:0 4px 10px rgba(0,0,0,.08);"></div>
                         </div>
                     </div>
                     <div class="form-row">
@@ -9813,22 +9814,61 @@
         }
 
         // ===== 회원명부 자동완성 (부서회비 납부자 이름 입력에서 사용) =====
+        // 네이티브 <datalist> 대신 직접 그리는 드롭다운 — 타이핑 즉시 후보가 펼쳐지고 클릭/터치로 바로 선택됩니다.
         // member_roster 모듈이 꺼져 있거나 명부가 비어있는 조직에서는 조용히 아무 일도 하지 않습니다
         // (기존 자유입력 방식 그대로 동작).
+        var _rosterNameCache = []; // ['김찬호', '김테스', ...]
+
         function populateRosterNameDatalist() {
-            var dl = document.getElementById('tfNameDatalist');
-            if (!dl) return;
+            _rosterNameCache = [];
             if (typeof isModuleEnabled === 'function' && !isModuleEnabled('member_roster')) return;
 
             api('GET', '/api/member-roster?status=활성').then(function(r) {
                 var members = (r && r.members) || [];
-                dl.innerHTML = members.map(function(m) {
-                    return '<option value="' + escapeHtml(m.name) + '">';
-                }).join('');
+                _rosterNameCache = members.map(function(m) { return m.name; }).filter(Boolean);
             }).catch(function() {
                 // 조용히 무시 — 자동완성이 안 뜨더라도 기존처럼 자유 입력은 계속 가능
             });
         }
+
+        function onTfNameInput() {
+            var box = document.getElementById('tfNameSuggestions');
+            var keyword = document.getElementById('tfDescription').value.trim();
+
+            if (!_rosterNameCache.length) { box.style.display = 'none'; return; }
+
+            var matches = keyword
+                ? _rosterNameCache.filter(function(n) { return n.indexOf(keyword) !== -1; })
+                : _rosterNameCache.slice(0, 20); // 빈 입력(포커스만) 시 처음 20명까지 보여줌
+
+            if (!matches.length) { box.style.display = 'none'; return; }
+
+            box.innerHTML = matches.map(function(n) {
+                return '<div class="tf-name-suggestion" onmousedown="selectTfName(' + jsAttr(n) + ')" ' +
+                    'style="padding:8px 12px;font-size:13.5px;cursor:pointer;">' + escapeHtml(n) + '</div>';
+            }).join('');
+            box.style.display = 'block';
+
+            // 마우스 오버 시 배경색 강조 (하나씩 이벤트 등록하지 않고 이벤트 위임으로 처리)
+            Array.prototype.forEach.call(box.children, function(child) {
+                child.addEventListener('mouseenter', function() { child.style.background = '#f0f7ff'; });
+                child.addEventListener('mouseleave', function() { child.style.background = '#fff'; });
+            });
+        }
+
+        function selectTfName(name) {
+            document.getElementById('tfDescription').value = name;
+            document.getElementById('tfNameSuggestions').style.display = 'none';
+        }
+
+        // 입력창/드롭다운 바깥을 클릭하면 목록을 닫습니다.
+        document.addEventListener('click', function(e) {
+            var box = document.getElementById('tfNameSuggestions');
+            var input = document.getElementById('tfDescription');
+            if (!box || box.style.display === 'none') return;
+            if (e.target === input || box.contains(e.target)) return;
+            box.style.display = 'none';
+        });
 
         function submitRosterStatusChange() {
             var id = document.getElementById('rosterStatusId').value;
