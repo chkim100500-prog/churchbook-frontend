@@ -5232,6 +5232,16 @@
                   </button>
                 </div>
 
+                <div class="card">
+                  <h2>📊 회계보고서 예산 표시 설정</h2>
+                  <p style="color:#666;font-size:13px;margin-bottom:14px">회계보고서·결산서에 예산 대비 실적(달성률·집행률) 컬럼을 표시할지 정합니다. 예산을 세부적으로 짜지 않는 소규모 부서는 꺼두면, 예산 컬럼 없이 실적만 깔끔하게 출력됩니다. (월회계보고서와 결산서에 동일하게 적용됩니다)</p>
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13.5px;">
+                    <input type="checkbox" id="reportBudgetColumnToggle" onchange="saveReportBudgetColumnSetting()" style="width:20px;height:20px;cursor:pointer;">
+                    회계보고서·결산서에 예산 대비 실적(달성률·집행률) 표시
+                  </label>
+                  <div id="reportBudgetColumnStatus" style="font-size:12px;margin-top:8px;color:#888;"></div>
+                </div>
+
                 <!-- 담당자 교체 (통장/문서설정과 같은 탭으로 통합) -->
                 <div class="card" style="border-left:4px solid #ff9800;">
                     <h2>🔄 담당자 교체</h2>
@@ -23353,6 +23363,7 @@ async function loadBankInfoToSettings() {
     if (info.CHECK_CYCLE)   document.getElementById('set-check-cycle').value   = info.CHECK_CYCLE;
   } catch (e) { /* 미설정 무시 */ }
   loadVoucherDocNamesToSettings();
+  loadReportBudgetColumnSetting();
 }
 
 // ===== 지출/수입 문서 명칭 커스터마이징 =====
@@ -23442,6 +23453,34 @@ function copyAccountNumber() {
     el.select();
     try { document.execCommand('copy'); showAlert('✅ 계좌번호가 복사되었습니다.'); }
     catch(e) { showAlert('복사 실패. 직접 선택해서 복사해주세요.', 'error'); }
+  }
+}
+
+// ===== 회계보고서 예산 표시 설정 =====
+async function loadReportBudgetColumnSetting() {
+  try {
+    const res = await api('GET', '/api/settings/report-budget-column');
+    const enabled = !!(res && res.data && res.data.enabled);
+    document.getElementById('reportBudgetColumnToggle').checked = enabled;
+    document.getElementById('reportBudgetColumnStatus').textContent = '';
+  } catch (e) { /* 미설정 무시 (기본값 켜짐으로 표시) */ }
+}
+
+async function saveReportBudgetColumnSetting() {
+  const checkbox = document.getElementById('reportBudgetColumnToggle');
+  const statusEl = document.getElementById('reportBudgetColumnStatus');
+  const enabled = checkbox.checked;
+  checkbox.disabled = true;
+  try {
+    await api('PUT', '/api/settings/report-budget-column', { enabled });
+    statusEl.textContent = enabled ? '✅ 예산 컬럼이 켜졌습니다. 다음 보고서 출력부터 적용됩니다.' : '✅ 예산 컬럼이 꺼졌습니다. 다음 보고서 출력부터 적용됩니다.';
+    statusEl.style.color = '#2e7d32';
+  } catch (e) {
+    statusEl.textContent = '❌ 저장에 실패했습니다: ' + (e && e.message ? e.message : '');
+    statusEl.style.color = '#c0392b';
+    checkbox.checked = !enabled; // 원상복구
+  } finally {
+    checkbox.disabled = false;
   }
 }
 
