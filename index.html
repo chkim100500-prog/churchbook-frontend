@@ -11866,7 +11866,9 @@
                     '<td>' + escapeHtml(m.cohort) + '</td>' +
                     '<td>' + payDate + '</td>' +
                     '<td>' + badge + '</td>' +
-                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;">' + (m.enrollment_history ? escapeHtml(m.enrollment_history) : '-') + '</td>' +
+                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;' + (m.enrollment_history ? 'cursor:pointer;text-decoration:underline dotted;' : '') + '" ' +
+                      (m.enrollment_history ? ('title="' + escapeHtml(m.enrollment_history_full || m.enrollment_history) + '" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')"') : '') +
+                      '>' + (m.enrollment_history ? escapeHtml(m.enrollment_history) : '-') + '</td>' +
                     '<td>' +
                       '<div style="display:flex;gap:6px;">' +
                         '<input id="memberNote_' + m.id + '" value="' + escapeHtml(m.existing_member_note || '') + '" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">' +
