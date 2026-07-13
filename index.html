@@ -4953,11 +4953,11 @@
                       <thead>
                         <tr>
                           <th style="width:36px;"><input type="checkbox" id="memberSelectAll" onchange="toggleAllMemberSelection(this)"></th>
-                          <th style="width:90px;white-space:nowrap;">이름</th><th style="width:112px;">연락처</th><th style="max-width:180px;">강좌</th><th style="width:56px;white-space:nowrap;">차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th style="max-width:180px;">특이사항 메모</th><th>관리</th>
+                          <th style="width:90px;white-space:nowrap;">이름</th><th style="width:112px;">연락처</th><th style="max-width:180px;">강좌</th><th style="width:56px;white-space:nowrap;">차수</th><th>결제일</th><th style="width:50px;white-space:nowrap;">교인</th><th>구분</th><th>수강이력</th><th style="max-width:180px;">특이사항 메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="membersTableBody">
-                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
+                        <tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -10391,7 +10391,10 @@
 
         function loadCohorts() {
             return api('GET', '/api/courses/cohorts').then(function(r) {
-                var cohorts = (r && r.cohorts) || [];
+                // "차수" 칸에 강좌명이 잘못 들어간 오염 데이터(예: "슬기로운 정리 수납")를 걸러냅니다.
+                // 정상적인 차수는 전부 "NN기" 형태이므로, 그 패턴에 맞는 것만 남깁니다.
+                var rawCohorts = (r && r.cohorts) || [];
+                var cohorts = rawCohorts.filter(function(c) { return /^\d+\s*기\s*$/.test(String(c || '').trim()); });
                 var latest = getLatestCohort(cohorts);
 
                 var sel = document.getElementById('courseCohortFilter');
@@ -11702,7 +11705,7 @@
             _lastMembersQs = qs;
 
             document.getElementById('membersTableBody').innerHTML =
-                '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+                '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
             document.getElementById('memberResultSummary').style.display = 'none';
             var listPromise = api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
@@ -11711,7 +11714,7 @@
                 renderMemberResultSummary();
             }).catch(function() {
                 document.getElementById('membersTableBody').innerHTML =
-                    '<tr><td colspan="10" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="11" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
             // 통계는 API 호출 절약을 위해 자동으로 불러오지 않습니다.
             // 검색조건이 바뀌었으므로 캐시를 무효화하고, 이미 열려있는 경우에만 바로 갱신합니다.
@@ -11886,12 +11889,12 @@
             clearMemberSelection();
             var filtered = getStatusFilteredMembers();
             if (!_membersCache.length) {
-                body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
                 document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
             if (!filtered.length) {
-                body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">해당 구분(기존/신규)의 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">해당 구분(기존/신규)의 회원이 없습니다.</td></tr>';
                 document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
@@ -11906,6 +11909,8 @@
                     ? '<span style="color:#2980b9;font-weight:500;font-size:12px;white-space:nowrap;">기존회원</span>'
                     : '<span style="color:#27ae60;">신규</span>';
                 var payDate = m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '-';
+                var churchMemberCell = m.region === '교인' ? '<span style="color:#2980b9;font-weight:600;">Y</span>'
+                    : (m.region === '비교인' ? '<span style="color:#999;">N</span>' : '-');
                 return (
                     '<tr>' +
                     '<td><input type="checkbox" class="memberRowCheckbox" value="' + m.id + '" onchange="updateMemberSelectionBar()"></td>' +
@@ -11914,6 +11919,7 @@
                     '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(m.course_name) + '">' + escapeHtml(m.course_name) + '</td>' +
                     '<td style="white-space:nowrap;">' + escapeHtml(m.cohort) + '</td>' +
                     '<td>' + payDate + '</td>' +
+                    '<td style="text-align:center;">' + churchMemberCell + '</td>' +
                     '<td>' + badge + '</td>' +
                     '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;' + (m.enrollment_history ? 'cursor:pointer;text-decoration:underline dotted;' : '') + '" ' +
                       (m.enrollment_history ? ('title="' + escapeHtml(m.enrollment_history_full || m.enrollment_history) + '" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')"') : '') +
@@ -12216,7 +12222,7 @@
                 return;
             }
             var aoa = [
-                ['이름', '연락처', '강좌', '차수', '결제일', '결제금액', '구분', '수강이력', '특이사항메모'],
+                ['이름', '연락처', '강좌', '차수', '결제일', '교인여부', '결제금액', '구분', '수강이력', '특이사항메모'],
             ];
             filtered.forEach(function(m) {
                 aoa.push([
@@ -12225,6 +12231,7 @@
                     m.course_name,
                     m.cohort,
                     m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '',
+                    m.region === '교인' ? 'Y' : (m.region === '비교인' ? 'N' : ''),
                     m.payment_amount || 0,
                     m.is_existing_member ? '기존회원' : '신규',
                     m.enrollment_history || '',
@@ -12232,7 +12239,7 @@
                 ]);
             });
             var ws = XLSX.utils.aoa_to_sheet(aoa);
-            ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:12},{wch:10},{wch:30},{wch:24}];
+            ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:8},{wch:12},{wch:10},{wch:30},{wch:24}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회원목록');
             XLSX.writeFile(wb, '회원목록_' + statusLabel + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
