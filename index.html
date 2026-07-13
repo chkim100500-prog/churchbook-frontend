@@ -4918,6 +4918,11 @@
                       <select id="memberCourseFilter" onchange="loadMembers()" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;max-width:220px;">
                         <option value="">전체 강좌</option>
                       </select>
+                      <select id="memberStatusFilter" onchange="_membersPage = 1; renderMembersTable();" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">기존/신규 전체</option>
+                        <option value="existing">기존회원만</option>
+                        <option value="new">신규회원만</option>
+                      </select>
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
                       <button onclick="exportMembersExcel()" style="padding:8px 16px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 다운로드</button>
@@ -11838,23 +11843,37 @@
             }).catch(function() {});
         }
 
+        // 기존회원/신규회원 필터를 적용한 목록을 돌려줍니다 (검색/차수/강좌는 이미 서버에서 걸러진 상태).
+        function getStatusFilteredMembers() {
+            var status = document.getElementById('memberStatusFilter').value;
+            if (status === 'existing') return _membersCache.filter(function(m) { return m.is_existing_member; });
+            if (status === 'new') return _membersCache.filter(function(m) { return !m.is_existing_member; });
+            return _membersCache;
+        }
+
         function renderMembersTable() {
             var body = document.getElementById('membersTableBody');
             clearMemberSelection();
+            var filtered = getStatusFilteredMembers();
             if (!_membersCache.length) {
                 body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
                 document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
+            if (!filtered.length) {
+                body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">해당 구분(기존/신규)의 회원이 없습니다.</td></tr>';
+                document.getElementById('members-pagination').innerHTML = '';
+                return;
+            }
 
-            var totalPages = Math.max(1, Math.ceil(_membersCache.length / MEMBERS_PAGE_SIZE));
+            var totalPages = Math.max(1, Math.ceil(filtered.length / MEMBERS_PAGE_SIZE));
             _membersPage = Math.min(Math.max(1, _membersPage), totalPages);
             var start = (_membersPage - 1) * MEMBERS_PAGE_SIZE;
-            var pageItems = _membersCache.slice(start, start + MEMBERS_PAGE_SIZE);
+            var pageItems = filtered.slice(start, start + MEMBERS_PAGE_SIZE);
 
             body.innerHTML = pageItems.map(function(m) {
                 var badge = m.is_existing_member
-                    ? '<span style="color:#2980b9;font-weight:600;">기존회원</span>'
+                    ? '<span style="color:#2980b9;font-weight:500;font-size:12px;white-space:nowrap;">기존회원</span>'
                     : '<span style="color:#27ae60;">신규</span>';
                 var payDate = m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '-';
                 return (
@@ -11883,7 +11902,7 @@
                 );
             }).join('');
 
-            renderMembersPagination(totalPages, _membersCache.length, start, pageItems.length);
+            renderMembersPagination(totalPages, filtered.length, start, pageItems.length);
         }
 
         // ----- 회원관리 표 페이지네이션 (50명 단위) -----
@@ -12105,19 +12124,26 @@
             });
         }
 
-        // ----- 회원 목록 엑셀 다운로드 (현재 화면에 조회된 목록 기준) -----
+        // ----- 회원 목록 엑셀 다운로드 (현재 화면에 조회된 목록 + 기존/신규 필터 기준) -----
         function exportMembersExcel() {
             if (!_membersCache.length) {
                 showAlert('내보낼 회원이 없습니다. 먼저 조회해주세요.', 'error');
                 return;
             }
-            if (!confirm('현재 조회된 회원 ' + _membersCache.length + '명을 엑셀 파일로 다운로드하시겠습니까?')) {
+            var filtered = getStatusFilteredMembers();
+            var statusValue = document.getElementById('memberStatusFilter').value;
+            var statusLabel = statusValue === 'existing' ? '기존회원' : (statusValue === 'new' ? '신규회원' : '전체');
+            if (!filtered.length) {
+                showAlert('해당 구분(기존/신규)의 회원이 없습니다.', 'error');
+                return;
+            }
+            if (!confirm(statusLabel + ' ' + filtered.length + '명을 엑셀 파일로 다운로드하시겠습니까?')) {
                 return;
             }
             var aoa = [
                 ['이름', '연락처', '강좌', '차수', '결제일', '결제금액', '구분', '수강이력', '특이사항메모'],
             ];
-            _membersCache.forEach(function(m) {
+            filtered.forEach(function(m) {
                 aoa.push([
                     m.member_name,
                     m.phone || '',
@@ -12134,8 +12160,8 @@
             ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:12},{wch:10},{wch:30},{wch:24}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회원목록');
-            XLSX.writeFile(wb, '회원목록_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-            showAlert('회원 목록을 다운로드했습니다.', 'success');
+            XLSX.writeFile(wb, '회원목록_' + statusLabel + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            showAlert(statusLabel + ' 회원 목록을 다운로드했습니다.', 'success');
         }
 
         // ----- 차수+강좌명 기준 회원 일괄 반영 (과거 차수 이관 / 전체강좌 정기 업로드 공용) -----
