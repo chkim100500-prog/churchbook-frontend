@@ -4945,6 +4945,9 @@
                     <button onclick="bulkDeleteMembers()" style="padding:6px 14px;border-radius:6px;border:1px solid #e74c3c;background:#e74c3c;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">🗑 선택 삭제</button>
                     <button onclick="clearMemberSelection()" style="padding:6px 14px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12.5px;cursor:pointer;">선택 해제</button>
                   </div>
+                  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+                    <button onclick="deleteAllFilteredMembers()" style="padding:5px 12px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">🗑️ 지금 조회된 결과 전체 삭제 (재업로드 전 정리용)</button>
+                  </div>
                   <div class="table-container" style="overflow-x:auto;">
                     <table class="table" id="membersTable">
                       <thead>
@@ -11998,6 +12001,51 @@
             if (selectAllBox) selectAllBox.checked = false;
             var bar = document.getElementById('memberBulkDeleteBar');
             if (bar) bar.style.display = 'none';
+        }
+
+        // 지금 조회/필터된 결과 전체를 한 번에 삭제합니다 (체크박스로 페이지마다 선택할 필요 없이,
+        // 예: "49기"로 필터해두고 이 버튼을 누르면 49기 전체를 한 번에 지울 수 있습니다).
+        // 재업로드 전 정리 등 대량 삭제 용도라 확인을 두 번 받습니다.
+        function deleteAllFilteredMembers() {
+            var list = getStatusFilteredMembers();
+            if (!list.length) {
+                showAlert('삭제할 대상이 없습니다. 먼저 조회해주세요.', 'error');
+                return;
+            }
+
+            var cohort = document.getElementById('memberCohortFilter').value || '전체 차수';
+            var course = document.getElementById('memberCourseFilter').value || '전체 강좌';
+            var statusSel = document.getElementById('memberStatusFilter').value;
+            var statusLabel = statusSel === 'existing' ? '기존회원만' : (statusSel === 'new' ? '신규회원만' : '기존/신규 전체');
+
+            var summary = '차수: ' + cohort + '\n강좌: ' + course + '\n구분: ' + statusLabel;
+            if (!confirm('지금 조회된 조건에 해당하는 ' + list.length + '명(등록 기록 기준)을 전부 삭제하시겠습니까?\n\n' + summary + '\n\n⚠️ 되돌릴 수 없습니다.')) {
+                return;
+            }
+            var typed = prompt('정말 진행하려면 아래 칸에 정확히 "' + list.length + '명 삭제"라고 입력해주세요.');
+            if (typed !== (list.length + '명 삭제')) {
+                showAlert('입력하신 내용이 일치하지 않아 취소되었습니다.', 'error');
+                return;
+            }
+
+            showLoading('삭제 중... (' + list.length + '명)');
+            var succeeded = 0;
+            var failed = 0;
+            var chain = Promise.resolve();
+            list.forEach(function(m) {
+                chain = chain.then(function() {
+                    return api('DELETE', '/api/enrollments/' + m.id).then(function() {
+                        succeeded++;
+                    }).catch(function() {
+                        failed++;
+                    });
+                });
+            });
+            chain.then(function() {
+                hideLoading();
+                showAlert('✅ ' + succeeded + '명 삭제 완료' + (failed ? (', ' + failed + '명 실패') : ''), failed ? 'error' : 'success');
+                loadMembers();
+            });
         }
 
         function bulkDeleteMembers() {
