@@ -4611,7 +4611,7 @@
                     <table class="table" id="enrollmentsTable">
                       <thead>
                         <tr>
-                          <th>회원명</th><th>연락처</th><th>결제금액</th><th>결제회차</th><th>환불여부</th><th>환불전 수강회차</th><th>수강이력</th><th>관리</th>
+                          <th>회원명</th><th>연락처</th><th>결제금액</th><th>결제회차</th><th>환불여부</th><th>환불전 수강회차</th><th>특이사항 메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="enrollmentsTableBody">
@@ -4677,7 +4677,7 @@
                   <label id="enrollmentRefundDateWrap" style="font-size:12.5px;color:#555;display:none;">환불일
                     <input id="enrollmentRefundDate" type="date" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
-                  <label style="font-size:12.5px;color:#555;">수강이력
+                  <label style="font-size:12.5px;color:#555;">특이사항 메모
                     <input id="enrollmentExistingMemberNote" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                   </label>
                   <div style="display:flex;gap:8px;">
@@ -4939,11 +4939,11 @@
                       <thead>
                         <tr>
                           <th style="width:36px;"><input type="checkbox" id="memberSelectAll" onchange="toggleAllMemberSelection(this)"></th>
-                          <th>이름</th><th>연락처</th><th>강좌</th><th>차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th>관리</th>
+                          <th>이름</th><th>연락처</th><th>강좌</th><th>차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th>특이사항 메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="membersTableBody">
-                        <tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
+                        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">검색어를 입력하거나 검색 버튼을 눌러 조회하세요.</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -11147,7 +11147,7 @@
             var sessionTotal = course ? course.session_total : 12;
 
             var aoa = [
-                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '수강이력', '생년월일', '성별', '교인여부(교인/비교인)'],
+                ['회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '특이사항메모', '생년월일', '성별', '교인여부(교인/비교인)'],
                 ['홍길동', '010-1234-5678', 90000, sessionTotal, 'N', '', '', '1980-05-12', '남', '교인'],
                 ['김철수', '010-2345-6789', 82500, sessionTotal - 1, 'N', '', '49기 생활일본어', '', '', '비교인'],
                 ['이영희', '010-3456-7890', 0, sessionTotal, 'Y', 4, '', '', '', ''],
@@ -11194,7 +11194,7 @@
                             paid_sessions: row['결제회차'] !== '' ? parseInt(row['결제회차'], 10) : sessionTotal,
                             is_refunded: isRefunded,
                             attended_sessions_before_refund: (isRefunded && row['환불전수강회차'] !== '') ? parseInt(row['환불전수강회차'], 10) : null,
-                            existing_member_note: String(row['수강이력'] || row['이력메모'] || '').trim() || null,
+                            existing_member_note: String(row['특이사항메모'] || row['수강이력'] || row['이력메모'] || '').trim() || null,
                             birth_date: String(row['생년월일'] || '').trim() || null,
                             gender: String(row['성별'] || '').trim() || null,
                             region: normalizeChurchMemberValue(row['교인여부(교인/비교인)'] || row['교인여부'] || row['거주지'] || ''),
@@ -11688,7 +11688,7 @@
             _lastMembersQs = qs;
 
             document.getElementById('membersTableBody').innerHTML =
-                '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
+                '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">불러오는 중...</td></tr>';
             document.getElementById('memberResultSummary').style.display = 'none';
             var listPromise = api('GET', '/api/members' + qs).then(function(r) {
                 _membersCache = (r && r.members) || [];
@@ -11697,7 +11697,7 @@
                 renderMemberResultSummary();
             }).catch(function() {
                 document.getElementById('membersTableBody').innerHTML =
-                    '<tr><td colspan="9" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
+                    '<tr><td colspan="10" style="text-align:center;color:#e74c3c;padding:20px;">회원 목록을 불러오지 못했습니다.</td></tr>';
             });
             // 통계는 API 호출 절약을 위해 자동으로 불러오지 않습니다.
             // 검색조건이 바뀌었으므로 캐시를 무효화하고, 이미 열려있는 경우에만 바로 갱신합니다.
@@ -11842,7 +11842,7 @@
             var body = document.getElementById('membersTableBody');
             clearMemberSelection();
             if (!_membersCache.length) {
-                body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#aaa;padding:20px;">조회된 회원이 없습니다.</td></tr>';
                 document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
@@ -11866,6 +11866,7 @@
                     '<td>' + escapeHtml(m.cohort) + '</td>' +
                     '<td>' + payDate + '</td>' +
                     '<td>' + badge + '</td>' +
+                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;">' + (m.enrollment_history ? escapeHtml(m.enrollment_history) : '-') + '</td>' +
                     '<td>' +
                       '<div style="display:flex;gap:6px;">' +
                         '<input id="memberNote_' + m.id + '" value="' + escapeHtml(m.existing_member_note || '') + '" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">' +
@@ -12032,7 +12033,7 @@
                 var listHtml = '<h4 style="margin:0 0 8px;font-size:13.5px;">수강 이력</h4>' +
                     '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
                     '<thead><tr style="border-bottom:1px solid #ddd;text-align:left;color:#777;">' +
-                      '<th style="padding:6px 4px;">차수</th><th style="padding:6px 4px;">강좌명</th><th style="padding:6px 4px;">결제금액</th><th style="padding:6px 4px;">상태</th><th style="padding:6px 4px;">수강이력</th>' +
+                      '<th style="padding:6px 4px;">차수</th><th style="padding:6px 4px;">강좌명</th><th style="padding:6px 4px;">결제금액</th><th style="padding:6px 4px;">상태</th><th style="padding:6px 4px;">특이사항 메모</th>' +
                     '</tr></thead><tbody>' +
                     list.map(function(row) {
                         var status = row.is_refunded ? '<span style="color:#e67e22;">환불</span>' : '<span style="color:#27ae60;">정상</span>';
@@ -12112,7 +12113,7 @@
                 return;
             }
             var aoa = [
-                ['이름', '연락처', '강좌', '차수', '결제일', '결제금액', '구분', '수강이력'],
+                ['이름', '연락처', '강좌', '차수', '결제일', '결제금액', '구분', '수강이력', '특이사항메모'],
             ];
             _membersCache.forEach(function(m) {
                 aoa.push([
@@ -12123,11 +12124,12 @@
                     m.payment_date ? new Date(m.payment_date).toLocaleDateString('ko-KR') : '',
                     m.payment_amount || 0,
                     m.is_existing_member ? '기존회원' : '신규',
+                    m.enrollment_history || '',
                     m.existing_member_note || '',
                 ]);
             });
             var ws = XLSX.utils.aoa_to_sheet(aoa);
-            ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:12},{wch:10},{wch:24}];
+            ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:12},{wch:10},{wch:30},{wch:24}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회원목록');
             XLSX.writeFile(wb, '회원목록_' + new Date().toISOString().slice(0, 10) + '.xlsx');
@@ -12137,7 +12139,7 @@
         // ----- 차수+강좌명 기준 회원 일괄 반영 (과거 차수 이관 / 전체강좌 정기 업로드 공용) -----
         function downloadMemberImportTemplate() {
             var aoa = [
-                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '수강이력', '생년월일', '성별', '교인여부(교인/비교인)'],
+                ['차수', '강좌명', '강사명(선택)', '회원명', '연락처', '결제금액', '결제회차', '환불여부(Y/N)', '환불전수강회차', '특이사항메모', '생년월일', '성별', '교인여부(교인/비교인)'],
                 ['49기', '생활 일본어', '임지영', '박미선', '010-1234-5678', 90000, 12, 'N', '', '', '1978-06-25', '여', '교인'],
                 ['50기', '다시 배우는 영어(초급)', '이미혜', '홍소라', '010-2345-6789', 90000, 12, 'N', '', '', '', '', '비교인'],
                 ['50기', '다시 배우는 영어(초급)', '이미혜', '김찬호', '010-3456-7890', 90000, 11, 'Y', 4, '', '', '', ''],
@@ -12190,7 +12192,7 @@
                             paid_sessions: row['결제회차'] !== '' ? parseInt(row['결제회차'], 10) : 12,
                             is_refunded: isRefunded,
                             attended_sessions_before_refund: (isRefunded && row['환불전수강회차'] !== '') ? parseInt(row['환불전수강회차'], 10) : null,
-                            existing_member_note: String(row['수강이력'] || row['이력메모'] || '').trim() || null,
+                            existing_member_note: String(row['특이사항메모'] || row['수강이력'] || row['이력메모'] || '').trim() || null,
                             birth_date: String(row['생년월일'] || '').trim() || null,
                             gender: String(row['성별'] || '').trim() || null,
                             region: normalizeChurchMemberValue(row['교인여부(교인/비교인)'] || row['교인여부'] || row['거주지'] || ''),
