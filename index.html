@@ -4923,6 +4923,12 @@
                         <option value="existing">기존회원만</option>
                         <option value="new">신규회원만</option>
                       </select>
+                      <select id="memberChurchFilter" onchange="_membersPage = 1; renderMembersTable();" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="">교인/비교인 전체</option>
+                        <option value="member">교인만</option>
+                        <option value="nonmember">비교인만</option>
+                        <option value="unknown">미확인만</option>
+                      </select>
                       <select id="memberSortFilter" onchange="_membersPage = 1; renderMembersTable();" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
                         <option value="name">이름순</option>
                         <option value="course">강좌순</option>
@@ -11855,12 +11861,17 @@
             }).catch(function() {});
         }
 
-        // 기존회원/신규회원 필터 + 정렬을 적용한 목록을 돌려줍니다 (검색/차수/강좌는 이미 서버에서 걸러진 상태).
+        // 기존회원/신규회원 · 교인/비교인 필터 + 정렬을 적용한 목록을 돌려줍니다 (검색/차수/강좌는 이미 서버에서 걸러진 상태).
         function getStatusFilteredMembers() {
             var status = document.getElementById('memberStatusFilter').value;
             var list = _membersCache;
             if (status === 'existing') list = list.filter(function(m) { return m.is_existing_member; });
             else if (status === 'new') list = list.filter(function(m) { return !m.is_existing_member; });
+
+            var churchFilter = document.getElementById('memberChurchFilter').value;
+            if (churchFilter === 'member') list = list.filter(function(m) { return m.region === '교인'; });
+            else if (churchFilter === 'nonmember') list = list.filter(function(m) { return m.region === '비교인'; });
+            else if (churchFilter === 'unknown') list = list.filter(function(m) { return m.region !== '교인' && m.region !== '비교인'; });
 
             var sortBy = document.getElementById('memberSortFilter').value;
             list = list.slice(); // 원본 캐시 순서를 바꾸지 않도록 복사본 정렬
@@ -11894,7 +11905,7 @@
                 return;
             }
             if (!filtered.length) {
-                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">해당 구분(기존/신규)의 회원이 없습니다.</td></tr>';
+                body.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#aaa;padding:20px;">해당 조건(기존/신규 · 교인/비교인)의 회원이 없습니다.</td></tr>';
                 document.getElementById('members-pagination').innerHTML = '';
                 return;
             }
@@ -12023,8 +12034,10 @@
             var course = document.getElementById('memberCourseFilter').value || '전체 강좌';
             var statusSel = document.getElementById('memberStatusFilter').value;
             var statusLabel = statusSel === 'existing' ? '기존회원만' : (statusSel === 'new' ? '신규회원만' : '기존/신규 전체');
+            var churchSel = document.getElementById('memberChurchFilter').value;
+            var churchLabel = churchSel === 'member' ? '교인만' : (churchSel === 'nonmember' ? '비교인만' : (churchSel === 'unknown' ? '미확인만' : '교인/비교인 전체'));
 
-            var summary = '차수: ' + cohort + '\n강좌: ' + course + '\n구분: ' + statusLabel;
+            var summary = '차수: ' + cohort + '\n강좌: ' + course + '\n구분: ' + statusLabel + '\n교인여부: ' + churchLabel;
             if (!confirm('지금 조회된 조건에 해당하는 ' + list.length + '명(등록 기록 기준)을 전부 삭제하시겠습니까?\n\n' + summary + '\n\n⚠️ 되돌릴 수 없습니다.')) {
                 return;
             }
@@ -12214,11 +12227,13 @@
             var filtered = getStatusFilteredMembers();
             var statusValue = document.getElementById('memberStatusFilter').value;
             var statusLabel = statusValue === 'existing' ? '기존회원' : (statusValue === 'new' ? '신규회원' : '전체');
+            var churchValue = document.getElementById('memberChurchFilter').value;
+            var churchLabel = churchValue === 'member' ? '_교인' : (churchValue === 'nonmember' ? '_비교인' : (churchValue === 'unknown' ? '_미확인' : ''));
             if (!filtered.length) {
-                showAlert('해당 구분(기존/신규)의 회원이 없습니다.', 'error');
+                showAlert('해당 조건(기존/신규 · 교인/비교인)의 회원이 없습니다.', 'error');
                 return;
             }
-            if (!confirm(statusLabel + ' ' + filtered.length + '명을 엑셀 파일로 다운로드하시겠습니까?')) {
+            if (!confirm(statusLabel + churchLabel.replace('_', ' ') + ' ' + filtered.length + '명을 엑셀 파일로 다운로드하시겠습니까?')) {
                 return;
             }
             var aoa = [
@@ -12242,7 +12257,7 @@
             ws['!cols'] = [{wch:12},{wch:16},{wch:24},{wch:8},{wch:12},{wch:8},{wch:12},{wch:10},{wch:30},{wch:24}];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, '회원목록');
-            XLSX.writeFile(wb, '회원목록_' + statusLabel + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+            XLSX.writeFile(wb, '회원목록_' + statusLabel + churchLabel + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
             showAlert(statusLabel + ' 회원 목록을 다운로드했습니다.', 'success');
         }
 
