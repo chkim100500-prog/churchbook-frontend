@@ -4923,6 +4923,12 @@
                         <option value="existing">기존회원만</option>
                         <option value="new">신규회원만</option>
                       </select>
+                      <select id="memberSortFilter" onchange="_membersPage = 1; renderMembersTable();" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;">
+                        <option value="name">이름순</option>
+                        <option value="course">강좌순</option>
+                        <option value="cohort">차수순</option>
+                        <option value="created">등록일 최신순</option>
+                      </select>
                       <input id="memberSearchInput" placeholder="이름 또는 연락처로 검색" style="padding:8px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-width:200px;" onkeydown="if(event.key==='Enter') loadMembers()">
                       <button onclick="loadMembers()" style="padding:8px 16px;border-radius:8px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:13px;font-weight:600;cursor:pointer;">🔍 검색</button>
                       <button onclick="exportMembersExcel()" style="padding:8px 16px;border-radius:8px;border:1px solid #27ae60;background:#fff;color:#27ae60;font-size:13px;font-weight:600;cursor:pointer;">📥 엑셀 다운로드</button>
@@ -11843,12 +11849,33 @@
             }).catch(function() {});
         }
 
-        // 기존회원/신규회원 필터를 적용한 목록을 돌려줍니다 (검색/차수/강좌는 이미 서버에서 걸러진 상태).
+        // 기존회원/신규회원 필터 + 정렬을 적용한 목록을 돌려줍니다 (검색/차수/강좌는 이미 서버에서 걸러진 상태).
         function getStatusFilteredMembers() {
             var status = document.getElementById('memberStatusFilter').value;
-            if (status === 'existing') return _membersCache.filter(function(m) { return m.is_existing_member; });
-            if (status === 'new') return _membersCache.filter(function(m) { return !m.is_existing_member; });
-            return _membersCache;
+            var list = _membersCache;
+            if (status === 'existing') list = list.filter(function(m) { return m.is_existing_member; });
+            else if (status === 'new') list = list.filter(function(m) { return !m.is_existing_member; });
+
+            var sortBy = document.getElementById('memberSortFilter').value;
+            list = list.slice(); // 원본 캐시 순서를 바꾸지 않도록 복사본 정렬
+
+            if (sortBy === 'name') {
+                list.sort(function(a, b) { return (a.member_name || '').localeCompare(b.member_name || '', 'ko'); });
+            } else if (sortBy === 'course') {
+                list.sort(function(a, b) {
+                    return (a.course_name || '').localeCompare(b.course_name || '', 'ko') ||
+                        (a.member_name || '').localeCompare(b.member_name || '', 'ko');
+                });
+            } else if (sortBy === 'cohort') {
+                list.sort(function(a, b) {
+                    var na = parseInt((a.cohort || '').replace(/[^0-9]/g, ''), 10) || 0;
+                    var nb = parseInt((b.cohort || '').replace(/[^0-9]/g, ''), 10) || 0;
+                    return nb - na || (a.member_name || '').localeCompare(b.member_name || '', 'ko');
+                });
+            } else { // created: 등록일 최신순 (기본 서버 응답 순서 그대로)
+                list.sort(function(a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+            }
+            return list;
         }
 
         function renderMembersTable() {
