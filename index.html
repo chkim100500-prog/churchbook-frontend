@@ -10992,7 +10992,7 @@
                     '<td>' + (e.paid_sessions ?? '-') + '회</td>' +
                     '<td>' + refundBadge + '</td>' +
                     '<td>' + (e.is_refunded ? ((e.attended_sessions_before_refund ?? '-') + '회') : '-') + '</td>' +
-                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;">' + (e.existing_member_note ? escapeHtml(e.existing_member_note) : '-') + '</td>' +
+                    '<td style="white-space:normal;word-break:keep-all;overflow-wrap:break-word;max-width:220px;color:#555;">' + (e.existing_member_note ? escapeHtml(e.existing_member_note) : '-') + '</td>' +
                     '<td>' +
                       '<button onclick="openEnrollmentModal(' + e.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
                       '<button onclick="deleteEnrollment(' + e.id + ')" style="padding:4px 10px;border-radius:6px;border:1px solid #e74c3c;background:#fff;color:#e74c3c;font-size:12px;cursor:pointer;">삭제</button>' +
@@ -11983,7 +11983,7 @@
                     '<td style="white-space:nowrap;">' + payDate + '</td>' +
                     '<td style="text-align:center;">' + churchMemberCell + '</td>' +
                     '<td style="white-space:nowrap;">' + badge + '</td>' +
-                    '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;' + (m.enrollment_history ? 'cursor:pointer;text-decoration:underline dotted;' : '') + '" ' +
+                    '<td style="white-space:normal;word-break:keep-all;overflow-wrap:break-word;max-width:220px;color:#555;font-size:12px;' + (m.enrollment_history ? 'cursor:pointer;text-decoration:underline dotted;' : '') + '" ' +
                       (m.enrollment_history ? ('title="' + escapeHtml(m.enrollment_history_full || m.enrollment_history) + '" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')"') : '') +
                       '>' + (m.enrollment_history ? escapeHtml(m.enrollment_history) : '-') + '</td>' +
                     '<td style="max-width:180px;">' +
