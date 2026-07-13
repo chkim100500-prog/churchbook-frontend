@@ -4944,7 +4944,7 @@
                       <thead>
                         <tr>
                           <th style="width:36px;"><input type="checkbox" id="memberSelectAll" onchange="toggleAllMemberSelection(this)"></th>
-                          <th style="width:90px;white-space:nowrap;">이름</th><th style="width:112px;">연락처</th><th style="max-width:130px;">강좌</th><th style="width:56px;white-space:nowrap;">차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th>특이사항 메모</th><th>관리</th>
+                          <th style="width:90px;white-space:nowrap;">이름</th><th style="width:112px;">연락처</th><th style="max-width:180px;">강좌</th><th style="width:56px;white-space:nowrap;">차수</th><th>결제일</th><th>구분</th><th>수강이력</th><th style="max-width:180px;">특이사항 메모</th><th>관리</th>
                         </tr>
                       </thead>
                       <tbody id="membersTableBody">
@@ -11881,16 +11881,16 @@
                     '<td><input type="checkbox" class="memberRowCheckbox" value="' + m.id + '" onchange="updateMemberSelectionBar()"></td>' +
                     '<td style="white-space:nowrap;"><a href="javascript:void(0)" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')" style="color:#2980b9;text-decoration:underline;">' + escapeHtml(m.member_name) + '</a></td>' +
                     '<td style="white-space:nowrap;">' + escapeHtml(m.phone || '-') + '</td>' +
-                    '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(m.course_name) + '">' + escapeHtml(m.course_name) + '</td>' +
+                    '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(m.course_name) + '">' + escapeHtml(m.course_name) + '</td>' +
                     '<td style="white-space:nowrap;">' + escapeHtml(m.cohort) + '</td>' +
                     '<td>' + payDate + '</td>' +
                     '<td>' + badge + '</td>' +
                     '<td style="white-space:normal;word-break:break-all;max-width:220px;color:#555;font-size:12px;' + (m.enrollment_history ? 'cursor:pointer;text-decoration:underline dotted;' : '') + '" ' +
                       (m.enrollment_history ? ('title="' + escapeHtml(m.enrollment_history_full || m.enrollment_history) + '" onclick="openMemberProfile(\'' + String(m.phone || '').replace(/'/g, '') + '\')"') : '') +
                       '>' + (m.enrollment_history ? escapeHtml(m.enrollment_history) : '-') + '</td>' +
-                    '<td>' +
+                    '<td style="max-width:180px;">' +
                       '<div style="display:flex;gap:6px;">' +
-                        '<input id="memberNote_' + m.id + '" value="' + escapeHtml(m.existing_member_note || '') + '" style="flex:1;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">' +
+                        '<input id="memberNote_' + m.id + '" value="' + escapeHtml(m.existing_member_note || '') + '" style="flex:1;min-width:0;padding:5px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;">' +
                         '<button onclick="saveMemberNote(' + m.id + ')" style="padding:5px 10px;border-radius:6px;border:1px solid #2980b9;background:#fff;color:#2980b9;font-size:12px;cursor:pointer;white-space:nowrap;">저장</button>' +
                       '</div>' +
                     '</td>' +
