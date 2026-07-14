@@ -20522,26 +20522,47 @@
           return _voucherAuthoritiesCache;
       }
 
-      function buildVoucherSignatureTableRows(authorities) {
+      // authorities: 결재권한자 순서 목록. signatures: 실제 서명 이력(있으면 서명 완료된 칸에 이름/일시를 채워 보여줌).
+      function _matchSignatureForPosition(signatures, position, index) {
+          if (!signatures || !signatures.length) return null;
+          const posNorm = String(position || '').trim();
+          // 1순위: 직책명이 정확히 일치하는 서명 기록
+          let found = signatures.find(s => String(s.position || '').trim() === posNorm && (s.dt || s.name));
+          // 2순위: 직책명이 없거나 안 맞으면, 결재 순번(order)으로 매칭
+          if (!found) {
+              found = signatures.find(s => Number(s.order) === index + 1 && (s.dt || s.name));
+          }
+          return found || null;
+      }
+
+      function buildVoucherSignatureTableRows(authorities, signatures) {
           const list = (authorities && authorities.length > 0)
               ? authorities
               : [{ position: '회계' }, { position: '총무' }, { position: '부장' }];
           const headerCells = list.map(a => `<td>${a.position || '결재'}</td>`).join('');
-          const blankCells = list.map(() => `<td><br><br><br></td>`).join('');
-          return `<tr>${headerCells}</tr><tr>${blankCells}</tr>`;
+          const bodyCells = list.map((a, i) => {
+              const sig = _matchSignatureForPosition(signatures, a.position, i);
+              if (!sig) return `<td><br><br><br></td>`;
+              const label = (sig.decision === 'reject') ? '❌ 반려' : '✅ 서명완료';
+              return `<td style="text-align:center;font-size:11px;color:#2e7d32;padding:4px;">${label}<br>${(sig.name || '')}<br>${(sig.dt || '')}</td>`;
+          }).join('');
+          return `<tr>${headerCells}</tr><tr>${bodyCells}</tr>`;
       }
 
-      function buildVoucherSignatureBlockCells(authorities) {
+      function buildVoucherSignatureBlockCells(authorities, signatures) {
           const list = (authorities && authorities.length > 0)
               ? authorities
               : [{ position: '회계' }, { position: '총무' }, { position: '부장' }];
           const headerCells = list.map(a =>
               `<td style="border:2px solid #333;padding:6px 16px;text-align:center;font-size:13px;">${a.position || '결재'}</td>`
           ).join('');
-          const blankCells = list.map(() =>
-              `<td style="border:2px solid #333;padding:14px 16px;"></td>`
-          ).join('');
-          return '<tr>' + headerCells + '</tr><tr>' + blankCells + '</tr>';
+          const bodyCells = list.map((a, i) => {
+              const sig = _matchSignatureForPosition(signatures, a.position, i);
+              if (!sig) return `<td style="border:2px solid #333;padding:14px 16px;"></td>`;
+              const label = (sig.decision === 'reject') ? '❌ 반려' : '✅ 서명완료';
+              return `<td style="border:2px solid #333;padding:8px 12px;text-align:center;font-size:11px;color:#2e7d32;">${label}<br>${(sig.name || '')}<br>${(sig.dt || '')}</td>`;
+          }).join('');
+          return '<tr>' + headerCells + '</tr><tr>' + bodyCells + '</tr>';
       }
 
       async function printVoucher(button) {
@@ -20563,7 +20584,10 @@
 
       async function buildIncomeVoucherHTML(transactionData) {
           const authorities = await getVoucherAuthorities();
-          const signatureRows = buildVoucherSignatureTableRows(authorities);
+          const txnSignatures = (transactionData.signatures && transactionData.signatures.length > 0)
+              ? transactionData.signatures
+              : (transactionData.authorities || []);
+          const signatureRows = buildVoucherSignatureTableRows(authorities, txnSignatures);
           const { incomeDocName } = await getDocNames();
           const voucherHTML = `
               <!DOCTYPE html>
@@ -20975,7 +20999,10 @@
       // 전표 1건의 HTML 본문 조각 생성 (영수증·결재 포함, 페이지 래퍼 없음)
       async function buildVoucherBlock(t) {
           const authorities = await getVoucherAuthorities();
-          const signatureBlockRows = buildVoucherSignatureBlockCells(authorities);
+          const txnSignatures = (t.signatures && t.signatures.length > 0)
+              ? t.signatures
+              : (t.authorities || []);
+          const signatureBlockRows = buildVoucherSignatureBlockCells(authorities, txnSignatures);
           const isIncome = t.type === 'income';
           const { expenseDocName, incomeDocName } = await getDocNames();
           const title = isIncome ? incomeDocName : expenseDocName;
@@ -21144,7 +21171,10 @@
 
             async function buildExpenseVoucherHTML(transactionData) {
           const authorities = await getVoucherAuthorities();
-          const signatureRows = buildVoucherSignatureTableRows(authorities);
+          const txnSignatures = (transactionData.signatures && transactionData.signatures.length > 0)
+              ? transactionData.signatures
+              : (transactionData.authorities || []);
+          const signatureRows = buildVoucherSignatureTableRows(authorities, txnSignatures);
           const { expenseDocName } = await getDocNames();
           // 연결된 영수증 이미지 조회
           // txnId: 새 방식(TXN+timestamp), 없으면 날짜+금액으로 폴백
@@ -21266,6 +21296,17 @@
                       </style>
                   </head>
                   <body>
+                      <div class="no-print" style="position:sticky;top:0;background:#2c3e50;color:#fff;padding:10px 16px;box-shadow:0 2px 6px rgba(0,0,0,0.3);box-sizing:border-box;margin:-20px -20px 20px;">
+                          <div style="display:flex;flex-direction:column;gap:6px;max-width:210mm;margin:0 auto;">
+                              <div style="display:flex;justify-content:space-between;align-items:center;">
+                                  <span style="font-size:13px;font-weight:bold;color:#fff;">출력 미리보기</span>
+                                  <button type="button" onclick="window.close();"
+                                      style="background:#e74c3c;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:13px;cursor:pointer;min-height:44px;">닫기</button>
+                              </div>
+                              <button type="button" onclick="var _mvp=(window.opener&&window.opener.markVoucherPrinted)||window.markVoucherPrinted; var _id=${JSON.stringify(transactionData.id || null)}; window.addEventListener('afterprint', function(){ if(_mvp){_mvp(_id)} }, {once:true}); window.print();"
+                                  style="background:#27ae60;color:#fff;border:none;border-radius:6px;padding:10px 8px;font-size:13px;font-weight:bold;cursor:pointer;min-height:44px;">🖨️ 인쇄·PDF저장</button>
+                          </div>
+                      </div>
                       <div class="voucher-number">전표번호: ${transactionData.voucherNumber || ''}</div>
                       <h1>${expenseDocName}</h1>
                       <table>
@@ -21301,9 +21342,6 @@
                       <div style="clear:both;"></div>
                       ${eApprovalBlock}
                       ${receiptImagesBlock}
-                      <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
-                          <button onclick="var _mvp=(window.opener&&window.opener.markVoucherPrinted)||window.markVoucherPrinted; var _id=${JSON.stringify(transactionData.id || null)}; window.addEventListener('afterprint', function(){ if(_mvp){_mvp(_id)} }, {once:true}); window.print();" style="padding: 10px 20px; font-size: 16px; background-color: #333; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
-                      </div>
                   </body>
               </html>
           `;
