@@ -4758,7 +4758,8 @@
                 <input type="hidden" id="courseId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">차수 * (예: 50기)<input id="courseCohort" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
-                  <label style="font-size:12.5px;color:#555;">강좌명 *<input id="courseName" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                  <label style="font-size:12.5px;color:#555;">강좌명 *<input id="courseName" list="courseNameDatalist" autocomplete="off" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
+                    <datalist id="courseNameDatalist"></datalist>
                   <label style="font-size:12.5px;color:#555;">담당 강사 (이름을 직접 입력하세요. 기존 강사명과 같으면 그 강사로 연결되고, 새 이름이면 강사가 자동 등록됩니다 — 요율 등 세부정보는 나중에 강사 관리에서 채워주세요)
                     <input id="courseInstructorName" list="courseInstructorDatalist" placeholder="강사명 입력 (비워두면 미지정)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                     <datalist id="courseInstructorDatalist"></datalist>
@@ -10233,6 +10234,57 @@
             }).join('');
         }
 
+        // ----- 강좌명 자동완성 + 오타 유사도 경고 -----
+        var _allCourseNamesCache = []; // 전체 차수를 통틀어 지금까지 썼던 강좌명 목록 (중복 제거)
+
+        function populateCourseNameDatalist() {
+            api('GET', '/api/courses').then(function(r) {
+                var all = (r && r.courses) || [];
+                var names = Array.from(new Set(all.map(function(c) { return c.course_name; }).filter(Boolean)));
+                _allCourseNamesCache = names;
+                var dl = document.getElementById('courseNameDatalist');
+                dl.innerHTML = names.map(function(n) {
+                    return '<option value="' + escapeHtml(n) + '"></option>';
+                }).join('');
+            }).catch(function() { /* 자동완성 실패해도 강좌 등록 자체는 계속 가능해야 함 */ });
+        }
+
+        // 레벤슈타인 거리 (짧은 문자열 기준이라 성능 걱정 없이 단순 구현)
+        function _levenshteinDistance(a, b) {
+            var m = a.length, n = b.length;
+            var dp = [];
+            for (var i = 0; i <= m; i++) dp.push([i]);
+            for (var j = 0; j <= n; j++) dp[0][j] = j;
+            for (var i = 1; i <= m; i++) {
+                for (var j = 1; j <= n; j++) {
+                    dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+                }
+            }
+            return dp[m][n];
+        }
+
+        // 입력한 강좌명이 기존 강좌명과 정확히 같지는 않지만 아주 비슷할 때(오타로 추정),
+        // 진짜 새 강좌명이 맞는지 한 번 더 확인시킵니다. 문제 없으면 true(그대로 진행), 취소하면 false.
+        function checkSimilarCourseName(inputName) {
+            if (!inputName || !_allCourseNamesCache.length) return true;
+            if (_allCourseNamesCache.indexOf(inputName) !== -1) return true; // 정확히 일치 → 기존 강좌, 통과
+
+            var closest = null, closestDist = Infinity;
+            _allCourseNamesCache.forEach(function(existing) {
+                var dist = _levenshteinDistance(inputName, existing);
+                if (dist < closestDist) { closestDist = dist; closest = existing; }
+            });
+
+            // 이름 길이 대비 1~2글자 정도만 다른 경우만 "오타 의심"으로 간주 (완전히 다른 강좌명은 경고 안 함)
+            var threshold = inputName.length <= 6 ? 1 : 2;
+            if (closest && closestDist > 0 && closestDist <= threshold) {
+                return confirm('혹시 기존 강좌 "' + closest + '"을(를) 입력하려던 게 아닌가요?\n\n' +
+                    '지금 입력하신 "' + inputName + '"은(는) 새로운 강좌로 등록됩니다.\n' +
+                    '오타가 아니라 진짜 다른 강좌명이 맞으면 [확인]을, 다시 확인하시려면 [취소]를 눌러주세요.');
+            }
+            return true;
+        }
+
         // 강사명 문자열로 기존 강사를 찾습니다 (대소문자/공백 무시한 정확히 일치하는 이름만 매칭).
         // 동명이인 강사가 여러 명 있으면 먼저 등록된 강사가 매칭되니, 강사명은 가급적 구분되게 지어주세요.
         function findInstructorByName(name) {
@@ -10640,6 +10692,7 @@
         function openCourseModal(id) {
             document.getElementById('courseSaveBtn').disabled = false;
             populateCourseInstructorSelect();
+            populateCourseNameDatalist();
             var modal = document.getElementById('courseModal');
             document.getElementById('courseId').value = id || '';
             if (id) {
@@ -10822,6 +10875,13 @@
 
             if (!basePayload.cohort || !basePayload.course_name || !basePayload.fee_per_student) {
                 showAlert('차수, 강좌명, 회원비는 필수입니다.', 'error');
+                saveBtn.disabled = false;
+                return;
+            }
+
+            // 수정 모드(기존 강좌명 그대로 두는 경우)는 검사할 필요 없음 — 새 강좌명을 입력/변경했을 때만 확인
+            var isEditingSameName = id && _coursesCache.some(function(c) { return c.id === id && c.course_name === basePayload.course_name; });
+            if (!isEditingSameName && !checkSimilarCourseName(basePayload.course_name)) {
                 saveBtn.disabled = false;
                 return;
             }
