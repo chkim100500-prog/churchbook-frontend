@@ -4758,8 +4758,9 @@
                 <input type="hidden" id="courseId">
                 <div style="display:flex;flex-direction:column;gap:10px;">
                   <label style="font-size:12.5px;color:#555;">차수 * (예: 50기)<input id="courseCohort" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
-                  <label style="font-size:12.5px;color:#555;">강좌명 *<input id="courseName" list="courseNameDatalist" autocomplete="off" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;"></label>
-                    <datalist id="courseNameDatalist"></datalist>
+                  <label style="font-size:12.5px;color:#555;position:relative;display:block;">강좌명 *<input id="courseName" autocomplete="off" oninput="onCourseNameInput()" onfocus="onCourseNameInput()" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
+                    <div id="courseNameSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;box-shadow:0 4px 10px rgba(0,0,0,.08);"></div>
+                  </label>
                   <label style="font-size:12.5px;color:#555;">담당 강사 (이름을 직접 입력하세요. 기존 강사명과 같으면 그 강사로 연결되고, 새 이름이면 강사가 자동 등록됩니다 — 요율 등 세부정보는 나중에 강사 관리에서 채워주세요)
                     <input id="courseInstructorName" list="courseInstructorDatalist" placeholder="강사명 입력 (비워두면 미지정)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;margin-top:4px;">
                     <datalist id="courseInstructorDatalist"></datalist>
@@ -10235,19 +10236,53 @@
         }
 
         // ----- 강좌명 자동완성 + 오타 유사도 경고 -----
+        // 네이티브 <datalist>는 타이핑만으로는 안 뜨고 클릭해야 뜨는 경우가 있어서,
+        // 부서회비 납부자 자동완성과 동일하게 직접 그리는 드롭다운 방식을 씁니다.
         var _allCourseNamesCache = []; // 전체 차수를 통틀어 지금까지 썼던 강좌명 목록 (중복 제거)
 
         function populateCourseNameDatalist() {
             api('GET', '/api/courses').then(function(r) {
                 var all = (r && r.courses) || [];
-                var names = Array.from(new Set(all.map(function(c) { return c.course_name; }).filter(Boolean)));
-                _allCourseNamesCache = names;
-                var dl = document.getElementById('courseNameDatalist');
-                dl.innerHTML = names.map(function(n) {
-                    return '<option value="' + escapeHtml(n) + '"></option>';
-                }).join('');
+                _allCourseNamesCache = Array.from(new Set(all.map(function(c) { return c.course_name; }).filter(Boolean)));
             }).catch(function() { /* 자동완성 실패해도 강좌 등록 자체는 계속 가능해야 함 */ });
         }
+
+        function onCourseNameInput() {
+            var box = document.getElementById('courseNameSuggestions');
+            var keyword = document.getElementById('courseName').value.trim();
+
+            if (!_allCourseNamesCache.length) { box.style.display = 'none'; return; }
+
+            var matches = keyword
+                ? _allCourseNamesCache.filter(function(n) { return n.indexOf(keyword) !== -1; })
+                : _allCourseNamesCache.slice(0, 20);
+
+            if (!matches.length) { box.style.display = 'none'; return; }
+
+            box.innerHTML = matches.map(function(n) {
+                return '<div class="course-name-suggestion" onmousedown=\'selectCourseName(' + jsAttr(n) + ')\' ' +
+                    'style="padding:8px 12px;font-size:13.5px;cursor:pointer;">' + escapeHtml(n) + '</div>';
+            }).join('');
+            box.style.display = 'block';
+
+            Array.prototype.forEach.call(box.children, function(child) {
+                child.addEventListener('mouseenter', function() { child.style.background = '#f0f7ff'; });
+                child.addEventListener('mouseleave', function() { child.style.background = '#fff'; });
+            });
+        }
+
+        function selectCourseName(name) {
+            document.getElementById('courseName').value = name;
+            document.getElementById('courseNameSuggestions').style.display = 'none';
+        }
+
+        document.addEventListener('click', function(e) {
+            var box = document.getElementById('courseNameSuggestions');
+            var input = document.getElementById('courseName');
+            if (!box || box.style.display === 'none') return;
+            if (e.target === input || box.contains(e.target)) return;
+            box.style.display = 'none';
+        });
 
         // 레벤슈타인 거리 (짧은 문자열 기준이라 성능 걱정 없이 단순 구현)
         function _levenshteinDistance(a, b) {
