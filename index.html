@@ -4171,6 +4171,9 @@
                                 <div class="form-group">
                                     <button class="btn" id="authBtn" onclick="authenticateApprover()">🔐 인증</button>
                                 </div>
+                                <div class="form-group" id="approverLogoutGroup" style="display:none;">
+                                    <button class="btn" style="background:#f1f5f9;color:#64748b;" onclick="logoutApprover()">🔓 로그아웃</button>
+                                </div>
                             </div>
                         </div>
 
@@ -18198,19 +18201,33 @@
                 const position = result.approver.position || '';
                 authBtn.textContent = `✅ ${name} ${position} 인증완료`;
                 authBtn.style.background = '#28a745';
-                authBtn.onclick = () => {
-                  // 재인증: 버튼 원래대로
-                  currentUserAuthority = null;
-                  authBtn.textContent = '🔐 인증';
-                  authBtn.style.background = '';
-                  authBtn.onclick = authenticateApprover;
-                  document.getElementById('approverPassword').value = '';
-                  searchApprovals();
-                };
+                authBtn.onclick = logoutApprover;
+                // 명시적 로그아웃 버튼 표시 + 입력란은 잠가서, 다른 사람이 이어서 실수로
+                // 승인 버튼을 누르는 일이 없도록 함 (여러 결재권한자가 같은 PC를 쓰는 상황 대비)
+                document.getElementById('approverLogoutGroup').style.display = '';
+                document.getElementById('approverPhone').disabled = true;
+                document.getElementById('approverPassword').disabled = true;
                 searchApprovals();
               } else { showAlert(result.message, 'error'); }
             })
             .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); console.error(err); });
+        }
+
+        // 사전결재 결재권한자 로그아웃: 인증 상태를 완전히 초기화합니다.
+        // (여러 결재권한자가 같은 PC를 순서대로 쓰는 경우, 다음 사람이 이전 사람 권한으로
+        //  실수로 승인/반려하지 않도록 명시적으로 끊을 수 있게 합니다.)
+        function logoutApprover() {
+          currentUserAuthority = null;
+          const authBtn = document.getElementById('authBtn');
+          authBtn.textContent = '🔐 인증';
+          authBtn.style.background = '';
+          authBtn.onclick = authenticateApprover;
+          document.getElementById('approverLogoutGroup').style.display = 'none';
+          document.getElementById('approverPhone').disabled = false;
+          document.getElementById('approverPhone').value = '';
+          document.getElementById('approverPassword').disabled = false;
+          document.getElementById('approverPassword').value = '';
+          searchApprovals();
         }
 
         // 대기중인 결재 로드
@@ -18786,10 +18803,14 @@
                 authBtn.style.background = '';
                 authBtn.onclick = authenticateApprover;
             }
+            const logoutGroup = document.getElementById('approverLogoutGroup');
+            if (logoutGroup) logoutGroup.style.display = 'none';
             if (document.getElementById('approverPassword')) {
+                document.getElementById('approverPassword').disabled = false;
                 document.getElementById('approverPassword').value = '';
             }
             if (document.getElementById('approverPhone')) {
+                document.getElementById('approverPhone').disabled = false;
                 document.getElementById('approverPhone').value = '';
             }
         }
