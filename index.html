@@ -2330,9 +2330,10 @@
                   <span style="background:#007BFF;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
                   <strong>${a.position}</strong> ${a.name}
                   <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
+                  ${a.email ? `<span style="color:#999;font-size:13px;margin-left:8px;">✉️ ${a.email}</span>` : '<span style="color:#e53e3e;font-size:12px;margin-left:8px;">이메일 미등록</span>'}
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}','${a.email || ''}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
                   <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
                 </div>
               </div>
@@ -2347,23 +2348,36 @@
           document.getElementById('authorityPosition').value = '';
           document.getElementById('authorityName').value = '';
           document.getElementById('authorityPhone').value = '';
-          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityEmail').value = '';
+          document.getElementById('authorityResendRow').style.display = 'none';
           document.getElementById('authorityModal').style.display = 'block';
         }
 
-        function showEditAuthorityModal(order, position, name, phone) {
+        function showEditAuthorityModal(order, position, name, phone, email) {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
           document.getElementById('authorityEditPhone').value = phone;
           document.getElementById('authorityOrder').value = order;
           document.getElementById('authorityPosition').value = position;
           document.getElementById('authorityName').value = name;
           document.getElementById('authorityPhone').value = phone;
-          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityEmail').value = email || '';
+          document.getElementById('authorityResendRow').style.display = 'block';
           document.getElementById('authorityModal').style.display = 'block';
         }
 
         function closeAuthorityModal() {
           document.getElementById('authorityModal').style.display = 'none';
+        }
+
+        function resendAuthoritySetupLink() {
+          const phone = document.getElementById('authorityEditPhone').value;
+          const email = document.getElementById('authorityEmail').value.trim();
+          if (!phone) return;
+          if (!email) { showAlert('이메일을 먼저 입력하고 저장한 뒤 다시 시도해주세요.', 'error'); return; }
+          showLoading();
+          api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
+            .then(r => { hideLoading(); showAlert(r.message || '발송 요청을 처리했습니다.'); })
+            .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
         }
 
         function saveAuthority() {
@@ -2372,18 +2386,29 @@
           const position = document.getElementById('authorityPosition').value.trim();
           const name = document.getElementById('authorityName').value.trim();
           const phone = document.getElementById('authorityPhone').value.trim();
-          const password = document.getElementById('authorityPassword').value;
+          const email = document.getElementById('authorityEmail').value.trim();
           if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
+          if (!email) { showAlert('이메일은 필수입니다. 이 이메일로 비밀번호 설정 링크가 발송됩니다.', 'error'); return; }
           showLoading();
           if (editPhone) {
-            const body = { order, position, name, newPhone: phone };
-            if (password) body.password = password;
+            const body = { order, position, name, newPhone: phone, email };
             api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
               .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           } else {
-            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
-            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
-              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, email })
+              .then(r => {
+                if (r.success) {
+                  // 등록 즉시 비밀번호 설정 이메일 자동 발송
+                  api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
+                    .finally(() => {
+                      hideLoading();
+                      showAlert(`${r.message}\n${email}로 비밀번호 설정 링크를 보냈습니다.`);
+                      closeAuthorityModal();
+                      loadAuthorityList();
+                    });
+                } else { hideLoading(); showAlert(r.message, 'error'); }
+              })
+              .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
           }
         }
 
@@ -5709,8 +5734,12 @@
                         <input type="tel" id="authorityPhone" placeholder="010-1234-5678" oninput="formatPhoneNumber(this)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
                       </div>
                       <div class="form-group">
-                        <label>패스워드</label>
-                        <input type="password" id="authorityPassword" placeholder="결재 시 사용할 패스워드" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                        <label>이메일</label>
+                        <input type="email" id="authorityEmail" placeholder="approver@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
+                        <p style="font-size:12px;color:#999;margin-top:4px;">비밀번호는 관리자가 정하지 않습니다. 저장하면 이 이메일로 본인이 직접 비밀번호를 설정할 수 있는 링크가 발송됩니다.</p>
+                      </div>
+                      <div id="authorityResendRow" style="display:none;margin-bottom:10px;">
+                        <button type="button" class="btn" onclick="resendAuthoritySetupLink()" style="width:100%;background:#6c757d;">🔑 비밀번호 설정 링크 다시 보내기</button>
                       </div>
                       <div style="display:flex;gap:10px;margin-top:15px;">
                         <button class="btn" onclick="saveAuthority()" style="flex:1;">💾 저장</button>
@@ -23062,9 +23091,10 @@
                   <span style="background:#007BFF;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
                   <strong>${a.position}</strong> ${a.name}
                   <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
+                  ${a.email ? `<span style="color:#999;font-size:13px;margin-left:8px;">✉️ ${a.email}</span>` : '<span style="color:#e53e3e;font-size:12px;margin-left:8px;">이메일 미등록</span>'}
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}','${a.email || ''}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
                   <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
                 </div>
               </div>
@@ -23109,18 +23139,20 @@
           document.getElementById('authorityPosition').value = '';
           document.getElementById('authorityName').value = '';
           document.getElementById('authorityPhone').value = '';
-          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityEmail').value = '';
+          document.getElementById('authorityResendRow').style.display = 'none';
           populateAuthorityOrderOptions(null);
           document.getElementById('authorityModal').style.display = 'block';
         }
 
-        function showEditAuthorityModal(order, position, name, phone) {
+        function showEditAuthorityModal(order, position, name, phone, email) {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
           document.getElementById('authorityEditPhone').value = phone;
           document.getElementById('authorityPosition').value = position;
           document.getElementById('authorityName').value = name;
           document.getElementById('authorityPhone').value = phone;
-          document.getElementById('authorityPassword').value = '';
+          document.getElementById('authorityEmail').value = email || '';
+          document.getElementById('authorityResendRow').style.display = 'block';
           populateAuthorityOrderOptions(order);
           document.getElementById('authorityModal').style.display = 'block';
         }
@@ -23129,24 +23161,46 @@
           document.getElementById('authorityModal').style.display = 'none';
         }
 
+        function resendAuthoritySetupLink() {
+          const phone = document.getElementById('authorityEditPhone').value;
+          const email = document.getElementById('authorityEmail').value.trim();
+          if (!phone) return;
+          if (!email) { showAlert('이메일을 먼저 입력하고 저장한 뒤 다시 시도해주세요.', 'error'); return; }
+          showLoading();
+          api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
+            .then(r => { hideLoading(); showAlert(r.message || '발송 요청을 처리했습니다.'); })
+            .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
+        }
+
         function saveAuthority() {
           const editPhone = document.getElementById('authorityEditPhone').value;
           const order = document.getElementById('authorityOrder').value;
           const position = document.getElementById('authorityPosition').value.trim();
           const name = document.getElementById('authorityName').value.trim();
           const phone = document.getElementById('authorityPhone').value.trim();
-          const password = document.getElementById('authorityPassword').value;
+          const email = document.getElementById('authorityEmail').value.trim();
           if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
+          if (!email) { showAlert('이메일은 필수입니다. 이 이메일로 비밀번호 설정 링크가 발송됩니다.', 'error'); return; }
           showLoading();
           if (editPhone) {
-            const body = { order, position, name, newPhone: phone };
-            if (password) body.password = password;
+            const body = { order, position, name, newPhone: phone, email };
             api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
               .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           } else {
-            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
-            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
-              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, email })
+              .then(r => {
+                if (r.success) {
+                  // 등록 즉시 비밀번호 설정 이메일 자동 발송
+                  api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
+                    .finally(() => {
+                      hideLoading();
+                      showAlert(`${r.message}\n${email}로 비밀번호 설정 링크를 보냈습니다.`);
+                      closeAuthorityModal();
+                      loadAuthorityList();
+                    });
+                } else { hideLoading(); showAlert(r.message, 'error'); }
+              })
+              .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
           }
         }
 
