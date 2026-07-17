@@ -13904,7 +13904,7 @@
                 showLoading();
                 var res = await api('POST', '/api/approvals/authenticate', { phone, password });
                 if (res.success) {
-                    batchApprover = res.approver;
+                    batchApprover = { ...res.approver, password };
                     document.getElementById('batchApproverName').textContent = res.approver.name;
                     document.getElementById('batchApproverPosition').textContent = res.approver.position;
                     document.getElementById('batchAuthForm').style.display = 'none';
@@ -14102,6 +14102,7 @@
                 showLoading();
                 var res = await api('POST', '/api/approvals/batch/approve', {
                     authorizerPhone: batchApprover.phone,
+                    authorizerPassword: batchApprover.password,
                     rowIndexes: rowIndexes
                 });
                 if (res.success) {
@@ -14137,6 +14138,7 @@
                 showLoading();
                 var res = await api('PUT', '/api/approvals/batch/reject/' + rowIndex, {
                     authorizerPhone: batchApprover.phone,
+                    authorizerPassword: batchApprover.password,
                     comment: comment
                 });
                 closeBatchRejectModal();
@@ -17917,7 +17919,7 @@
 
             showLoading();
 
-            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'approve', comment })
+            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, authorizerPassword: currentUserAuthority.password, decision: 'approve', comment })
                 .then(result => {
                     hideLoading();
                     if (result.success) { showAlert(result.message || '승인되었습니다.'); resetAuthBtn(); searchApprovals(); }
@@ -17938,7 +17940,7 @@
 
             showLoading();
 
-            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'reject', comment })
+            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, authorizerPassword: currentUserAuthority.password, decision: 'reject', comment })
                 .then(result => {
                     hideLoading();
                     if (result.success) { showAlert(result.message || '반려되었습니다.'); resetAuthBtn(); searchApprovals(); }
@@ -18160,7 +18162,7 @@
             .then(result => {
               hideLoading();
               if (result.success) {
-                currentUserAuthority = result.approver;
+                currentUserAuthority = { ...result.approver, password };
                 // 패스워드 비우기
                 document.getElementById('approverPassword').value = '';
                 // 버튼 인증완료 상태로 변경
@@ -18712,6 +18714,7 @@
             showLoading();
             api('PUT', `/api/approvals/${currentDetailApprovalId}/decision`, {
                 authorizerPhone: currentUserAuthority.phone,
+                authorizerPassword: currentUserAuthority.password,
                 decision,
                 comment
             }).then(result => {
