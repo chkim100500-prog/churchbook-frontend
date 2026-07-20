@@ -3538,6 +3538,10 @@
                             <h3>🧾 예산서</h3>
                             <p>전년도 결산 대비 금년도 예산 계획서</p>
                         </div>
+                        <div class="report-type-card" onclick="showCarryOverForm()" style="background:linear-gradient(135deg,#455a64 0%,#78909c 100%);">
+                            <h3>📜 전기이월금 확인서</h3>
+                            <p>감사기간 시작 전 확정 이월잔액 증빙 (통장 스크린샷 자동첨부)</p>
+                        </div>
 
 
                     </div>
@@ -3633,6 +3637,42 @@
                     </div>
                     <div style="margin-top:12px;background:#e0f2f1;border-radius:8px;padding:10px 14px;font-size:12px;color:#00695c;">
                         💡 "전년도결산" 열은 선택한 연도의 전년도 실제 집행(수입/지출) 금액입니다. 예산이 아직 입력되지 않은 항목은 0원으로 표시됩니다.
+                    </div>
+                </div>
+
+                <!-- 전기이월금 확인서 섹션 -->
+                <div class="card hidden" id="carryOverSection">
+                    <h2>📜 전기이월금 확인서</h2>
+                    <p style="color:#666;font-size:13px;margin-bottom:16px;">확인(감사) 기간을 선택하면, 그 <strong>기간 시작일 전날</strong>을 기준으로 확정된 이월잔액과 통장 스크린샷을 자동으로 담은 확인서를 만듭니다. 반기·연간·비정기 감사기간 어디에나 사용할 수 있습니다.</p>
+                    <div id="carryOverAlert"></div>
+
+                    <div style="margin-bottom:14px;">
+                        <div style="font-size:13px;color:#555;font-weight:600;margin-bottom:8px;">빠른 선택 (올해 기준)</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                            <button class="btn" style="padding:10px;font-size:13px;font-weight:600;background:#eceff1;color:#37474f;border:1px solid #b0bec5;" onclick="setCarryOverPeriod(1,6)">📘 상반기 (1~6월)</button>
+                            <button class="btn" style="padding:10px;font-size:13px;font-weight:600;background:#eceff1;color:#37474f;border:1px solid #b0bec5;" onclick="setCarryOverPeriod(7,12)">📗 하반기 (7~12월)</button>
+                        </div>
+                        <button class="btn" style="width:100%;padding:10px;font-size:13px;font-weight:600;background:#455a64;color:white;" onclick="setCarryOverPeriod(1,12)">📅 연간 (1~12월)</button>
+                    </div>
+
+                    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;max-width:480px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="carryOverStart">확인 기간 시작일</label>
+                            <input type="date" id="carryOverStart">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label for="carryOverEnd">확인 기간 종료일</label>
+                            <input type="date" id="carryOverEnd">
+                        </div>
+                        <button class="btn" id="carryOverPrintBtn" onclick="printCarryOverConfirmation()"
+                            style="background:#455a64;color:white;padding:10px 20px;white-space:nowrap;">
+                            🖨️ 출력
+                        </button>
+                        <button class="btn" onclick="hideAllReportSections()"
+                            style="background:#6c757d;color:white;padding:10px 16px;">닫기</button>
+                    </div>
+                    <div style="margin-top:12px;background:#eceff1;border-radius:8px;padding:10px 14px;font-size:12px;color:#37474f;">
+                        💡 이월 기준일(시작일 전날)에 정확히 등록된 통장 스크린샷이 없으면, 가장 가까운 날짜의 스크린샷을 대신 사용하고 문서에 그 사실을 표시합니다. 스크린샷이 아예 없으면 잔고확인 화면에서 먼저 등록해달라는 안내가 표시됩니다.
                     </div>
                 </div>
 
@@ -13839,7 +13879,7 @@
                 populateBudgetOptions();
             } else if (tabName === 'report') {
                 // 보고서 탭 진입 시 모든 하위 폼/패널 초기화 (이전 탭에서 열려있던 것 닫기)
-                ['reportForm', 'donorSummarySection', 'auditReportSection', 'settlementReportSection', 'budgetReportSection'].forEach(function(id) {
+                ['reportForm', 'donorSummarySection', 'auditReportSection', 'settlementReportSection', 'budgetReportSection', 'carryOverSection'].forEach(function(id) {
                     var el = document.getElementById(id);
                     if (el) el.classList.add('hidden');
                 });
@@ -17378,7 +17418,7 @@
         // (새 보고서 섹션을 추가할 때는 이 배열에만 id를 추가하면 됨)
         function hideAllReportSections() {
             ['reportForm', 'donorSummarySection', 'offeringSummarySection', 'auditReportSection',
-             'donationSummarySection', 'settlementReportSection', 'budgetReportSection'
+             'donationSummarySection', 'settlementReportSection', 'budgetReportSection', 'carryOverSection'
             ].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
@@ -21653,7 +21693,63 @@
         }
 
         // =============================================
-        // 결산서 (연간 예산 대비 실적 결산 문서)
+        // 전기이월금 확인서
+        // 감사기간(임의 시작일~종료일)을 고르면, 시작일 전날을 이월 기준일로 삼아
+        // 확정 이월잔액 + 가장 가까운 통장 스크린샷을 담은 확인서를 출력합니다.
+        // =============================================
+        function showCarryOverForm() {
+            hideAllReportSections();
+            const curMonth = new Date().getMonth() + 1;
+            if (curMonth <= 6) { setCarryOverPeriod(1, 6); }
+            else { setCarryOverPeriod(7, 12); }
+            document.getElementById('carryOverAlert').innerHTML = '';
+            document.getElementById('carryOverSection').classList.remove('hidden');
+            document.getElementById('carryOverSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function setCarryOverPeriod(startMonth, endMonth) {
+            const y = new Date().getFullYear();
+            const pad = n => String(n).padStart(2, '0');
+            const lastDay = new Date(y, endMonth, 0).getDate();
+            document.getElementById('carryOverStart').value = `${y}-${pad(startMonth)}-01`;
+            document.getElementById('carryOverEnd').value = `${y}-${pad(endMonth)}-${pad(lastDay)}`;
+        }
+
+        async function printCarryOverConfirmation() {
+            const start = document.getElementById('carryOverStart').value;
+            const end = document.getElementById('carryOverEnd').value;
+            const btn = document.getElementById('carryOverPrintBtn');
+            const alertEl = document.getElementById('carryOverAlert');
+            alertEl.innerHTML = '';
+
+            if (!start || !end) {
+                alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 시작일과 종료일을 모두 선택하세요.</div>';
+                return;
+            }
+            if (start > end) {
+                alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 시작일이 종료일보다 늦을 수 없습니다.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ 생성 중...';
+
+            try {
+                const result = await api('GET', `/api/balance/carryover-confirmation/print?start=${start}&end=${end}`);
+                if (result && result.success && result.html) {
+                    mobilePrint(result.html);
+                } else {
+                    alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 확인서 생성에 실패했습니다.</div>';
+                }
+            } catch (e) {
+                alertEl.innerHTML = `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ ${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🖨️ 출력';
+            }
+        }
+
+
         // 기존 "월회계보고(연간계)" 서버 렌더링 결과를 그대로 활용하고,
         // 감사자료 제출용 표지만 앞에 붙여서 출력합니다. (백엔드 수정 불필요)
         // =============================================
