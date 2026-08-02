@@ -9558,6 +9558,27 @@
         var _masterItemsCache = { incomeItems: [], expenseItemsByDept: {} };
         var _mappingFilter = 'all';
         var _doubleEntryEnabled = false; // 복식부기 자동분개 기능 ON/OFF (조직별, 기본값 OFF)
+        var _receiptRequiredItems = []; // 영수증 첨부가 꼭 필요하다고 표시된 수입 항목명 목록 (예: 교회보조금)
+
+        // 로그인 직후 호출: 이 조직에서 "영수증 필요"로 표시해둔 수입 항목 목록을 불러옵니다.
+        // 복식부기 플래그와 무관하게 항상 동작하는 일반 기능입니다.
+        function loadReceiptRequirements() {
+            return api('GET', '/api/receipt-requirements')
+                .then(function(r) { _receiptRequiredItems = (r && r.data) || []; })
+                .catch(function() { _receiptRequiredItems = []; });
+        }
+
+        // 계정과목 관리 화면에서 "📷필수" 체크박스를 켜고 끌 때 호출됩니다.
+        function toggleReceiptRequired(item, checked) {
+            var next = _receiptRequiredItems.slice();
+            var idx = next.indexOf(item);
+            if (checked && idx === -1) next.push(item);
+            if (!checked && idx !== -1) next.splice(idx, 1);
+            _receiptRequiredItems = next; // 낙관적으로 먼저 반영 (체크박스가 바로 반응하도록)
+            api('PUT', '/api/receipt-requirements', { items: next }).then(function(r) {
+                if (!r.success) showAlert(r.message || '저장 실패', 'error');
+            }).catch(function(e) { showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
 
         // 복식부기 플래그는 이제 이 조직의 다른 모듈 플래그와 함께 loadModuleConfig()에서
         // 한 번에 로딩됩니다 (아래 loadModuleConfig 함수 참고). 예전에는 여기서 별도로
@@ -13382,6 +13403,7 @@
             loadDuesTabName();
             loadDashboard();
             loadModuleConfig();
+            loadReceiptRequirements();
             api('GET', '/api/dues').then(r => {
                 _duesData = r.data || [];
                 updateDuesTabVisibility();
@@ -15824,12 +15846,16 @@
                 const tr = document.createElement('tr');
                 const _printedAt = _bvPrintStatus[row.id];
                 const _hasReceipt = hasReceiptForRow(row);
+                const _needsReceipt = row.type === 'income' && (_receiptRequiredItems || []).indexOf(row.incomeItem) !== -1 && !_hasReceipt;
                 let _badges = '';
                 if (row.donor && String(row.donor).trim()) {
                     _badges += `<div style="font-size:10px;color:#00897b;margin-top:2px;white-space:nowrap;" title="기부금영수증 대상: ${escapeHtml(row.donor)}">🎁 기부금</div>`;
                 }
                 if (_hasReceipt) {
                     _badges += `<div style="font-size:10px;color:#1976d2;margin-top:2px;white-space:nowrap;">📷 영수증</div>`;
+                }
+                if (_needsReceipt) {
+                    _badges += `<div style="font-size:10px;color:#c0392b;margin-top:2px;white-space:nowrap;font-weight:600;" title="이 항목은 영수증(재정부 결재 청구서 사진 등) 첨부가 필요합니다">⚠️ 영수증 필요</div>`;
                 }
                 if (_printedAt) {
                     const _mergedGroup = findMergedGroupForRow(row.id);
@@ -15886,9 +15912,9 @@
                             ${row.type === 'income' && row.income !== 0 ? 
                                 `<button class="btn-sm" style="background:#2980b9;color:#fff;" onclick="openIncomeVoucherModalFromButton(this)" 
                                     data-transaction='${JSON.stringify(row).replace(/'/g, "&#39;")}'>수입<br>전표</button>` : ''}
-                            <button class="btn-sm" style="background:${_hasReceipt ? '#2e7d32' : '#90a4ae'};color:#fff;" onclick="openReceiptModalFromButton(this)"
+                            <button class="btn-sm" style="background:${_hasReceipt ? '#2e7d32' : (_needsReceipt ? '#c0392b' : '#90a4ae')};color:#fff;" onclick="openReceiptModalFromButton(this)"
                                 data-txn-id="${row.id}" data-date="${row.date}" data-amount="${row.income !== 0 ? row.income : row.expense || 0}"
-                                data-desc="${escapeHtml(row.description || '')}">${_hasReceipt ? '✅<br>영수증' : '📷<br>영수증'}</button>
+                                data-desc="${escapeHtml(row.description || '')}">${_hasReceipt ? '✅<br>영수증' : (_needsReceipt ? '⚠️<br>영수증' : '📷<br>영수증')}</button>
                         </div>
                     </td>
                 `;
@@ -19734,8 +19760,12 @@
               } else {
                   ac.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
                       activeItems.map(function(item) {
+                          var checked = (_receiptRequiredItems || []).indexOf(item) !== -1;
                           return '<span style="display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:500;">' +
                               item +
+                              '<label style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:400;color:#1565c0;cursor:pointer;margin-left:2px;" title="이 항목은 반드시 영수증을 첨부하도록 표시합니다">' +
+                                '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleReceiptRequired(' + JSON.stringify(item).replace(/"/g,'&quot;') + ', this.checked)" style="margin:0;">📷필수' +
+                              '</label>' +
                               '<button onclick="masterItemBtn(this)" data-type="income" data-item="' + item.replace(/"/g,'&quot;') + '" ' +
                               'style="background:none;border:none;color:#999;cursor:pointer;font-size:14px;padding:0;line-height:1;" title="삭제">✕</button></span>';
                       }).join('') + '</div>';
