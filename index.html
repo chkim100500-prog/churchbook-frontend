@@ -16271,7 +16271,7 @@
             try {
                 const t = currentIncomeVoucherData;
                 const { incomeDocName } = await getDocNames();
-                const html = await buildIncomeVoucherHTML(t); // 인쇄 화면과 완전히 동일한 서식
+                const html = (await buildIncomeVoucherHTML(t)).html; // 인쇄 화면과 완전히 동일한 서식 (영수증 포함)
                 const res = await api('POST', '/api/vouchers/send-html', {
                     email,
                     subject: `${incomeDocName} - ${t.incomeItem || ''} (${t.date || ''})`,
@@ -20805,6 +20805,35 @@
               : (transactionData.authorities || []);
           const signatureRows = buildVoucherSignatureTableRows(authorities, txnSignatures);
           const { incomeDocName } = await getDocNames();
+          // 연결된 영수증 이미지 조회 (지출전표 buildExpenseVoucherHTML과 동일한 방식)
+          // txnId: 새 방식(TXN+timestamp), 없으면 날짜+금액으로 폴백
+          let receiptImagesBlock = '';
+          const _txnId = transactionData.txnId || transactionData.id || '';
+          const _txnDate = transactionData.date || '';
+          const _txnAmt = transactionData.income || transactionData.amount || '';
+          if (_txnId || _txnDate) {
+            try {
+              const _params = `date=${encodeURIComponent(_txnDate)}&amount=${encodeURIComponent(_txnAmt)}`;
+              const _safeId = _txnId || 'none';
+              const rcResult = await api('GET', `/api/receipts/by-txn/${encodeURIComponent(_safeId)}?${_params}`);
+              const imgs = rcResult.data || [];
+              if (imgs.length > 0) {
+                const imgTags = imgs.map((img, i) =>
+                  `<div style="display:inline-block;vertical-align:top;margin:4px;${imgs.length === 1 ? 'width:100%' : 'width:48%'};">
+                    <div style="font-size:11px;color:#666;margin-bottom:4px;">
+                      📷 영수증 ${i+1}/${imgs.length}${img.description ? ' — ' + img.description : ''}
+                    </div>
+                    <img src="${img.imageUrl}" style="width:100%;max-height:300px;object-fit:contain;border:1px solid #ddd;border-radius:4px;">
+                  </div>`
+                ).join('');
+                receiptImagesBlock = `
+                  <div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;page-break-inside:avoid;">
+                    <div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증</div>
+                    <div style="font-size:0;">${imgTags}</div>
+                  </div>`;
+              }
+            } catch(e) { console.warn('영수증 조회 실패:', e); }
+          }
           const voucherHTML = `
               <!DOCTYPE html>
               <html>
@@ -20896,6 +20925,8 @@
                       <table class="signature-table">
                           ${signatureRows}
                       </table>
+                      <div style="clear:both;"></div>
+                      ${receiptImagesBlock}
                       <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
                           <button onclick="var _mvp=(window.opener&&window.opener.markVoucherPrinted)||window.markVoucherPrinted; var _id=${JSON.stringify(transactionData.id || null)}; window.addEventListener('afterprint', function(){ if(_mvp){_mvp(_id)} }, {once:true}); window.print();" style="padding: 10px 20px; font-size: 16px; background-color: #FF0000; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
                       </div>
@@ -20903,13 +20934,23 @@
               </html>
           `;
 
-          return voucherHTML;
+          return { html: voucherHTML, hasReceipt: !!receiptImagesBlock };
       }
 
       async function printIncomeVoucher(transactionData) {
-          const voucherHTML = await buildIncomeVoucherHTML(transactionData);
+          const { html: voucherHTML, hasReceipt } = await buildIncomeVoucherHTML(transactionData);
           _pendingVoucherPrintIds = transactionData.id || null; // 툴바의 "인쇄·PDF저장" 버튼을 눌렀을 때 기록됨
-          mobilePrint(voucherHTML);
+
+          // 영수증이 있으면 window.open으로 직접 출력 (innerHTML 보안 우회) — 지출전표와 동일한 방식
+          if (hasReceipt) {
+            const win = window.open('', '_blank');
+            if (win) {
+              win.document.write(voucherHTML);
+              win.document.close();
+            }
+          } else {
+            mobilePrint(voucherHTML);
+          }
       }
 
       // ============================================================
