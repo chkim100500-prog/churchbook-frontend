@@ -1262,12 +1262,14 @@
                 }
                 .approval-nav {
                     display: flex;
-                    background: linear-gradient(135deg, #007BFF 0%, #0056b3 100%);
+                    background: rgba(255,255,255,0.25);
+                    backdrop-filter: blur(10px);
                     border-radius: 12px;
                     padding: 5px;
                     margin: 0 0 20px 0;
                     gap: 5px;
                     overflow-x: auto;
+                    border: 1px solid rgba(255,255,255,0.4);
                     width: 100%;
                     box-sizing: border-box;
                 }
@@ -1276,7 +1278,7 @@
                     flex: 1;
                     padding: 10px 8px;
                     border: none;
-                    background: transparent;
+                    background: rgba(255,255,255,0.3);
                     color: white;
                     border-radius: 8px;
                     cursor: pointer;
@@ -1292,13 +1294,13 @@
 
                 .approval-nav-btn.active {
                     background: white;
-                    color: #0056b3;
+                    color: #007BFF;
                     font-weight: 700;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
                 }
 
                 .approval-nav-btn:hover:not(.active) {
-                    background: rgba(255,255,255,0.15);
+                    background: rgba(255,255,255,0.45);
                 }
 
                 .approval-card {
@@ -2328,10 +2330,9 @@
                   <span style="background:#007BFF;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
                   <strong>${a.position}</strong> ${a.name}
                   <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
-                  ${a.email ? `<span style="color:#999;font-size:13px;margin-left:8px;">✉️ ${a.email}</span>` : '<span style="color:#e53e3e;font-size:12px;margin-left:8px;">이메일 미등록</span>'}
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}','${a.email || ''}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
                   <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
                 </div>
               </div>
@@ -2346,36 +2347,23 @@
           document.getElementById('authorityPosition').value = '';
           document.getElementById('authorityName').value = '';
           document.getElementById('authorityPhone').value = '';
-          document.getElementById('authorityEmail').value = '';
-          document.getElementById('authorityResendRow').style.display = 'none';
+          document.getElementById('authorityPassword').value = '';
           document.getElementById('authorityModal').style.display = 'block';
         }
 
-        function showEditAuthorityModal(order, position, name, phone, email) {
+        function showEditAuthorityModal(order, position, name, phone) {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
           document.getElementById('authorityEditPhone').value = phone;
           document.getElementById('authorityOrder').value = order;
           document.getElementById('authorityPosition').value = position;
           document.getElementById('authorityName').value = name;
           document.getElementById('authorityPhone').value = phone;
-          document.getElementById('authorityEmail').value = email || '';
-          document.getElementById('authorityResendRow').style.display = 'block';
+          document.getElementById('authorityPassword').value = '';
           document.getElementById('authorityModal').style.display = 'block';
         }
 
         function closeAuthorityModal() {
           document.getElementById('authorityModal').style.display = 'none';
-        }
-
-        function resendAuthoritySetupLink() {
-          const phone = document.getElementById('authorityEditPhone').value;
-          const email = document.getElementById('authorityEmail').value.trim();
-          if (!phone) return;
-          if (!email) { showAlert('이메일을 먼저 입력하고 저장한 뒤 다시 시도해주세요.', 'error'); return; }
-          showLoading();
-          api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
-            .then(r => { hideLoading(); showAlert(r.message || '발송 요청을 처리했습니다.'); })
-            .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
         }
 
         function saveAuthority() {
@@ -2384,29 +2372,18 @@
           const position = document.getElementById('authorityPosition').value.trim();
           const name = document.getElementById('authorityName').value.trim();
           const phone = document.getElementById('authorityPhone').value.trim();
-          const email = document.getElementById('authorityEmail').value.trim();
+          const password = document.getElementById('authorityPassword').value;
           if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
-          if (!email) { showAlert('이메일은 필수입니다. 이 이메일로 비밀번호 설정 링크가 발송됩니다.', 'error'); return; }
           showLoading();
           if (editPhone) {
-            const body = { order, position, name, newPhone: phone, email };
+            const body = { order, position, name, newPhone: phone };
+            if (password) body.password = password;
             api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
               .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           } else {
-            api('POST', '/api/approvals/authorities', { order, position, name, phone, email })
-              .then(r => {
-                if (r.success) {
-                  // 등록 즉시 비밀번호 설정 이메일 자동 발송
-                  api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
-                    .finally(() => {
-                      hideLoading();
-                      showAlert(`${r.message}\n${email}로 비밀번호 설정 링크를 보냈습니다.`);
-                      closeAuthorityModal();
-                      loadAuthorityList();
-                    });
-                } else { hideLoading(); showAlert(r.message, 'error'); }
-              })
-              .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
+            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           }
         }
 
@@ -3538,10 +3515,6 @@
                             <h3>🧾 예산서</h3>
                             <p>전년도 결산 대비 금년도 예산 계획서</p>
                         </div>
-                        <div class="report-type-card" onclick="showCarryOverForm()" style="background:linear-gradient(135deg,#455a64 0%,#78909c 100%);">
-                            <h3>📜 전기이월금 확인서</h3>
-                            <p>감사기간 시작 전 확정 이월잔액 증빙 (통장 스크린샷 자동첨부)</p>
-                        </div>
 
 
                     </div>
@@ -3637,42 +3610,6 @@
                     </div>
                     <div style="margin-top:12px;background:#e0f2f1;border-radius:8px;padding:10px 14px;font-size:12px;color:#00695c;">
                         💡 "전년도결산" 열은 선택한 연도의 전년도 실제 집행(수입/지출) 금액입니다. 예산이 아직 입력되지 않은 항목은 0원으로 표시됩니다.
-                    </div>
-                </div>
-
-                <!-- 전기이월금 확인서 섹션 -->
-                <div class="card hidden" id="carryOverSection">
-                    <h2>📜 전기이월금 확인서</h2>
-                    <p style="color:#666;font-size:13px;margin-bottom:16px;">확인(감사) 기간을 선택하면, 그 <strong>기간 시작일 전날</strong>을 기준으로 확정된 이월잔액과 통장 스크린샷을 자동으로 담은 확인서를 만듭니다. 반기·연간·비정기 감사기간 어디에나 사용할 수 있습니다.</p>
-                    <div id="carryOverAlert"></div>
-
-                    <div style="margin-bottom:14px;">
-                        <div style="font-size:13px;color:#555;font-weight:600;margin-bottom:8px;">빠른 선택 (올해 기준)</div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-                            <button class="btn" style="padding:10px;font-size:13px;font-weight:600;background:#eceff1;color:#37474f;border:1px solid #b0bec5;" onclick="setCarryOverPeriod(1,6)">📘 상반기 (1~6월)</button>
-                            <button class="btn" style="padding:10px;font-size:13px;font-weight:600;background:#eceff1;color:#37474f;border:1px solid #b0bec5;" onclick="setCarryOverPeriod(7,12)">📗 하반기 (7~12월)</button>
-                        </div>
-                        <button class="btn" style="width:100%;padding:10px;font-size:13px;font-weight:600;background:#455a64;color:white;" onclick="setCarryOverPeriod(1,12)">📅 연간 (1~12월)</button>
-                    </div>
-
-                    <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;max-width:480px;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label for="carryOverStart">확인 기간 시작일</label>
-                            <input type="date" id="carryOverStart">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label for="carryOverEnd">확인 기간 종료일</label>
-                            <input type="date" id="carryOverEnd">
-                        </div>
-                        <button class="btn" id="carryOverPrintBtn" onclick="printCarryOverConfirmation()"
-                            style="background:#455a64;color:white;padding:10px 20px;white-space:nowrap;">
-                            🖨️ 출력
-                        </button>
-                        <button class="btn" onclick="hideAllReportSections()"
-                            style="background:#6c757d;color:white;padding:10px 16px;">닫기</button>
-                    </div>
-                    <div style="margin-top:12px;background:#eceff1;border-radius:8px;padding:10px 14px;font-size:12px;color:#37474f;">
-                        💡 이월 기준일(시작일 전날)에 정확히 등록된 통장 스크린샷이 없으면, 가장 가까운 날짜의 스크린샷을 대신 사용하고 문서에 그 사실을 표시합니다. 스크린샷이 아예 없으면 잔고확인 화면에서 먼저 등록해달라는 안내가 표시됩니다.
                     </div>
                 </div>
 
@@ -4210,9 +4147,6 @@
                                 </div>
                                 <div class="form-group">
                                     <button class="btn" id="authBtn" onclick="authenticateApprover()">🔐 인증</button>
-                                </div>
-                                <div class="form-group" id="approverLogoutGroup" style="display:none;">
-                                    <button class="btn" style="background:#f1f5f9;color:#64748b;" onclick="logoutApprover()">🔓 로그아웃</button>
                                 </div>
                             </div>
                         </div>
@@ -5775,12 +5709,8 @@
                         <input type="tel" id="authorityPhone" placeholder="010-1234-5678" oninput="formatPhoneNumber(this)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
                       </div>
                       <div class="form-group">
-                        <label>이메일</label>
-                        <input type="email" id="authorityEmail" placeholder="approver@example.com" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
-                        <p style="font-size:12px;color:#999;margin-top:4px;">비밀번호는 관리자가 정하지 않습니다. 저장하면 이 이메일로 본인이 직접 비밀번호를 설정할 수 있는 링크가 발송됩니다.</p>
-                      </div>
-                      <div id="authorityResendRow" style="display:none;margin-bottom:10px;">
-                        <button type="button" class="btn" onclick="resendAuthoritySetupLink()" style="width:100%;background:#6c757d;">🔑 비밀번호 설정 링크 다시 보내기</button>
+                        <label>패스워드</label>
+                        <input type="password" id="authorityPassword" placeholder="결재 시 사용할 패스워드" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;">
                       </div>
                       <div style="display:flex;gap:10px;margin-top:15px;">
                         <button class="btn" onclick="saveAuthority()" style="flex:1;">💾 저장</button>
@@ -9558,27 +9488,6 @@
         var _masterItemsCache = { incomeItems: [], expenseItemsByDept: {} };
         var _mappingFilter = 'all';
         var _doubleEntryEnabled = false; // 복식부기 자동분개 기능 ON/OFF (조직별, 기본값 OFF)
-        var _receiptRequiredItems = []; // 영수증 첨부가 꼭 필요하다고 표시된 수입 항목명 목록 (예: 교회보조금)
-
-        // 로그인 직후 호출: 이 조직에서 "영수증 필요"로 표시해둔 수입 항목 목록을 불러옵니다.
-        // 복식부기 플래그와 무관하게 항상 동작하는 일반 기능입니다.
-        function loadReceiptRequirements() {
-            return api('GET', '/api/receipt-requirements')
-                .then(function(r) { _receiptRequiredItems = (r && r.data) || []; })
-                .catch(function() { _receiptRequiredItems = []; });
-        }
-
-        // 계정과목 관리 화면에서 "📷필수" 체크박스를 켜고 끌 때 호출됩니다.
-        function toggleReceiptRequired(item, checked) {
-            var next = _receiptRequiredItems.slice();
-            var idx = next.indexOf(item);
-            if (checked && idx === -1) next.push(item);
-            if (!checked && idx !== -1) next.splice(idx, 1);
-            _receiptRequiredItems = next; // 낙관적으로 먼저 반영 (체크박스가 바로 반응하도록)
-            api('PUT', '/api/receipt-requirements', { items: next }).then(function(r) {
-                if (!r.success) showAlert(r.message || '저장 실패', 'error');
-            }).catch(function(e) { showAlert('저장 실패: ' + friendlyErrorMessage(e), 'error'); });
-        }
 
         // 복식부기 플래그는 이제 이 조직의 다른 모듈 플래그와 함께 loadModuleConfig()에서
         // 한 번에 로딩됩니다 (아래 loadModuleConfig 함수 참고). 예전에는 여기서 별도로
@@ -13403,7 +13312,6 @@
             loadDuesTabName();
             loadDashboard();
             loadModuleConfig();
-            loadReceiptRequirements();
             api('GET', '/api/dues').then(r => {
                 _duesData = r.data || [];
                 updateDuesTabVisibility();
@@ -13901,7 +13809,7 @@
                 populateBudgetOptions();
             } else if (tabName === 'report') {
                 // 보고서 탭 진입 시 모든 하위 폼/패널 초기화 (이전 탭에서 열려있던 것 닫기)
-                ['reportForm', 'donorSummarySection', 'auditReportSection', 'settlementReportSection', 'budgetReportSection', 'carryOverSection'].forEach(function(id) {
+                ['reportForm', 'donorSummarySection', 'auditReportSection', 'settlementReportSection', 'budgetReportSection'].forEach(function(id) {
                     var el = document.getElementById(id);
                     if (el) el.classList.add('hidden');
                 });
@@ -13996,7 +13904,7 @@
                 showLoading();
                 var res = await api('POST', '/api/approvals/authenticate', { phone, password });
                 if (res.success) {
-                    batchApprover = { ...res.approver, password };
+                    batchApprover = res.approver;
                     document.getElementById('batchApproverName').textContent = res.approver.name;
                     document.getElementById('batchApproverPosition').textContent = res.approver.position;
                     document.getElementById('batchAuthForm').style.display = 'none';
@@ -14194,7 +14102,6 @@
                 showLoading();
                 var res = await api('POST', '/api/approvals/batch/approve', {
                     authorizerPhone: batchApprover.phone,
-                    authorizerPassword: batchApprover.password,
                     rowIndexes: rowIndexes
                 });
                 if (res.success) {
@@ -14230,7 +14137,6 @@
                 showLoading();
                 var res = await api('PUT', '/api/approvals/batch/reject/' + rowIndex, {
                     authorizerPhone: batchApprover.phone,
-                    authorizerPassword: batchApprover.password,
                     comment: comment
                 });
                 closeBatchRejectModal();
@@ -15681,13 +15587,13 @@
             let receiptBlock = '';
             if (receiptImgs.length > 0) {
                 const imgTags = receiptImgs.map((img, i) =>
-                    '<div style="margin:10px 0;page-break-inside:avoid;">' +
-                    '<div style="font-size:12px;color:#666;margin-bottom:4px;">📷 영수증 ' + (i + 1) + '/' + receiptImgs.length + (img.description ? ' — ' + img.description : '') + '</div>' +
-                    '<img src="' + img.imageUrl + '" style="width:100%;max-height:700px;object-fit:contain;border:1px solid #ddd;border-radius:4px;"></div>'
+                    '<div style="display:inline-block;vertical-align:top;margin:4px;' + (receiptImgs.length === 1 ? 'width:100%' : 'width:48%') + ';">' +
+                    '<div style="font-size:11px;color:#666;margin-bottom:4px;">📷 영수증 ' + (i + 1) + '/' + receiptImgs.length + (img.description ? ' — ' + img.description : '') + '</div>' +
+                    '<img src="' + img.imageUrl + '" style="width:100%;max-height:300px;object-fit:contain;border:1px solid #ddd;border-radius:4px;"></div>'
                 ).join('');
-                receiptBlock = '<div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;">' +
+                receiptBlock = '<div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;page-break-inside:avoid;">' +
                     '<div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증 (' + receiptImgs.length + '건)</div>' +
-                    imgTags + '</div>';
+                    '<div style="font-size:0;">' + imgTags + '</div></div>';
             }
 
             // 결재상태: 선택된 건들의 상태가 전부 같으면 하나로, 다르면 건별로 표시합니다.
@@ -15846,16 +15752,12 @@
                 const tr = document.createElement('tr');
                 const _printedAt = _bvPrintStatus[row.id];
                 const _hasReceipt = hasReceiptForRow(row);
-                const _needsReceipt = row.type === 'income' && (_receiptRequiredItems || []).indexOf(row.incomeItem) !== -1 && !_hasReceipt;
                 let _badges = '';
                 if (row.donor && String(row.donor).trim()) {
                     _badges += `<div style="font-size:10px;color:#00897b;margin-top:2px;white-space:nowrap;" title="기부금영수증 대상: ${escapeHtml(row.donor)}">🎁 기부금</div>`;
                 }
                 if (_hasReceipt) {
                     _badges += `<div style="font-size:10px;color:#1976d2;margin-top:2px;white-space:nowrap;">📷 영수증</div>`;
-                }
-                if (_needsReceipt) {
-                    _badges += `<div style="font-size:10px;color:#c0392b;margin-top:2px;white-space:nowrap;font-weight:600;" title="이 항목은 영수증(재정부 결재 청구서 사진 등) 첨부가 필요합니다">⚠️ 영수증 필요</div>`;
                 }
                 if (_printedAt) {
                     const _mergedGroup = findMergedGroupForRow(row.id);
@@ -15912,9 +15814,9 @@
                             ${row.type === 'income' && row.income !== 0 ? 
                                 `<button class="btn-sm" style="background:#2980b9;color:#fff;" onclick="openIncomeVoucherModalFromButton(this)" 
                                     data-transaction='${JSON.stringify(row).replace(/'/g, "&#39;")}'>수입<br>전표</button>` : ''}
-                            <button class="btn-sm" style="background:${_hasReceipt ? '#2e7d32' : (_needsReceipt ? '#c0392b' : '#90a4ae')};color:#fff;" onclick="openReceiptModalFromButton(this)"
+                            <button class="btn-sm" style="background:${_hasReceipt ? '#2e7d32' : '#90a4ae'};color:#fff;" onclick="openReceiptModalFromButton(this)"
                                 data-txn-id="${row.id}" data-date="${row.date}" data-amount="${row.income !== 0 ? row.income : row.expense || 0}"
-                                data-desc="${escapeHtml(row.description || '')}">${_hasReceipt ? '✅<br>영수증' : (_needsReceipt ? '⚠️<br>영수증' : '📷<br>영수증')}</button>
+                                data-desc="${escapeHtml(row.description || '')}">${_hasReceipt ? '✅<br>영수증' : '📷<br>영수증'}</button>
                         </div>
                     </td>
                 `;
@@ -16271,7 +16173,7 @@
             try {
                 const t = currentIncomeVoucherData;
                 const { incomeDocName } = await getDocNames();
-                const html = (await buildIncomeVoucherHTML(t)).html; // 인쇄 화면과 완전히 동일한 서식 (영수증 포함)
+                const html = await buildIncomeVoucherHTML(t); // 인쇄 화면과 완전히 동일한 서식
                 const res = await api('POST', '/api/vouchers/send-html', {
                     email,
                     subject: `${incomeDocName} - ${t.incomeItem || ''} (${t.date || ''})`,
@@ -17444,7 +17346,7 @@
         // (새 보고서 섹션을 추가할 때는 이 배열에만 id를 추가하면 됨)
         function hideAllReportSections() {
             ['reportForm', 'donorSummarySection', 'offeringSummarySection', 'auditReportSection',
-             'donationSummarySection', 'settlementReportSection', 'budgetReportSection', 'carryOverSection'
+             'donationSummarySection', 'settlementReportSection', 'budgetReportSection'
             ].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
@@ -18015,7 +17917,7 @@
 
             showLoading();
 
-            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, authorizerPassword: currentUserAuthority.password, decision: 'approve', comment })
+            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'approve', comment })
                 .then(result => {
                     hideLoading();
                     if (result.success) { showAlert(result.message || '승인되었습니다.'); resetAuthBtn(); searchApprovals(); }
@@ -18036,7 +17938,7 @@
 
             showLoading();
 
-            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, authorizerPassword: currentUserAuthority.password, decision: 'reject', comment })
+            api('PUT', `/api/approvals/${approvalId}/decision`, { authorizerPhone: currentUserAuthority.phone, decision: 'reject', comment })
                 .then(result => {
                     hideLoading();
                     if (result.success) { showAlert(result.message || '반려되었습니다.'); resetAuthBtn(); searchApprovals(); }
@@ -18258,7 +18160,7 @@
             .then(result => {
               hideLoading();
               if (result.success) {
-                currentUserAuthority = { ...result.approver, password };
+                currentUserAuthority = result.approver;
                 // 패스워드 비우기
                 document.getElementById('approverPassword').value = '';
                 // 버튼 인증완료 상태로 변경
@@ -18267,33 +18169,19 @@
                 const position = result.approver.position || '';
                 authBtn.textContent = `✅ ${name} ${position} 인증완료`;
                 authBtn.style.background = '#28a745';
-                authBtn.onclick = logoutApprover;
-                // 명시적 로그아웃 버튼 표시 + 입력란은 잠가서, 다른 사람이 이어서 실수로
-                // 승인 버튼을 누르는 일이 없도록 함 (여러 결재권한자가 같은 PC를 쓰는 상황 대비)
-                document.getElementById('approverLogoutGroup').style.display = '';
-                document.getElementById('approverPhone').disabled = true;
-                document.getElementById('approverPassword').disabled = true;
+                authBtn.onclick = () => {
+                  // 재인증: 버튼 원래대로
+                  currentUserAuthority = null;
+                  authBtn.textContent = '🔐 인증';
+                  authBtn.style.background = '';
+                  authBtn.onclick = authenticateApprover;
+                  document.getElementById('approverPassword').value = '';
+                  searchApprovals();
+                };
                 searchApprovals();
               } else { showAlert(result.message, 'error'); }
             })
             .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); console.error(err); });
-        }
-
-        // 사전결재 결재권한자 로그아웃: 인증 상태를 완전히 초기화합니다.
-        // (여러 결재권한자가 같은 PC를 순서대로 쓰는 경우, 다음 사람이 이전 사람 권한으로
-        //  실수로 승인/반려하지 않도록 명시적으로 끊을 수 있게 합니다.)
-        function logoutApprover() {
-          currentUserAuthority = null;
-          const authBtn = document.getElementById('authBtn');
-          authBtn.textContent = '🔐 인증';
-          authBtn.style.background = '';
-          authBtn.onclick = authenticateApprover;
-          document.getElementById('approverLogoutGroup').style.display = 'none';
-          document.getElementById('approverPhone').disabled = false;
-          document.getElementById('approverPhone').value = '';
-          document.getElementById('approverPassword').disabled = false;
-          document.getElementById('approverPassword').value = '';
-          searchApprovals();
         }
 
         // 대기중인 결재 로드
@@ -18824,7 +18712,6 @@
             showLoading();
             api('PUT', `/api/approvals/${currentDetailApprovalId}/decision`, {
                 authorizerPhone: currentUserAuthority.phone,
-                authorizerPassword: currentUserAuthority.password,
                 decision,
                 comment
             }).then(result => {
@@ -18869,14 +18756,10 @@
                 authBtn.style.background = '';
                 authBtn.onclick = authenticateApprover;
             }
-            const logoutGroup = document.getElementById('approverLogoutGroup');
-            if (logoutGroup) logoutGroup.style.display = 'none';
             if (document.getElementById('approverPassword')) {
-                document.getElementById('approverPassword').disabled = false;
                 document.getElementById('approverPassword').value = '';
             }
             if (document.getElementById('approverPhone')) {
-                document.getElementById('approverPhone').disabled = false;
                 document.getElementById('approverPhone').value = '';
             }
         }
@@ -19760,12 +19643,8 @@
               } else {
                   ac.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:7px;">' +
                       activeItems.map(function(item) {
-                          var checked = (_receiptRequiredItems || []).indexOf(item) !== -1;
                           return '<span style="display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:500;">' +
                               item +
-                              '<label style="display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:400;color:#1565c0;cursor:pointer;margin-left:2px;" title="이 항목은 반드시 영수증을 첨부하도록 표시합니다">' +
-                                '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleReceiptRequired(' + JSON.stringify(item).replace(/"/g,'&quot;') + ', this.checked)" style="margin:0;">📷필수' +
-                              '</label>' +
                               '<button onclick="masterItemBtn(this)" data-type="income" data-item="' + item.replace(/"/g,'&quot;') + '" ' +
                               'style="background:none;border:none;color:#999;cursor:pointer;font-size:14px;padding:0;line-height:1;" title="삭제">✕</button></span>';
                       }).join('') + '</div>';
@@ -20805,35 +20684,6 @@
               : (transactionData.authorities || []);
           const signatureRows = buildVoucherSignatureTableRows(authorities, txnSignatures);
           const { incomeDocName } = await getDocNames();
-          // 연결된 영수증 이미지 조회 (지출전표 buildExpenseVoucherHTML과 동일한 방식)
-          // txnId: 새 방식(TXN+timestamp), 없으면 날짜+금액으로 폴백
-          let receiptImagesBlock = '';
-          const _txnId = transactionData.txnId || transactionData.id || '';
-          const _txnDate = transactionData.date || '';
-          const _txnAmt = transactionData.income || transactionData.amount || '';
-          if (_txnId || _txnDate) {
-            try {
-              const _params = `date=${encodeURIComponent(_txnDate)}&amount=${encodeURIComponent(_txnAmt)}`;
-              const _safeId = _txnId || 'none';
-              const rcResult = await api('GET', `/api/receipts/by-txn/${encodeURIComponent(_safeId)}?${_params}`);
-              const imgs = rcResult.data || [];
-              if (imgs.length > 0) {
-                const imgTags = imgs.map((img, i) =>
-                  `<div style="margin:10px 0;page-break-inside:avoid;">
-                    <div style="font-size:12px;color:#666;margin-bottom:4px;">
-                      📷 영수증 ${i+1}/${imgs.length}${img.description ? ' — ' + img.description : ''}
-                    </div>
-                    <img src="${img.imageUrl}" style="width:100%;max-height:700px;object-fit:contain;border:1px solid #ddd;border-radius:4px;">
-                  </div>`
-                ).join('');
-                receiptImagesBlock = `
-                  <div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;">
-                    <div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증</div>
-                    ${imgTags}
-                  </div>`;
-              }
-            } catch(e) { console.warn('영수증 조회 실패:', e); }
-          }
           const voucherHTML = `
               <!DOCTYPE html>
               <html>
@@ -20925,8 +20775,6 @@
                       <table class="signature-table">
                           ${signatureRows}
                       </table>
-                      <div style="clear:both;"></div>
-                      ${receiptImagesBlock}
                       <div class="no-print" style="text-align: center; margin-top: 20px; clear: both;">
                           <button onclick="var _mvp=(window.opener&&window.opener.markVoucherPrinted)||window.markVoucherPrinted; var _id=${JSON.stringify(transactionData.id || null)}; window.addEventListener('afterprint', function(){ if(_mvp){_mvp(_id)} }, {once:true}); window.print();" style="padding: 10px 20px; font-size: 16px; background-color: #FF0000; color: white; border: none; border-radius: 4px; cursor: pointer;">🖨️ 인쇄</button>
                       </div>
@@ -20934,23 +20782,13 @@
               </html>
           `;
 
-          return { html: voucherHTML, hasReceipt: !!receiptImagesBlock };
+          return voucherHTML;
       }
 
       async function printIncomeVoucher(transactionData) {
-          const { html: voucherHTML, hasReceipt } = await buildIncomeVoucherHTML(transactionData);
+          const voucherHTML = await buildIncomeVoucherHTML(transactionData);
           _pendingVoucherPrintIds = transactionData.id || null; // 툴바의 "인쇄·PDF저장" 버튼을 눌렀을 때 기록됨
-
-          // 영수증이 있으면 window.open으로 직접 출력 (innerHTML 보안 우회) — 지출전표와 동일한 방식
-          if (hasReceipt) {
-            const win = window.open('', '_blank');
-            if (win) {
-              win.document.write(voucherHTML);
-              win.document.close();
-            }
-          } else {
-            mobilePrint(voucherHTML);
-          }
+          mobilePrint(voucherHTML);
       }
 
       // ============================================================
@@ -21447,17 +21285,17 @@
               const imgs = rcResult.data || [];
               if (imgs.length > 0) {
                 const imgTags = imgs.map((img, i) =>
-                  `<div style="margin:10px 0;page-break-inside:avoid;">
-                    <div style="font-size:12px;color:#666;margin-bottom:4px;">
+                  `<div style="display:inline-block;vertical-align:top;margin:4px;${imgs.length === 1 ? 'width:100%' : 'width:48%'};">
+                    <div style="font-size:11px;color:#666;margin-bottom:4px;">
                       📷 영수증 ${i+1}/${imgs.length}${img.description ? ' — ' + img.description : ''}
                     </div>
-                    <img src="${img.imageUrl}" style="width:100%;max-height:700px;object-fit:contain;border:1px solid #ddd;border-radius:4px;">
+                    <img src="${img.imageUrl}" style="width:100%;max-height:300px;object-fit:contain;border:1px solid #ddd;border-radius:4px;">
                   </div>`
                 ).join('');
                 receiptImagesBlock = `
-                  <div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;">
+                  <div style="margin-top:16px;border-top:1px dashed #ccc;padding-top:12px;page-break-inside:avoid;">
                     <div style="font-size:12px;font-weight:bold;color:#333;margin-bottom:8px;">📷 첨부 영수증</div>
-                    ${imgTags}
+                    <div style="font-size:0;">${imgTags}</div>
                   </div>`;
               }
             } catch(e) { console.warn('영수증 조회 실패:', e); }
@@ -21764,63 +21602,7 @@
         }
 
         // =============================================
-        // 전기이월금 확인서
-        // 감사기간(임의 시작일~종료일)을 고르면, 시작일 전날을 이월 기준일로 삼아
-        // 확정 이월잔액 + 가장 가까운 통장 스크린샷을 담은 확인서를 출력합니다.
-        // =============================================
-        function showCarryOverForm() {
-            hideAllReportSections();
-            const curMonth = new Date().getMonth() + 1;
-            if (curMonth <= 6) { setCarryOverPeriod(1, 6); }
-            else { setCarryOverPeriod(7, 12); }
-            document.getElementById('carryOverAlert').innerHTML = '';
-            document.getElementById('carryOverSection').classList.remove('hidden');
-            document.getElementById('carryOverSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        function setCarryOverPeriod(startMonth, endMonth) {
-            const y = new Date().getFullYear();
-            const pad = n => String(n).padStart(2, '0');
-            const lastDay = new Date(y, endMonth, 0).getDate();
-            document.getElementById('carryOverStart').value = `${y}-${pad(startMonth)}-01`;
-            document.getElementById('carryOverEnd').value = `${y}-${pad(endMonth)}-${pad(lastDay)}`;
-        }
-
-        async function printCarryOverConfirmation() {
-            const start = document.getElementById('carryOverStart').value;
-            const end = document.getElementById('carryOverEnd').value;
-            const btn = document.getElementById('carryOverPrintBtn');
-            const alertEl = document.getElementById('carryOverAlert');
-            alertEl.innerHTML = '';
-
-            if (!start || !end) {
-                alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 시작일과 종료일을 모두 선택하세요.</div>';
-                return;
-            }
-            if (start > end) {
-                alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 시작일이 종료일보다 늦을 수 없습니다.</div>';
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = '⏳ 생성 중...';
-
-            try {
-                const result = await api('GET', `/api/balance/carryover-confirmation/print?start=${start}&end=${end}`);
-                if (result && result.success && result.html) {
-                    mobilePrint(result.html);
-                } else {
-                    alertEl.innerHTML = '<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ 확인서 생성에 실패했습니다.</div>';
-                }
-            } catch (e) {
-                alertEl.innerHTML = `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.textContent = '🖨️ 출력';
-            }
-        }
-
-
+        // 결산서 (연간 예산 대비 실적 결산 문서)
         // 기존 "월회계보고(연간계)" 서버 렌더링 결과를 그대로 활용하고,
         // 감사자료 제출용 표지만 앞에 붙여서 출력합니다. (백엔드 수정 불필요)
         // =============================================
@@ -23277,10 +23059,9 @@
                   <span style="background:#007BFF;color:white;border-radius:12px;padding:2px 10px;font-size:12px;margin-right:8px;">${a.order}차</span>
                   <strong>${a.position}</strong> ${a.name}
                   <span style="color:#999;font-size:13px;margin-left:8px;">${a.phone}</span>
-                  ${a.email ? `<span style="color:#999;font-size:13px;margin-left:8px;">✉️ ${a.email}</span>` : '<span style="color:#e53e3e;font-size:12px;margin-left:8px;">이메일 미등록</span>'}
                 </div>
                 <div style="display:flex;gap:6px;">
-                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}','${a.email || ''}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
+                  <button onclick="showEditAuthorityModal('${a.order}','${a.position}','${a.name}','${a.phone}')" style="padding:4px 10px;border:1px solid #007BFF;color:#007BFF;background:white;border-radius:4px;cursor:pointer;">수정</button>
                   <button onclick="deleteAuthority('${a.phone}','${a.name}')" style="padding:4px 10px;border:1px solid #e53e3e;color:#e53e3e;background:white;border-radius:4px;cursor:pointer;">삭제</button>
                 </div>
               </div>
@@ -23325,20 +23106,18 @@
           document.getElementById('authorityPosition').value = '';
           document.getElementById('authorityName').value = '';
           document.getElementById('authorityPhone').value = '';
-          document.getElementById('authorityEmail').value = '';
-          document.getElementById('authorityResendRow').style.display = 'none';
+          document.getElementById('authorityPassword').value = '';
           populateAuthorityOrderOptions(null);
           document.getElementById('authorityModal').style.display = 'block';
         }
 
-        function showEditAuthorityModal(order, position, name, phone, email) {
+        function showEditAuthorityModal(order, position, name, phone) {
           document.getElementById('authorityModalTitle').textContent = '👤 결재권한자 수정';
           document.getElementById('authorityEditPhone').value = phone;
           document.getElementById('authorityPosition').value = position;
           document.getElementById('authorityName').value = name;
           document.getElementById('authorityPhone').value = phone;
-          document.getElementById('authorityEmail').value = email || '';
-          document.getElementById('authorityResendRow').style.display = 'block';
+          document.getElementById('authorityPassword').value = '';
           populateAuthorityOrderOptions(order);
           document.getElementById('authorityModal').style.display = 'block';
         }
@@ -23347,46 +23126,24 @@
           document.getElementById('authorityModal').style.display = 'none';
         }
 
-        function resendAuthoritySetupLink() {
-          const phone = document.getElementById('authorityEditPhone').value;
-          const email = document.getElementById('authorityEmail').value.trim();
-          if (!phone) return;
-          if (!email) { showAlert('이메일을 먼저 입력하고 저장한 뒤 다시 시도해주세요.', 'error'); return; }
-          showLoading();
-          api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
-            .then(r => { hideLoading(); showAlert(r.message || '발송 요청을 처리했습니다.'); })
-            .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
-        }
-
         function saveAuthority() {
           const editPhone = document.getElementById('authorityEditPhone').value;
           const order = document.getElementById('authorityOrder').value;
           const position = document.getElementById('authorityPosition').value.trim();
           const name = document.getElementById('authorityName').value.trim();
           const phone = document.getElementById('authorityPhone').value.trim();
-          const email = document.getElementById('authorityEmail').value.trim();
+          const password = document.getElementById('authorityPassword').value;
           if (!name || !phone) { showAlert('이름과 전화번호는 필수입니다.', 'error'); return; }
-          if (!email) { showAlert('이메일은 필수입니다. 이 이메일로 비밀번호 설정 링크가 발송됩니다.', 'error'); return; }
           showLoading();
           if (editPhone) {
-            const body = { order, position, name, newPhone: phone, email };
+            const body = { order, position, name, newPhone: phone };
+            if (password) body.password = password;
             api('PUT', `/api/approvals/authorities/${encodeURIComponent(editPhone)}`, body)
               .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           } else {
-            api('POST', '/api/approvals/authorities', { order, position, name, phone, email })
-              .then(r => {
-                if (r.success) {
-                  // 등록 즉시 비밀번호 설정 이메일 자동 발송
-                  api('POST', `/api/approvals/authorities/${encodeURIComponent(phone)}/request-reset`)
-                    .finally(() => {
-                      hideLoading();
-                      showAlert(`${r.message}\n${email}로 비밀번호 설정 링크를 보냈습니다.`);
-                      closeAuthorityModal();
-                      loadAuthorityList();
-                    });
-                } else { hideLoading(); showAlert(r.message, 'error'); }
-              })
-              .catch(err => { hideLoading(); showAlert(friendlyErrorMessage(err), 'error'); });
+            if (!password) { hideLoading(); showAlert('패스워드를 입력하세요.', 'error'); return; }
+            api('POST', '/api/approvals/authorities', { order, position, name, phone, password })
+              .then(r => { hideLoading(); if (r.success) { showAlert(r.message); closeAuthorityModal(); loadAuthorityList(); } else showAlert(r.message, 'error'); });
           }
         }
 
