@@ -14459,6 +14459,40 @@
 
 
       // =============================================
+      // 영수증/사진 업로드 공용 압축 함수
+      // 스마트폰 카메라 원본(5~10MB+)은 서버 요청 용량 제한(10MB)에 base64 변환 시
+      // 33%가량 더 커져서 쉽게 걸립니다. 영수증은 글씨만 읽히면 되므로, 업로드 전에
+      // 긴 변을 최대 1800px로 줄이고 JPEG 품질 82%로 압축해서 보냅니다.
+      // (대부분의 사진이 300KB~800KB 수준으로 줄어들어 사실상 용량 문제가 사라집니다)
+      // =============================================
+      function compressImageFile(file, maxDim, quality) {
+        maxDim = maxDim || 1800;
+        quality = quality || 0.82;
+        return new Promise(function(resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var img = new Image();
+            img.onload = function() {
+              var width = img.width, height = img.height;
+              if (width > maxDim || height > maxDim) {
+                if (width >= height) { height = Math.round(height * maxDim / width); width = maxDim; }
+                else { width = Math.round(width * maxDim / height); height = maxDim; }
+              }
+              var canvas = document.createElement('canvas');
+              canvas.width = width; canvas.height = height;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = function() { reject(new Error('이미지를 읽을 수 없습니다. 다른 사진으로 시도해주세요.')); };
+            img.src = e.target.result;
+          };
+          reader.onerror = function() { reject(new Error('파일을 읽을 수 없습니다.')); };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // =============================================
       // 영수증 첨부 위젯 JS
       // =============================================
       var _receiptAttachData = null;
@@ -14466,17 +14500,17 @@
       function handleReceiptAttach(event) {
         var file = event.target.files[0];
         if (!file) return;
-        var reader = new FileReader();
-        reader.onload = function(e) {
-          _receiptAttachData = { base64: e.target.result, fileName: file.name };
+        compressImageFile(file).then(function(dataUrl) {
+          _receiptAttachData = { base64: dataUrl, fileName: file.name };
           var thumb = document.getElementById('receiptAttachThumb');
           var name = document.getElementById('receiptAttachName');
           var preview = document.getElementById('receiptAttachPreview');
-          if (thumb) thumb.src = e.target.result;
+          if (thumb) thumb.src = dataUrl;
           if (name) name.textContent = file.name;
           if (preview) preview.style.display = 'flex';
-        };
-        reader.readAsDataURL(file);
+        }).catch(function(err) {
+          showAlert(err.message || '이미지 처리 중 오류가 발생했습니다.', 'error');
+        });
       }
 
       function removeReceiptAttach() {
@@ -17564,29 +17598,20 @@
                 return;
             }
 
-            if (file.size > 10 * 1024 * 1024) {
-                showAlert('파일 크기는 10MB 이하여야 합니다.', 'error');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                capturedImageData = e.target.result;
+            // 예전엔 10MB 넘으면 그냥 거절했지만, 이제는 자동으로 압축해서 처리합니다.
+            compressImageFile(file).then(function(dataUrl) {
+                capturedImageData = dataUrl;
                 const previewImg = document.getElementById('previewImage');
                 previewImg.src = capturedImageData;
-                
+
                 document.getElementById('fileUploadSection').style.display = 'none';
                 document.getElementById('webcamSection').style.display = 'none';
                 document.getElementById('previewSection').classList.remove('hidden');
-                
+
                 showAlert('이미지가 성공적으로 업로드되었습니다. 저장하시겠습니까?');
-            };
-
-            reader.onerror = function() {
+            }).catch(function() {
                 showRetryableError('파일 읽기');
-            };
-
-            reader.readAsDataURL(file);
+            });
         }
 
         async function startCamera() {
@@ -21049,12 +21074,7 @@
 
           showLoading();
           try {
-              const imageData = await new Promise((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result);
-                  reader.onerror = reject;
-                  reader.readAsDataURL(file);
-              });
+              const imageData = await compressImageFile(file);
 
               await api('POST', '/api/receipts', {
                   imageData,
