@@ -3282,8 +3282,9 @@
                                 <!-- JavaScript로 동적 생성 -->
                             </select>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0; display: flex; align-items: end;">
+                        <div class="form-group" style="margin-bottom: 0; display: flex; align-items: end; gap:8px;">
                             <button class="btn" onclick="refreshBudgetDataForSelectedYear()" id="refreshBudgetBtn">🔄 새로고침</button>
+                            <button class="btn" onclick="printCurrentBudgetView()" style="background:#d73527;color:#fff;">🖨️ 인쇄</button>
                         </div>
                     </div>
 
@@ -22123,14 +22124,11 @@
                 '<tr>' + cols + '</tr></table>';
         }
 
-        async function printBudgetReport() {
-            const year = parseInt(document.getElementById('budgetReportYear').value);
+        // 예산서를 생성해서 바로 인쇄합니다. btn/alertEl은 선택사항(폼에서 호출할 때만 넘겨서 버튼 상태/오류를 표시).
+        async function generateAndPrintBudgetReport(year, btn, alertEl) {
             const prevYear = year - 1;
-            const btn = document.getElementById('budgetReportPrintBtn');
-            const alertEl = document.getElementById('budgetReportAlert');
-            alertEl.innerHTML = '';
-            btn.disabled = true;
-            btn.textContent = '⏳ 생성 중...';
+            if (alertEl) alertEl.innerHTML = '';
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ 생성 중...'; }
 
             function fmtWonAmt(n) { return (Math.round(n) || 0).toLocaleString() + '원'; }
 
@@ -22208,13 +22206,32 @@
                 const fullHtml = html + approvalBlock + '</div></body></html>';
 
                 mobilePrint(fullHtml);
-                hideAllReportSections();
+                return true;
             } catch(e) {
-                alertEl.innerHTML = `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ ${e.message}</div>`;
+                if (alertEl) {
+                    alertEl.innerHTML = `<div style="background:#fce8e6;color:#c5221f;padding:10px;border-radius:6px;font-size:13px;">❌ ${e.message}</div>`;
+                } else {
+                    showAlert('예산서 출력에 실패했습니다: ' + (e.message || ''), 'error');
+                }
+                return false;
             } finally {
-                btn.disabled = false;
-                btn.textContent = '🖨️ 예산서 출력';
+                if (btn) { btn.disabled = false; btn.textContent = '🖨️ 예산서 출력'; }
             }
+        }
+
+        async function printBudgetReport() {
+            const year = parseInt(document.getElementById('budgetReportYear').value);
+            const btn = document.getElementById('budgetReportPrintBtn');
+            const alertEl = document.getElementById('budgetReportAlert');
+            const ok = await generateAndPrintBudgetReport(year, btn, alertEl);
+            if (ok) hideAllReportSections();
+        }
+
+        // 예산조회 화면에서 바로 인쇄 — 지금 조회 중인 연도 그대로 씁니다.
+        function printCurrentBudgetView() {
+            const yearEl = document.getElementById('budgetViewYear');
+            const year = parseInt(yearEl && yearEl.value) || new Date().getFullYear();
+            generateAndPrintBudgetReport(year, null, null);
         }
 
         function showDonorSummary() {
