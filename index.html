@@ -3171,7 +3171,7 @@
                     <h2>📝 예산 입력</h2>
                     <div class="form-group">
                         <label for="budgetInputYear">📅 예산 연도</label>
-                        <select id="budgetInputYear" style="max-width:160px;">
+                        <select id="budgetInputYear" style="max-width:160px;" onchange="loadBudgetListTable()">
                             <!-- JS에서 동적 생성 -->
                         </select>
                     </div>
@@ -3237,6 +3237,14 @@
                     <div id="budgetSavedChips" style="display:none;margin-top:14px;">
                         <div style="font-size:12px;color:#888;margin-bottom:6px;">✅ 방금 저장한 항목</div>
                         <div id="budgetSavedChipsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+                    </div>
+
+                    <!-- 등록된 예산 한눈에 보기 / 수정 / 삭제 / 순서변경 -->
+                    <div style="margin-top:20px;border-top:1px dashed #ddd;padding-top:16px;">
+                        <h3 style="font-size:15px;margin-bottom:10px;">📋 등록된 예산 목록</h3>
+                        <div id="budgetListTableWrap" style="overflow-x:auto;">
+                            <p style="color:#aaa;font-size:13px;">수입/지출 구분을 선택하면 목록이 표시됩니다.</p>
+                        </div>
                     </div>
 
                     <!-- 일괄 입력 (엑셀 붙여넣기) -->
@@ -17028,6 +17036,7 @@
                 document.getElementById('incomeBudgetForm').classList.add('hidden');
                 document.getElementById('expenseBudgetForm').classList.remove('hidden');
             }
+            loadBudgetListTable();
         }
 
          // 예산 복사 모달 표시
@@ -17177,6 +17186,116 @@
                 .catch(err => { hideLoading(); console.error('예산 항목 로드 오류:', err); });
         }
 
+        // =============================================
+        // 예산 목록 한눈에 보기 / 수정 / 삭제 / 순서변경 (▲▼)
+        // =============================================
+        var _budgetListCache = [];
+
+        function loadBudgetListTable() {
+            var yearEl = document.getElementById('budgetInputYear');
+            var year = parseInt(yearEl && yearEl.value) || new Date().getFullYear();
+            var category = selectedBudgetCategory; // 'income' | 'expense' | undefined
+            var wrap = document.getElementById('budgetListTableWrap');
+            if (!wrap) return;
+            if (!category) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">수입/지출 구분을 선택하면 목록이 표시됩니다.</p>';
+                return;
+            }
+            api('GET', `/api/budget/list?${qs({ year: year, category: category })}`).then(function(r) {
+                _budgetListCache = (r && r.data) || [];
+                renderBudgetListTable();
+            }).catch(function() {
+                wrap.innerHTML = '<p style="color:#e74c3c;font-size:13px;">목록을 불러오지 못했습니다.</p>';
+            });
+        }
+
+        function renderBudgetListTable() {
+            var wrap = document.getElementById('budgetListTableWrap');
+            if (!wrap) return;
+            if (_budgetListCache.length === 0) {
+                wrap.innerHTML = '<p style="color:#aaa;font-size:13px;">등록된 예산이 없습니다.</p>';
+                return;
+            }
+            var rowsHtml = _budgetListCache.map(function(it, idx) {
+                var label = it.category === '수입' ? it.department : (it.department + (it.item ? ' / ' + it.item : ''));
+                var isFirst = idx === 0;
+                var isLast = idx === _budgetListCache.length - 1;
+                return '<tr>' +
+                    '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;white-space:nowrap;">' +
+                        '<button onclick="moveBudgetItem(' + idx + ",'up')\" " + (isFirst ? 'disabled' : '') +
+                        ' style="border:none;background:none;font-size:14px;padding:2px 4px;color:' + (isFirst ? '#ccc' : '#555') + ';cursor:' + (isFirst ? 'default' : 'pointer') + ';">▲</button>' +
+                        '<button onclick="moveBudgetItem(' + idx + ",'down')\" " + (isLast ? 'disabled' : '') +
+                        ' style="border:none;background:none;font-size:14px;padding:2px 4px;color:' + (isLast ? '#ccc' : '#555') + ';cursor:' + (isLast ? 'default' : 'pointer') + ';">▼</button>' +
+                    '</td>' +
+                    '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + label + '</td>' +
+                    '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;white-space:nowrap;">' + Number(it.amount).toLocaleString('ko-KR') + '원</td>' +
+                    '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;white-space:nowrap;">' +
+                        '<button onclick="editBudgetItem(' + idx + ')" style="background:#eef4ff;color:#2980b9;border:1px solid #cfe2ff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;margin-right:4px;">수정</button>' +
+                        '<button onclick="deleteBudgetItem(' + idx + ')" style="background:#fdecea;color:#c0392b;border:1px solid #f5c6c2;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;">삭제</button>' +
+                    '</td></tr>';
+            }).join('');
+
+            wrap.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px;min-width:420px;">' +
+                '<thead><tr style="background:#f5f7fa;">' +
+                '<th style="padding:6px 8px;text-align:left;">순서</th>' +
+                '<th style="padding:6px 8px;text-align:left;">항목</th>' +
+                '<th style="padding:6px 8px;text-align:right;">예산액</th>' +
+                '<th style="padding:6px 8px;text-align:right;">관리</th>' +
+                '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+        }
+
+        // 목록에서 "수정"을 누르면 위쪽 입력폼에 그대로 채워줍니다 (저장 버튼은 기존 저장 로직 재사용)
+        function editBudgetItem(idx) {
+            var it = _budgetListCache[idx];
+            if (!it) return;
+            var category = it.category === '수입' ? 'income' : 'expense';
+            selectBudgetCategory(category);
+            var yearEl = document.getElementById('budgetInputYear');
+            if (yearEl) yearEl.value = it.year;
+
+            if (category === 'income') {
+                document.getElementById('budgetIncomeItem').value = it.department;
+                document.getElementById('budgetIncomeAmount').value = it.amount;
+            } else {
+                document.getElementById('budgetExpenseDept').value = it.department;
+                updateBudgetExpenseItems(); // 부서 변경 시 지출항목 드롭다운을 다시 채우는 기존 함수
+                setTimeout(function() {
+                    var itemEl = document.getElementById('budgetExpenseItem');
+                    if (itemEl) itemEl.value = it.item;
+                }, 50);
+                document.getElementById('budgetExpenseAmount').value = it.amount;
+            }
+
+            showAlert('선택한 항목이 입력폼에 채워졌습니다. 금액을 고치고 저장하세요.', 'success');
+            var section = document.getElementById('budgetInputSection');
+            if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function deleteBudgetItem(idx) {
+            var it = _budgetListCache[idx];
+            if (!it) return;
+            var label = it.category === '수입' ? it.department : (it.department + (it.item ? ' / ' + it.item : ''));
+            if (!confirm('"' + label + '" 예산을 삭제하시겠습니까?')) return;
+            showLoading();
+            api('DELETE', '/api/budget', { year: it.year, category: it.category, department: it.department, item: it.item })
+                .then(function(r) {
+                    hideLoading();
+                    if (!r.success) { showAlert(r.message || '삭제 실패', 'error'); return; }
+                    showAlert('삭제되었습니다.');
+                    loadBudgetListTable();
+                }).catch(function(e) { hideLoading(); showAlert('삭제 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
+        function moveBudgetItem(idx, direction) {
+            var it = _budgetListCache[idx];
+            if (!it) return;
+            api('PUT', '/api/budget/reorder', { year: it.year, category: it.category, department: it.department, item: it.item, direction: direction })
+                .then(function(r) {
+                    if (!r.success) { showAlert(r.message || '순서 변경 실패', 'error'); return; }
+                    loadBudgetListTable();
+                }).catch(function(e) { showAlert('순서 변경 실패: ' + friendlyErrorMessage(e), 'error'); });
+        }
+
         function loadCurrentBudgetAmount(category) {
             let department, item;
             if (category === 'income') {
@@ -17267,6 +17386,7 @@
                         showAlert(`${selectedYear}년 예산이 저장되었습니다.`);
                         _addBudgetSavedChip(category, department, item, amount);
                         continueBudgetInput(category);
+                        loadBudgetListTable();
                     }
                     else { showAlert(result.message || '예산 저장에 실패했습니다.', 'error'); }
                 })
