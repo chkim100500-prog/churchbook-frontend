@@ -17222,10 +17222,12 @@
                 var isLast = idx === _budgetListCache.length - 1;
                 return '<tr>' +
                     '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;white-space:nowrap;">' +
-                        '<button onclick="moveBudgetItem(' + idx + ",'up')\" " + (isFirst ? 'disabled' : '') +
-                        ' style="border:none;background:none;font-size:14px;padding:2px 4px;color:' + (isFirst ? '#ccc' : '#555') + ';cursor:' + (isFirst ? 'default' : 'pointer') + ';">▲</button>' +
-                        '<button onclick="moveBudgetItem(' + idx + ",'down')\" " + (isLast ? 'disabled' : '') +
-                        ' style="border:none;background:none;font-size:14px;padding:2px 4px;color:' + (isLast ? '#ccc' : '#555') + ';cursor:' + (isLast ? 'default' : 'pointer') + ';">▼</button>' +
+                        '<div style="display:inline-flex;flex-direction:column;border:1px solid #ddd;border-radius:6px;overflow:hidden;vertical-align:middle;">' +
+                            '<button onclick="moveBudgetItem(' + idx + ",'up')\" " + (isFirst ? 'disabled' : '') +
+                            ' style="border:none;border-bottom:1px solid #eee;background:#fff;font-size:13px;line-height:1;padding:5px 12px;color:' + (isFirst ? '#ddd' : '#333') + ';cursor:' + (isFirst ? 'default' : 'pointer') + ';">▲</button>' +
+                            '<button onclick="moveBudgetItem(' + idx + ",'down')\" " + (isLast ? 'disabled' : '') +
+                            ' style="border:none;background:#fff;font-size:13px;line-height:1;padding:5px 12px;color:' + (isLast ? '#ddd' : '#333') + ';cursor:' + (isLast ? 'default' : 'pointer') + ';">▼</button>' +
+                        '</div>' +
                     '</td>' +
                     '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;">' + label + '</td>' +
                     '<td style="padding:6px 8px;border-bottom:1px solid #f2f2f2;text-align:right;white-space:nowrap;">' + Number(it.amount).toLocaleString('ko-KR') + '원</td>' +
@@ -17287,13 +17289,28 @@
         }
 
         function moveBudgetItem(idx, direction) {
+            var swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+            if (swapIdx < 0 || swapIdx >= _budgetListCache.length) return;
             var it = _budgetListCache[idx];
             if (!it) return;
+
+            // 1) 서버 응답을 기다리지 않고 화면에서 바로 순서를 바꿔서 즉시 반응하게 합니다.
+            var tmp = _budgetListCache[idx];
+            _budgetListCache[idx] = _budgetListCache[swapIdx];
+            _budgetListCache[swapIdx] = tmp;
+            renderBudgetListTable();
+
+            // 2) 실제 저장은 뒤에서 조용히 진행합니다. 실패하면 서버 기준으로 다시 불러와 되돌립니다.
             api('PUT', '/api/budget/reorder', { year: it.year, category: it.category, department: it.department, item: it.item, direction: direction })
                 .then(function(r) {
-                    if (!r.success) { showAlert(r.message || '순서 변경 실패', 'error'); return; }
+                    if (!r.success) {
+                        showAlert((r.message || '순서 변경 실패') + ' - 원래대로 되돌립니다.', 'error');
+                        loadBudgetListTable();
+                    }
+                }).catch(function(e) {
+                    showAlert('순서 변경 실패 - 원래대로 되돌립니다: ' + friendlyErrorMessage(e), 'error');
                     loadBudgetListTable();
-                }).catch(function(e) { showAlert('순서 변경 실패: ' + friendlyErrorMessage(e), 'error'); });
+                });
         }
 
         function loadCurrentBudgetAmount(category) {
