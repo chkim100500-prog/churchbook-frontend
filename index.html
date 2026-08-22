@@ -14207,6 +14207,13 @@
             badge.textContent = n > 0 ? ' (' + n + '건)' : '';
         }
 
+        // 결재함 본문 표시용: 지출항목(또는 수입항목)과 적요를 " · "로 합칩니다.
+        function _apprDetailText(t) {
+            var it = t.expenseItem || t.incomeItem || '';
+            if (it && t.memo) return it + ' · ' + t.memo;
+            return it || t.memo || '-';
+        }
+
         function renderBatchPendingList(items) {
             var container = document.getElementById('batchPendingItems');
             var emptyEl = document.getElementById('batchPendingEmpty');
@@ -14246,8 +14253,8 @@
                                 '<span style="font-size:11px;color:' + statusColor + ';font-weight:600;">' + t.approvalStatus + '</span>' +
                                 (isHigh ? '<span style="font-size:11px;background:#fef2f2;color:#b91c1c;padding:1px 6px;border-radius:4px;font-weight:600;">⚠️ 고액</span>' : '') +
                             '</div>' +
-                            '<div style="font-size:14px;color:#1e293b;font-weight:600;margin-bottom:2px;">' + escapeHtml(t.expenseItem || t.incomeItem || '(항목 미지정)') + '</div>' +
-                            (t.memo ? '<div style="font-size:12px;color:#64748b;">📝 ' + escapeHtml(t.memo) + '</div>' : '') +
+                            '<div style="font-size:14px;color:#1e293b;font-weight:600;margin-bottom:2px;">' + escapeHtml(_apprDetailText(t)) + '</div>' +
+                            '' +
                         '</div>' +
                         '<div style="text-align:right;flex-shrink:0;">' +
                             '<div style="font-size:15px;font-weight:700;color:' + (isHigh ? '#b91c1c' : '#1e293b') + ';">' + Number(t.expense || t.income || 0).toLocaleString('ko-KR') + '원</div>' +
@@ -14341,8 +14348,8 @@
                     return '<div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;">' +
                         '<div style="flex:1;min-width:0;">' +
                             '<div style="font-size:12px;color:#94a3b8;margin-bottom:2px;">' + t.date + (t.department ? ' · ' + t.department : '') + '</div>' +
-                            '<div style="font-size:14px;color:#1e293b;font-weight:600;">' + escapeHtml(t.expenseItem || '(항목 미지정)') + '</div>' +
-                            (t.memo ? '<div style="font-size:12px;color:#64748b;margin-top:1px;">📝 ' + escapeHtml(t.memo) + '</div>' : '') +
+                            '<div style="font-size:14px;color:#1e293b;font-weight:600;">' + escapeHtml(_apprDetailText(t)) + '</div>' +
+                            '' +
                             '<div style="font-size:11px;color:#16a34a;margin-top:2px;">' + t.approvalStatus + '</div>' +
                         '</div>' +
                         '<div style="font-size:14px;font-weight:700;color:#64748b;flex-shrink:0;">' + Number(t.expense).toLocaleString('ko-KR') + '원</div>' +
