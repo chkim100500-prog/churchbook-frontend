@@ -14352,7 +14352,7 @@
                             '' +
                             '<div style="font-size:11px;color:#16a34a;margin-top:2px;">' + t.approvalStatus + '</div>' +
                         '</div>' +
-                        '<div style="font-size:14px;font-weight:700;color:#64748b;flex-shrink:0;">' + Number(t.expense).toLocaleString('ko-KR') + '원</div>' +
+                        '<div style="font-size:14px;font-weight:700;color:#64748b;flex-shrink:0;">' + Number(t.expense || t.income || 0).toLocaleString('ko-KR') + '원</div>' +
                     '</div>';
                 }).join('');
             } catch(e) {
