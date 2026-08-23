@@ -21036,7 +21036,7 @@
           const headerCells = list.map(a => `<td>${a.position || '결재'}</td>`).join('');
           const bodyCells = list.map((a, i) => {
               const sig = _matchSignatureForPosition(signatures, a.position, i);
-              if (!sig) return `<td><br><br><br></td>`;
+              if (!sig) return `<td style="text-align:center;color:#bbb;font-size:11px;padding:4px;">(미서명)</td>`;
               const label = (sig.decision === 'reject') ? '❌ 반려' : '✅ 서명완료';
               return `<td style="text-align:center;font-size:11px;color:#2e7d32;padding:4px;">${label}<br>${(sig.name || '')}<br>${(sig.dt || '')}</td>`;
           }).join('');
@@ -21052,7 +21052,7 @@
           ).join('');
           const bodyCells = list.map((a, i) => {
               const sig = _matchSignatureForPosition(signatures, a.position, i);
-              if (!sig) return `<td style="border:2px solid #333;padding:14px 16px;"></td>`;
+              if (!sig) return `<td style="border:2px solid #333;padding:14px 16px;text-align:center;color:#bbb;font-size:11px;">(미서명)</td>`;
               const label = (sig.decision === 'reject') ? '❌ 반려' : '✅ 서명완료';
               return `<td style="border:2px solid #333;padding:8px 12px;text-align:center;font-size:11px;color:#2e7d32;">${label}<br>${(sig.name || '')}<br>${(sig.dt || '')}</td>`;
           }).join('');
