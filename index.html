@@ -15773,7 +15773,7 @@
             // 여러 API 호출을 동시에 진행해서 대기 시간을 줄입니다 (예전에는 하나씩 순서대로 기다려서 느렸습니다)
             const receiptPromises = rows.map(r => {
                 const amt = isIncome ? r.income : r.expense;
-                const params = 'date=' + encodeURIComponent(r.date) + '&amount=' + encodeURIComponent(amt);
+                const params = 'date=' + encodeURIComponent(r.date) + '&amount=' + encodeURIComponent(Math.abs(Number(amt)) || 0);
                 return api('GET', '/api/receipts/by-txn/' + encodeURIComponent(r.id || 'none') + '?' + params).catch(() => ({ data: [] }));
             });
             const [{ expenseDocName, incomeDocName }, authorities, ...receiptResults] = await Promise.all([
@@ -21091,7 +21091,7 @@
           let receiptImagesBlock = '';
           const _txnId = transactionData.txnId || transactionData.id || '';
           const _txnDate = transactionData.date || '';
-          const _txnAmt = transactionData.income || transactionData.amount || '';
+          const _txnAmt = Math.abs(Number(transactionData.income || transactionData.amount)) || ''; /* PATCH:receipt-abs-amount */
           if (_txnId || _txnDate) {
             try {
               const _params = `date=${encodeURIComponent(_txnDate)}&amount=${encodeURIComponent(_txnAmt)}`;
@@ -21571,7 +21571,7 @@
           let receiptBlock = '';
           const _txnId = t.txnId || t.id || '';
           const _txnDate = t.date || '';
-          const _txnAmt = isIncome ? t.income : t.expense;
+          const _txnAmt = Math.abs(Number(isIncome ? t.income : t.expense)) || '';
           try {
               const _params = 'date=' + encodeURIComponent(_txnDate) + '&amount=' + encodeURIComponent(_txnAmt);
               const _safeId = _txnId || 'none';
@@ -21738,7 +21738,7 @@
           let receiptImagesBlock = '';
           const _txnId = transactionData.txnId || transactionData.id || '';
           const _txnDate = transactionData.date || '';
-          const _txnAmt = transactionData.expense || transactionData.amount || '';
+          const _txnAmt = Math.abs(Number(transactionData.expense || transactionData.amount)) || '';
           if (_txnId || _txnDate) {
             try {
               const _params = `date=${encodeURIComponent(_txnDate)}&amount=${encodeURIComponent(_txnAmt)}`;
