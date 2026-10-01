@@ -7586,7 +7586,7 @@
                         <td style="border: 1px solid #ddd; padding: 8px;">${transaction.incomeItem || ''}</td>
                         <td style="border: 1px solid #ddd; padding: 8px;">${transaction.expenseItem || ''}</td>
                         <td style="border: 1px solid #ddd; padding: 8px;">${transaction.description || ''}</td>
-                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${income > 0 ? formatAmount(income) + '원' : ''}</td>
+                        <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${income < 0 ? '(' + formatAmount(Math.abs(income)) + ')원' : (income > 0 ? formatAmount(income) + '원' : '')}</td>
                         <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${expenseDisplay}</td>
                         <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">${formatAmount(displayBalance)}원</td>
                     </tr>
@@ -7606,7 +7606,7 @@
             tableRows += `
                 <tr style="background: #f8f9fa; font-weight: bold;">
                     <td colspan="5" style="border: 1px solid #ddd; padding: 8px;">월별 합계</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${ledgerData.monthlyIncome > 0 ? formatAmount(ledgerData.monthlyIncome) + '원' : ''}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${ledgerData.monthlyIncome < 0 ? '(' + formatAmount(Math.abs(ledgerData.monthlyIncome)) + ')원' : (ledgerData.monthlyIncome > 0 ? formatAmount(ledgerData.monthlyIncome) + '원' : '')}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${monthlyExpenseDisplay}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatAmount(ledgerData.monthlyFinalBalance)}원</td>
                 </tr>
@@ -7629,7 +7629,7 @@
             tableRows += `
                 <tr style="background: #e3f2fd; font-weight: bold; color: #1565c0;">
                     <td colspan="5" style="border: 1px solid #ddd; padding: 8px;">연간 누계 (1월~${reportMonth}월)</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${ledgerData.yearlyIncomeCumulative > 0 ? formatAmount(ledgerData.yearlyIncomeCumulative) + '원' : ''}</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${ledgerData.yearlyIncomeCumulative < 0 ? '(' + formatAmount(Math.abs(ledgerData.yearlyIncomeCumulative)) + ')원' : (ledgerData.yearlyIncomeCumulative > 0 ? formatAmount(ledgerData.yearlyIncomeCumulative) + '원' : '')}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${yearlyExpenseDisplay}</td>
                     <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatAmount(ledgerData.yearlyFinalBalance)}원</td>
                 </tr>
@@ -16031,14 +16031,14 @@
                             <button class="btn-sm btn-delete" onclick="deleteTransactionFromButton(this)" 
                                 data-row-index="${row.id}" 
                                 data-sheet-name="${row.type === 'teacherfee' ? '교사회비' : '회계원장'}">삭제</button>
-                            ${row.type === 'expense' && row.expense > 0 ? 
+                            ${row.type === 'expense' && row.expense !== 0 ? 
                                 `<button class="btn-sm" style="background:#e74c3c;color:#fff;" onclick="openVoucherModalFromButton(this)" 
                                     data-transaction='${JSON.stringify(row).replace(/'/g, "&#39;")}'>지출<br>청구서</button>` : ''}
                             ${row.type === 'income' && row.income !== 0 ? 
                                 `<button class="btn-sm" style="background:#2980b9;color:#fff;" onclick="openIncomeVoucherModalFromButton(this)" 
                                     data-transaction='${JSON.stringify(row).replace(/'/g, "&#39;")}'>수입<br>전표</button>` : ''}
                             <button class="btn-sm" style="background:${_hasReceipt ? '#2e7d32' : (_needsReceipt ? '#c0392b' : '#90a4ae')};color:#fff;" onclick="openReceiptModalFromButton(this)"
-                                data-txn-id="${row.id}" data-date="${row.date}" data-amount="${row.income !== 0 ? row.income : row.expense || 0}"
+                                data-txn-id="${row.txnId || row.id}" data-date="${row.date}" data-amount="${row.income !== 0 ? row.income : row.expense || 0}"
                                 data-desc="${escapeHtml(row.description || '')}">${_hasReceipt ? '✅<br>영수증' : (_needsReceipt ? '⚠️<br>영수증' : '📷<br>영수증')}</button>
                         </div>
                     </td>
@@ -21267,7 +21267,7 @@
               amount: btn.getAttribute('data-amount'),
               desc: btn.getAttribute('data-desc') || ''
           };
-          const hasReceipt = _receiptMap[_rtmCurrent.txnId] || !!_receiptMap[receiptFallbackKey(_rtmCurrent.date, _rtmCurrent.amount)];
+          const hasReceipt = _receiptMap[_rtmCurrent.txnId] || !!_receiptMap[receiptFallbackKey(_rtmCurrent.date, Math.abs(Number(_rtmCurrent.amount)) || '')];
           document.getElementById('rtmTxnInfo').innerHTML =
               `<strong>거래일자:</strong> ${_rtmCurrent.date}<br>` +
               `<strong>금액:</strong> ${formatAmount(Math.abs(Number(_rtmCurrent.amount)))}원<br>` +
@@ -21397,8 +21397,8 @@
         return 'dt:' + (date || '') + '|' + (amount || '');
       }
       function hasReceiptForRow(row) {
-        if (_receiptMap[row.id]) return true;
-        const amt = row.type === 'income' ? row.income : row.expense;
+        if (row.txnId && _receiptMap[row.txnId]) return true; if (_receiptMap[row.id]) return true; /* PATCH:receipt-detect-robust */
+        const amt = Math.abs(Number(row.type === 'income' ? row.income : row.expense)) || '';
         return !!_receiptMap[receiptFallbackKey(row.date, amt)];
       }
 
